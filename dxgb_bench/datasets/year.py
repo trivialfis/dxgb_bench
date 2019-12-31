@@ -1,13 +1,32 @@
-from dask_bench.utils import DataSet
+from dxgb_bench.utils import DataSet, read_csv, fprint
 import os
+import zipfile
 
 
 class YearPrediction(DataSet):
     def __init__(self, args):
         self.uri = 'https://archive.ics.uci.edu/ml/machine-learning-' \
             'databases/00203/YearPredictionMSD.txt.zip'
-        local_directory = os.path.join(args.local_directory, 'YearPrediction')
-        self.retrieve(local_directory)
+        self.local_directory = os.path.join(args.local_directory,
+                                            'year_prediction')
+        self.retrieve(self.local_directory)
+        zip_path = os.path.join(self.local_directory,
+                                'YearPredictionMSD.txt.zip')
+
+        with zipfile.ZipFile(zip_path, 'r') as z:
+            fprint('Extracting', zip_path)
+            z.extractall(self.local_directory)
+        self.csv_path = os.path.join(self.local_directory,
+                                     'YearPredictionMSD.txt')
+        self.task = 'reg:squarederror'
 
     def load(self, args):
-        raise NotImplementedError()
+        year = read_csv(self.csv_path,
+                        header=None,
+                        names=None,
+                        backend=args.backend,
+                        dtype=None,
+                        sep=',')
+        X = year.iloc[:, 1:]
+        y = year.iloc[:, 0]
+        return X, y, None

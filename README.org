@@ -5,6 +5,7 @@ By default these scripts use ~dask_cudf~ as bank-end for manipulating datasets.
   - mortgage
   - taxi yellow tripdata 2014-01  (Copied from rapids' demo)
   - higgs
+  - YearPrediction
 
 * Available algorithms:
   - GPU Histogram

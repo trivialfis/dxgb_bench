@@ -22,8 +22,6 @@ def read_csv(path, sep, dtype, header, names, backend,
         df = dask_cudf.read_csv(path, delimiter=sep, dtype=dtype, header=None,
                                 names=names)
     elif backend == 'dask':
-        assert names[0] == 'loan_id'
-        assert dtype['loan_id'] == 'int64'
         df = dd.read_csv(path,
                          names=names,
                          blocksize=blocksize,

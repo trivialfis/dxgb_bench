@@ -1,6 +1,7 @@
 from .mortgage import Mortgage
 from .taxi import Taxi
 from .higgs import Higgs
+from .year import YearPrediction
 
 
 def factory(name, args):
@@ -12,6 +13,9 @@ def factory(name, args):
         return d.load(args), d.task
     elif name == 'higgs':
         d = Higgs(args)
+        return d.load(args), d.task
+    elif name == 'year':
+        d = YearPrediction(args)
         return d.load(args), d.task
     else:
         raise ValueError('Unknown dataset:', name)
