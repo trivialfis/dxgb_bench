@@ -167,7 +167,8 @@ class Mortgage(DataSet):
         else:
             raise ValueError('Invalid format for mortgage dataset.')
 
-        self.local_directory = os.path.join(args.local_directory, 'mortgage')
+        self.local_directory = os.path.join(args.local_directory,
+                                            'mortgage-' + str(years))
 
         if years == 1:
             self.uri = prefix + 'mortgage_2000.tgz'
