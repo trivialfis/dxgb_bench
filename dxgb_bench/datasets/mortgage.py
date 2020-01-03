@@ -167,6 +167,8 @@ class Mortgage(DataSet):
         else:
             raise ValueError('Invalid format for mortgage dataset.')
 
+        self.local_directory = os.path.join(args.local_directory, 'mortgage')
+
         if years == 1:
             self.uri = prefix + 'mortgage_2000.tgz'
         elif years == 2:
@@ -180,15 +182,15 @@ class Mortgage(DataSet):
         elif years == 17:
             self.uri = prefix + 'mortgage_2000-2016.tgz'
 
-        self.retrieve(args.local_directory)
+        self.retrieve(self.local_directory)
 
-        filename = os.path.join(args.local_directory,
+        filename = os.path.join(self.local_directory,
                                 os.path.basename(self.uri))
         assert os.path.exists(filename)
 
-        self.acq_dir = os.path.join(args.local_directory, 'acq')
-        self.perf_dir = os.path.join(args.local_directory, 'perf')
-        self.names_path = os.path.join(args.local_directory, 'names.csv')
+        self.acq_dir = os.path.join(self.local_directory, 'acq')
+        self.perf_dir = os.path.join(self.local_directory, 'perf')
+        self.names_path = os.path.join(self.local_directory, 'names.csv')
 
         extracted = all(
             [os.path.exists(f)
@@ -197,7 +199,7 @@ class Mortgage(DataSet):
         if not extracted:
             with tarfile.open(filename, 'r:gz') as tarball:
                 fprint('Extracting', filename)
-                tarball.extractall(args.local_directory)
+                tarball.extractall(self.local_directory)
 
         self.task = 'binary:logistic'
 

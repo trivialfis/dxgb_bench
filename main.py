@@ -47,7 +47,6 @@ def print_version():
 
 def main(args):
     print_version()
-    dask.config.set({'temporary_directory': args.temporary_directory})
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
@@ -59,6 +58,7 @@ def main(args):
             return LocalCUDACluster(*user_args, n_workers=args.gpus, **kwargs)
 
     with TemporaryDirectory(args.temporary_directory):
+        dask.config.set({'temporary_directory': args.temporary_directory})
         with cluster_type(threads_per_worker=args.cpus) as cluster:
             print('dashboard link:', cluster.dashboard_link)
             with Client(cluster) as client:
