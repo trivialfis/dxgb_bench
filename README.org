@@ -3,6 +3,9 @@ By default these scripts use ~dask_cudf~ as bank-end for manipulating datasets.
 
 * Available datasets:
   - mortgage
+#+BEGIN_EXAMPLE
+      --data=mortgage:2 for using 2 years of the data. 4, 8, 16, 17 are also available.
+#+END_EXAMPLE
   - taxi yellow tripdata 2014-01  (Copied from rapids' demo)
   - higgs
   - YearPrediction

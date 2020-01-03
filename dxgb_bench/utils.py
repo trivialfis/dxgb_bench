@@ -1,4 +1,4 @@
-import progressbar
+import tqdm
 from urllib.request import urlretrieve
 import sys
 import time
@@ -45,12 +45,11 @@ pbar = None
 def show_progress(block_num, block_size, total_size):
     global pbar
     if pbar is None:
-        pbar = progressbar.ProgressBar(maxval=total_size)
-        pbar.start()
+        pbar = tqdm.tqdm(total=total_size / 1024, unit='kB')
 
     downloaded = block_num * block_size
     if downloaded < total_size:
-        pbar.update(downloaded)
+        pbar.update(block_size / 1024)
     else:
         pbar.finish()
         pbar = None

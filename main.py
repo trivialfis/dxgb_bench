@@ -1,9 +1,10 @@
 import argparse
 import psutil
 import os
+import sys
 
 # import dask_ml.metrics as dm
-from dask.distributed import Client
+from dask.distributed import Client, LocalCluster
 from dask_cuda import LocalCUDACluster
 
 from dxgb_bench.datasets import factory as data_factory
@@ -50,8 +51,14 @@ def main(args):
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
+    if args.device == 'CPU':
+        Cluster = LocalCluster
+    else:
+        Cluster = LocalCUDACluster
+
     with TemporaryDirectory(args.temporary_directory):
-        with LocalCUDACluster(threads_per_worker=args.cpus) as cluster:
+        with Cluster(n_workers=args.gpus,
+                     threads_per_worker=args.cpus) as cluster:
             print('dashboard link:', cluster.dashboard_link)
             with Client(cluster) as client:
                 (X, y, w), task = data_factory(args.data, args)
@@ -68,8 +75,8 @@ def main(args):
     # Don't override the previous result.
     i = 0
     while True:
-        f = args.algo + '-cpus_' + str(args.cpus) + '-rounds_' + \
-            str(args.rounds) + '-data_' + args.data + '-' + str(i) + '.json'
+        f = args.algo + '-rounds:' + \
+            str(args.rounds) + '-data:' + args.data + '-' + str(i) + '.json'
         path = os.path.join(args.output_directory, f)
         if os.path.exists(path):
             i += 1
@@ -77,6 +84,7 @@ def main(args):
         with open(path, 'w') as fd:
             timer = Timer.global_timer()
             timer['packages'] = packages_version()
+            timer['args'] = args.__dict__
             json.dump(timer, fd, indent=2)
             break
 
@@ -84,29 +92,50 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='Arguments for mortgage benchmark.')
-    parser.add_argument('--local_directory', type=str,
+    parser.add_argument('--local_directory',
+                        type=str,
                         help='Local directory for storing the dataset.',
                         default='dxgb_bench_workspace')
-    parser.add_argument('--temporary_directory', type=str,
+    parser.add_argument('--temporary_directory',
+                        type=str,
                         help='Temporary directory used for dask.',
                         default='dask_workspace')
-    parser.add_argument('--output-directory', type=str,
+    parser.add_argument('--output-directory',
+                        type=str,
                         help='Directory storing benchmark results.',
                         default='benchmark_outputs')
-    parser.add_argument('--cpus', type=int,
-                        default=psutil.cpu_count(logical=False))
+    parser.add_argument('--device',
+                        type=str,
+                        help='CPU or GPU',
+                        default='GPU')
+    parser.add_argument(
+        '--cpus',
+        type=int,
+        help='Number of CPUs, used for setting number of threads.',
+        default=psutil.cpu_count(logical=False))
+    parser.add_argument('--gpus',
+                        type=int,
+                        help='Number of GPUs.  One worker for each GPU.',
+                        default=dask_cuda.utils.get_n_gpus())
     parser.add_argument('--algo',
                         type=str,
-                        help='Use algorithm',
-                        default='xgboost-dask-gpu')
-    parser.add_argument('--rounds', type=int, default=100,
+                        help='Used algorithm',
+                        default='xgboost-dask-gpu-hist')
+    parser.add_argument('--rounds',
+                        type=int,
+                        default=100,
                         help='Number of boosting rounds.')
-    parser.add_argument('--data', type=str, help='Name of dataset.',
+    parser.add_argument('--data',
+                        type=str,
+                        help='Name of dataset.',
                         required=True)
-    parser.add_argument('--years', type=int, help='Years of mortgage dataset',
-                        required=False,
-                        default=1)
-    parser.add_argument('--backend', type=str, help='Data loading backend.',
-                        required=True)
+    parser.add_argument('--backend',
+                        type=str,
+                        help='Data loading backend.',
+                        default='dask_cudf')
     args = parser.parse_args()
-    main(args)
+    try:
+        main(args)
+    except Exception as e:
+        fprint(e)
+        sys.exit(1)

@@ -4,8 +4,8 @@ from .higgs import Higgs
 from .year import YearPrediction
 
 
-def factory(name, args):
-    if name == 'mortgage':
+def factory(name: str, args):
+    if name.startswith('mortgage'):
         d = Mortgage(args)
         return d.load(args), d.task
     elif name == 'taxi':

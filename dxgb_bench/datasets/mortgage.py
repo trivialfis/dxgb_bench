@@ -160,7 +160,13 @@ class Mortgage(DataSet):
         mortgage = 'notebook-mortgage-data/'
         aws = 'http://rapidsai-data.s3-website.us-east-2.amazonaws.com/'
         prefix = aws + mortgage
-        years = args.years
+        if len(args.data.split(':')) == 2:
+            years = int(args.data.split(':')[1])
+        elif len(args.data.split(':')) == 1:
+            years = 1
+        else:
+            raise ValueError('Invalid format for mortgage dataset.')
+
         if years == 1:
             self.uri = prefix + 'mortgage_2000.tgz'
         elif years == 2:

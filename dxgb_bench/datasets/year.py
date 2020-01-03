@@ -12,12 +12,13 @@ class YearPrediction(DataSet):
         self.retrieve(self.local_directory)
         zip_path = os.path.join(self.local_directory,
                                 'YearPredictionMSD.txt.zip')
-
-        with zipfile.ZipFile(zip_path, 'r') as z:
-            fprint('Extracting', zip_path)
-            z.extractall(self.local_directory)
         self.csv_path = os.path.join(self.local_directory,
                                      'YearPredictionMSD.txt')
+        if not os.path.exists(self.csv_path):
+            with zipfile.ZipFile(zip_path, 'r') as z:
+                fprint('Extracting', zip_path)
+                z.extractall(self.local_directory)
+
         self.task = 'reg:squarederror'
 
     def load(self, args):
