@@ -1,8 +1,8 @@
 '''Comes from rapids AI's demo script.  Many feature engineering stuffs here
-are not really useful.
+are not really useful for benchmarking.
 
 '''
-from dxgb_bench.utils import DataSet, fprint
+from dxgb_bench.utils import DataSet
 import dask_cudf
 import math
 import numpy as np
@@ -200,7 +200,6 @@ def load(base_path):
     taxi_df = df_2014
     taxi_df = taxi_df.query(' and '.join(query_frags))
 
-    fprint(taxi_df.head().to_pandas())
     # actually add the features
     taxi_df = taxi_df.map_partitions(add_features)
     # inspect the result
@@ -226,8 +225,7 @@ def load(base_path):
     X_train = X_train[X_train.columns.difference(['fare_amount'])]
 
     # this wont return until all data is in GPU memory
-    done = wait([X_train, Y_train])
-    fprint('Done:', done)
+    wait([X_train, Y_train])
 
     # # Train the XGBoost Regression Model
     #

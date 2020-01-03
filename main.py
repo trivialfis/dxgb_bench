@@ -58,7 +58,8 @@ def main(args):
             return LocalCUDACluster(*user_args, n_workers=args.gpus, **kwargs)
 
     with TemporaryDirectory(args.temporary_directory):
-        dask.config.set({'temporary_directory': args.temporary_directory})
+        # race condition for creating directory.
+        # dask.config.set({'temporary_directory': args.temporary_directory})
         with cluster_type(threads_per_worker=args.cpus) as cluster:
             print('dashboard link:', cluster.dashboard_link)
             with Client(cluster) as client:
@@ -66,6 +67,7 @@ def main(args):
                 algo = algorihm.factory(args.algo, task, client, args)
                 algo.fit(X, y, w)
                 predictions = algo.predict(X).map_blocks(cupy.asarray)
+                # https://github.com/rapidsai/cudf/issues/3671
                 # metric = dm.mean_squared_error(y.values, predictions)
                 # timer = Timer.global_timer()
                 # timer[args.algo]['mse'] = metric
