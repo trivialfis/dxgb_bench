@@ -51,14 +51,15 @@ def main(args):
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
-    if args.device == 'CPU':
-        Cluster = LocalCluster
-    else:
-        Cluster = LocalCUDACluster
+    def cluster_type(*user_args, **kwargs):
+        if args.device == 'CPU':
+            return LocalCluster(*user_args, **kwargs)
+        else:
+            assert args.gpus <= dask_cuda.utils.get_n_gpus()
+            return LocalCUDACluster(*user_args, n_workers=args.gpus, **kwargs)
 
     with TemporaryDirectory(args.temporary_directory):
-        with Cluster(n_workers=args.gpus,
-                     threads_per_worker=args.cpus) as cluster:
+        with cluster_type(threads_per_worker=args.cpus) as cluster:
             print('dashboard link:', cluster.dashboard_link)
             with Client(cluster) as client:
                 (X, y, w), task = data_factory(args.data, args)

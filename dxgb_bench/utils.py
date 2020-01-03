@@ -51,7 +51,7 @@ def show_progress(block_num, block_size, total_size):
     if downloaded < total_size:
         pbar.update(block_size / 1024)
     else:
-        pbar.finish()
+        pbar.close()
         pbar = None
 
 
