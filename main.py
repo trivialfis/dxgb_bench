@@ -57,20 +57,27 @@ def main(args):
             assert args.gpus <= dask_cuda.utils.get_n_gpus()
             return LocalCUDACluster(*user_args, n_workers=args.gpus, **kwargs)
 
+    def run_benchmark(client):
+        (X, y, w), task = data_factory(args.data, args)
+        algo = algorihm.factory(args.algo, task, client, args)
+        algo.fit(X, y, w)
+        predictions = algo.predict(X).map_blocks(cupy.asarray)
+        # https://github.com/rapidsai/cudf/issues/3671
+        # metric = dm.mean_squared_error(y.values, predictions)
+        # timer = Timer.global_timer()
+        # timer[args.algo]['mse'] = metric
+
     with TemporaryDirectory(args.temporary_directory):
         # race condition for creating directory.
         # dask.config.set({'temporary_directory': args.temporary_directory})
-        with cluster_type(threads_per_worker=args.cpus) as cluster:
-            print('dashboard link:', cluster.dashboard_link)
-            with Client(cluster) as client:
-                (X, y, w), task = data_factory(args.data, args)
-                algo = algorihm.factory(args.algo, task, client, args)
-                algo.fit(X, y, w)
-                predictions = algo.predict(X).map_blocks(cupy.asarray)
-                # https://github.com/rapidsai/cudf/issues/3671
-                # metric = dm.mean_squared_error(y.values, predictions)
-                # timer = Timer.global_timer()
-                # timer[args.algo]['mse'] = metric
+        if args.scheduler is not None:
+            with Client(scheduler_file=args.scheduler) as client:
+                run_benchmark(client)
+        else:
+            with cluster_type(threads_per_worker=args.cpus) as cluster:
+                print('dashboard link:', cluster.dashboard_link)
+                with Client(cluster) as client:
+                    run_benchmark(client)
 
     if not os.path.exists(args.output_directory):
         os.mkdir(args.output_directory)
@@ -107,6 +114,11 @@ if __name__ == '__main__':
                         type=str,
                         help='Directory storing benchmark results.',
                         default='benchmark_outputs')
+    parser.add_argument(
+        '--scheduler',
+        type=str,
+        help='Scheduler address.  Use local cluster by default.',
+        default=None)
     parser.add_argument('--device',
                         type=str,
                         help='CPU or GPU',
