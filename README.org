@@ -20,6 +20,11 @@ By default these scripts use ~dask_cudf~ as bank-end for manipulating datasets.
 python main.py --algo='xgboost-dask-gpu-hist' --data='mortgage' --backend='dask_cudf'
 #+END_SRC
 
+Format multiple benchmark results recorded in JSON into a single CSV file:
+#+BEGIN_SRC bash
+python to_csv.py --json-directory='benchmark_outputs' --output-directory='benchmark_outputs'
+#+END_SRC
+
 The result is saved into a JSON file along with packages' version.  Each run will try to
 avoid overwriting previous saved file, so one can run it multiple times without renaming
 output file at each run.

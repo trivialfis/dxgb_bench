@@ -101,12 +101,12 @@ def main(args):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
-        description='Arguments for mortgage benchmark.')
-    parser.add_argument('--local_directory',
+        description='Arguments for benchmarking with XGBoost dask.')
+    parser.add_argument('--local-directory',
                         type=str,
                         help='Local directory for storing the dataset.',
                         default='dxgb_bench_workspace')
-    parser.add_argument('--temporary_directory',
+    parser.add_argument('--temporary-directory',
                         type=str,
                         help='Temporary directory used for dask.',
                         default='dask_workspace')
