@@ -20,7 +20,7 @@ def main(args):
     out = os.path.join(args.output_directory, args.output_name)
     with open(out, 'w') as fd:
         f = json_files[0]
-        fields = []
+        fields = ['file']
         with open(f, 'r') as sample_fd:
             b = json.load(sample_fd)
             for key, value in b.items():
@@ -35,13 +35,19 @@ def main(args):
 
             row = {}
             for key, value in b['args'].items():
+                if value is None:
+                    value = 'Null'
                 row[key] = value
 
             for key, value in b[b['args']['algo']].items():
                 row[key] = value
 
+            for key, value in b[b['args']['backend']].items():
+                row[key] = value
+
             for key, value in b['packages'].items():
                 row[key] = value
+            row['file'] = f
             print(row)
             writer.writerow(row)
 
