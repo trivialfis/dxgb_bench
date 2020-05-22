@@ -79,7 +79,8 @@ def main(args):
             with Client(scheduler_file=args.scheduler) as client:
                 run_benchmark(client)
         else:
-            with cluster_type(threads_per_worker=args.cpus) as cluster:
+            with cluster_type(n_workers=args.workers,
+                              threads_per_worker=args.cpus) as cluster:
                 print('dashboard link:', cluster.dashboard_link)
                 with Client(cluster) as client:
                     run_benchmark(client)
@@ -129,6 +130,11 @@ if __name__ == '__main__':
                         help='CPU or GPU',
                         default='GPU')
     parser.add_argument(
+        '--workers',
+        type=int,
+        help='Number of Workers',
+        default=None)
+    parser.add_argument(
         '--cpus',
         type=int,
         help='Number of CPUs, used for setting number of threads.',
@@ -143,7 +149,7 @@ if __name__ == '__main__':
                         default='xgboost-dask-gpu-hist')
     parser.add_argument('--rounds',
                         type=int,
-                        default=100,
+                        default=1000,
                         help='Number of boosting rounds.')
     parser.add_argument('--data',
                         type=str,
