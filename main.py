@@ -3,15 +3,13 @@ import psutil
 import os
 import sys
 
-# import dask_ml.metrics as dm
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
-from dask import dataframe as dd
+import dask_ml as dm
 
 from dxgb_bench.datasets import factory as data_factory
 from dxgb_bench.utils import Timer, fprint, TemporaryDirectory
 from dxgb_bench import algorihm
-import dask_ml as dm
 
 import dask
 import pandas
