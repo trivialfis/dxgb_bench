@@ -1,5 +1,5 @@
 from xgboost import dask as dxgb
-from .utils import Timer
+from .utils import Timer, fprint
 
 
 class XgbDaskBase:
@@ -23,10 +23,8 @@ class XgbDaskBase:
             return output
 
     def predict(self, X):
-        dtest = dxgb.DaskDMatrix(self.client, X)
         with Timer(self.name, 'predict'):
-            predictions = dxgb.predict(self.client, self.output,
-                                       dtest)
+            predictions = dxgb.predict(self.client, self.output, X)
             return predictions
 
 

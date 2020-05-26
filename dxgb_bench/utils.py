@@ -15,6 +15,9 @@ def fprint(*args, **kwargs):
     sys.stdout.flush()
 
 
+fprint.__doc__ = print.__doc__
+
+
 def read_csv(path, sep, dtype, header, names, backend,
              skiprows=0,
              blocksize=dd.io.csv.AUTO_BLOCKSIZE):

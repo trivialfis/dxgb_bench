@@ -6,14 +6,17 @@ import sys
 # import dask_ml.metrics as dm
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
+from dask import dataframe as dd
 
 from dxgb_bench.datasets import factory as data_factory
 from dxgb_bench.utils import Timer, fprint, TemporaryDirectory
 from dxgb_bench import algorihm
+import dask_ml as dm
 
 import dask
 import pandas
 import distributed
+import numpy
 import cudf
 import dask_cudf
 import dask_cuda
@@ -54,8 +57,9 @@ def main(args):
         if args.device == 'CPU':
             return LocalCluster(*user_args, **kwargs)
         else:
-            assert args.gpus <= dask_cuda.utils.get_n_gpus()
-            return LocalCUDACluster(*user_args, n_workers=args.gpus, **kwargs)
+            total_gpus = dask_cuda.utils.get_n_gpus()
+            assert args.workers is None or args.workers <= total_gpus
+            return LocalCUDACluster(*user_args, **kwargs)
 
     def run_benchmark(client):
         (X, y, w), task = data_factory(args.data, args)
@@ -66,11 +70,13 @@ def main(args):
             wait(y)
         algo = algorihm.factory(args.algo, task, client, args)
         algo.fit(X, y, w)
-        predictions = algo.predict(X).map_blocks(cupy.asarray)
-        # https://github.com/rapidsai/cudf/issues/3671
-        # metric = dm.mean_squared_error(y.values, predictions)
-        # timer = Timer.global_timer()
-        # timer[args.algo]['mse'] = metric
+        predictions = algo.predict(X)
+        predictions = dask_cudf.from_dask_dataframe(predictions)
+        metric: numpy.ndarray = dm.metrics.mean_squared_error(
+            y.values, predictions.values)
+        timer = Timer.global_timer()
+        timer['accuracy'] = dict()
+        timer['accuracy']['mse'] = float(metric)
 
     with TemporaryDirectory(args.temporary_directory):
         # race condition for creating directory.
