@@ -6,8 +6,12 @@ import shutil
 import os
 
 from dask import dataframe as dd
-import dask_cudf
-import cudf
+try:
+    import cudf
+    import dask_cudf
+except ImportError:
+    cudf = None
+    dask_cudf = None
 
 
 def fprint(*args, **kwargs):

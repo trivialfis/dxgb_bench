@@ -4,8 +4,12 @@ from collections import OrderedDict
 import os
 from dxgb_bench.utils import DataSet, fprint, read_csv
 import tarfile
-import dask_cudf
-import cudf
+try:
+    import cudf
+    import dask_cudf
+except ImportError:
+    cudf = None
+    dask_cudf = None
 
 
 def datetime_name(backend):

@@ -2,6 +2,7 @@ import argparse
 import psutil
 import os
 import sys
+import json
 
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
@@ -15,13 +16,20 @@ import dask
 import pandas
 import distributed
 import numpy
-import cudf
-import dask_cudf
+
 import dask_cuda
 import xgboost
-import cupy
 
-import json
+try:
+    import cudf
+    import dask_cudf
+except ImportError:
+    cudf = None
+    dask_cudf = None
+try:
+    import cupy
+except ImportError:
+    cupy = None
 
 
 def packages_version():
@@ -29,11 +37,11 @@ def packages_version():
         'dask': dask.__version__,
         'pandas': pandas.__version__,
         'distributed': distributed.__version__,
-        'cudf': cudf.__version__,
-        'dask_cudf': dask_cudf.__version__,
+        'cudf': cudf.__version__ if cudf else None,
+        'dask_cudf': dask_cudf.__version__ if dask_cudf else None,
         'dask_cuda': dask_cuda.__version__,
         'xgboost': xgboost.__version__,
-        'cupy': cupy.__version__
+        'cupy': cupy.__version__ if cupy else None
     }
     return packages
 

@@ -3,12 +3,15 @@ are not really useful for benchmarking.
 
 '''
 from dxgb_bench.utils import DataSet
-import dask_cudf
 import math
 import numpy as np
 from dask.distributed import wait
 import os
 from math import cos, sin, asin, sqrt, pi
+try:
+    import dask_cudf
+except ImportError:
+    dask_cudf = None
 
 
 def cleanup(df):
