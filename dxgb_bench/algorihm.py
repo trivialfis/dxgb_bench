@@ -23,7 +23,7 @@ class XgbDaskBase:
 
     def predict(self, X):
         with Timer(self.name, "predict"):
-            predictions = dxgb.predict(self.client, self.output, X)
+            predictions = dxgb.inplace_predict(self.client, self.output, X)
             return predictions
 
 

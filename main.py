@@ -77,9 +77,9 @@ def main(args):
         algo = algorihm.factory(args.algo, task, client, args)
         algo.fit(X, y, w)
         predictions = algo.predict(X)
-        predictions = dask_cudf.from_dask_dataframe(predictions)
         metric: numpy.ndarray = dm.metrics.mean_squared_error(
-            y.values, predictions.values
+            y.to_dask_array().map_blocks(cupy.array),
+            predictions.to_dask_array().map_blocks(cupy.array)
         )
         timer = Timer.global_timer()
         timer["accuracy"] = dict()
@@ -182,6 +182,5 @@ if __name__ == "__main__":
     args = parser.parse_args()
     try:
         main(args)
-    except Exception as e:
-        fprint(e)
-        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(0)
