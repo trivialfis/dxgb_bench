@@ -79,7 +79,7 @@ def main(args):
         predictions = algo.predict(X)
         metric: numpy.ndarray = dm.metrics.mean_squared_error(
             y.to_dask_array().map_blocks(cupy.array),
-            predictions.to_dask_array().map_blocks(cupy.array)
+            predictions.to_dask_array().map_blocks(cupy.array),
         )
         timer = Timer.global_timer()
         timer["accuracy"] = dict()
