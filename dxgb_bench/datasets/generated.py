@@ -5,7 +5,7 @@ from dxgb_bench.utils import DataSet
 
 def generate_random_array(rows, cols):
     X = da.random.random(size=(rows, cols))
-    y = da.random.random(size=(rows, ))
+    y = da.random.random(size=(rows,))
     return X, y
 
 
