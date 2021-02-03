@@ -33,6 +33,21 @@ class XgbDaskGpuHist(XgbDaskBase):
         self.name = "xgboost-dask-gpu-hist"
         self.parameters["tree_method"] = "gpu_hist"
 
+    def fit(self, X, y, weight=None):
+        with Timer(self.name, "DMatrix"):
+            dtrain = dxgb.DaskDeviceQuantileDMatrix(
+                self.client, data=X, label=y, weight=weight
+            )
+        with Timer(self.name, "train"):
+            output = dxgb.train(
+                client=self.client,
+                params=self.parameters,
+                dtrain=dtrain,
+                num_boost_round=self.num_boost_round,
+            )
+            self.output = output
+            return output
+
 
 class XgbDaskCpuHist(XgbDaskBase):
     def __init__(self, parameters, rounds, client):
