@@ -50,11 +50,7 @@ class XgbDaskCpuApprox(XgbDaskBase):
 
 
 def factory(name, task, client, args):
-    parameters = {
-        'max_depth': 8,
-        'nthread': args.cpus,
-        'objective': task
-    }
+    parameters = {'max_depth': 8, 'objective': task}
     if name == 'xgboost-dask-gpu-hist':
         return XgbDaskGpuHist(parameters, args.rounds, client)
     elif name == 'xgboost-dask-cpu-hist':
