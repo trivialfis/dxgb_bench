@@ -10,10 +10,9 @@ class XgbDaskBase:
 
     def fit(self, X, y, weight=None):
         with Timer(self.name, 'DMatrix'):
-            dtrain = dxgb.DaskDMatrix(self.client,
-                                      data=X,
-                                      label=y,
-                                      weight=weight)
+            dtrain = dxgb.DaskDeviceQuantileDMatrix(
+                self.client, data=X, label=y, weight=weight
+            )
         with Timer(self.name, 'train'):
             output = dxgb.train(client=self.client,
                                 params=self.parameters,
@@ -53,9 +52,10 @@ class XgbDaskCpuApprox(XgbDaskBase):
 
 def factory(name, task, client, args):
     parameters = {
-        'max_depth': 8,
+        'max_depth': 16,
         'nthread': args.cpus,
-        'objective': task
+        'objective': task,
+        'verbosity': 1
     }
     if name == 'xgboost-dask-gpu-hist':
         return XgbDaskGpuHist(parameters, args.rounds, client)

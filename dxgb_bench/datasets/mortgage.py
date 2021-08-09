@@ -66,10 +66,14 @@ def load_dateframe(path, dtypes, cols, backend):
 
 
 def load_performance_data(path, backend):
+    if backend == "dask_cudf":
+        category = "int64"
+    else:
+        category = "category"
     dtypes = OrderedDict(
         [("loan_id", "int64"),
          ("monthly_reporting_period", datetime_name(backend)),
-         ("servicer", "category"),
+         ("servicer", category),
          ("interest_rate", "float32"),
          ("current_actual_upb", "float32"),
          ("loan_age", "float32"),
@@ -78,8 +82,8 @@ def load_performance_data(path, backend):
          ("maturity_date", datetime_name(backend)),
          ("msa", "float32"),
          ("current_loan_delinquency_status", "int32"),
-         ("mod_flag", "category"),
-         ("zero_balance_code", "category"),
+         ("mod_flag", category),
+         ("zero_balance_code", category),
          ("zero_balance_effective_date", datetime_name(backend)),
          ("last_paid_installment_date", datetime_name(backend)),
          ("foreclosed_after", datetime_name(backend)),
@@ -95,9 +99,9 @@ def load_performance_data(path, backend):
          ("other_foreclosure_proceeds", "float32"),
          ("non_interest_bearing_upb", "float32"),
          ("principal_forgiveness_upb", "float32"),
-         ("repurchase_make_whole_proceeds_flag", "category"),
+         ("repurchase_make_whole_proceeds_flag", category),
          ("foreclosure_principal_write_off_amount", "float32"),
-         ("servicing_activity_indicator", "category")])
+         ("servicing_activity_indicator", category)])
 
     keys = [k for k, v in dtypes.items()]
     perf = load_dateframe(path=path, dtypes=dtypes, cols=keys, backend=backend)
@@ -105,10 +109,14 @@ def load_performance_data(path, backend):
 
 
 def load_acq_data(acq_dir, backend):
+    if backend == "dask_cudf":
+        category = "int64"
+    else:
+        category = "category"
     dtypes = OrderedDict([
         ("loan_id", "int64"),
-        ("orig_channel", "category"),
-        ("seller_name", "category"),
+        ("orig_channel", category),
+        ("seller_name", category),
         ("orig_interest_rate", "float64"),
         ("orig_upb", "int64"),
         ("orig_loan_term", "int64"),
@@ -119,18 +127,18 @@ def load_acq_data(acq_dir, backend):
         ("num_borrowers", "float64"),
         ("dti", "float64"),
         ("borrower_credit_score", "float64"),
-        ("first_home_buyer", "category"),
-        ("loan_purpose", "category"),
-        ("property_type", "category"),
+        ("first_home_buyer", category),
+        ("loan_purpose", category),
+        ("property_type", category),
         ("num_units", "int64"),
-        ("occupancy_status", "category"),
-        ("property_state", "category"),
+        ("occupancy_status", category),
+        ("property_state", category),
         ("zip", "int64"),
         ("mortgage_insurance_percent", "float64"),
-        ("product_type", "category"),
+        ("product_type", category),
         ("coborrow_credit_score", "float64"),
         ("mortgage_insurance_type", "float64"),
-        ("relocation_mortgage_indicator", "category"),
+        ("relocation_mortgage_indicator", category),
     ])
 
     keys = [k for k, v in dtypes.items()]
