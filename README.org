@@ -36,7 +36,7 @@ output file at each run.
   - dask[complete]  # pandas, distributed are implicitly included
   - dask_cudf
   - dask_cuda
-  - dask_ml  # right now this is not used as there are still some glitches in the pipeline.
+  - dask_ml
   - cupy
 
 #  LocalWords:  LocalWords tripdata XGBoost CUDA cuDF

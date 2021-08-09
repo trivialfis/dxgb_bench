@@ -5,17 +5,17 @@ from .year import YearPrediction
 
 
 def factory(name: str, args):
-    if name.startswith('mortgage'):
+    if name.startswith("mortgage"):
         d = Mortgage(args)
         return d.load(args), d.task
-    elif name == 'taxi':
+    elif name == "taxi":
         d = Taxi(args)
         return d.load(args), d.task
-    elif name == 'higgs':
+    elif name == "higgs":
         d = Higgs(args)
         return d.load(args), d.task
-    elif name == 'year':
+    elif name == "year":
         d = YearPrediction(args)
         return d.load(args), d.task
     else:
-        raise ValueError('Unknown dataset:', name)
+        raise ValueError("Unknown dataset:", name)

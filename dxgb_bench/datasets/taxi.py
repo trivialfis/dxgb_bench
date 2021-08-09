@@ -1,14 +1,18 @@
-'''Comes from rapids AI's demo script.  Many feature engineering stuffs here
+"""Comes from rapids AI's demo script.  Many feature engineering stuffs here
 are not really useful for benchmarking.
 
-'''
+"""
 from dxgb_bench.utils import DataSet
-import dask_cudf
 import math
 import numpy as np
 from dask.distributed import wait
 import os
 from math import cos, sin, asin, sqrt, pi
+
+try:
+    import dask_cudf
+except ImportError:
+    dask_cudf = None
 
 
 def cleanup(df):
@@ -33,22 +37,22 @@ def cleanup(df):
 
     # list of column names that need to be re-mapped
     remap_features = {}
-    remap_features['tpep_pickup_datetime'] = 'pickup_datetime'
-    remap_features['tpep_dropoff_datetime'] = 'dropoff_datetime'
-    remap_features['ratecodeid'] = 'rate_code'
+    remap_features["tpep_pickup_datetime"] = "pickup_datetime"
+    remap_features["tpep_dropoff_datetime"] = "dropoff_datetime"
+    remap_features["ratecodeid"] = "rate_code"
 
     # create a list of columns & dtypes the df must have
     must_haves_features = {
-        'pickup_datetime': 'datetime64[ms]',
-        'dropoff_datetime': 'datetime64[ms]',
-        'passenger_count': 'int32',
-        'trip_distance': 'float32',
-        'pickup_longitude': 'float32',
-        'pickup_latitude': 'float32',
-        'rate_code': 'int32',
-        'dropoff_longitude': 'float32',
-        'dropoff_latitude': 'float32',
-        'fare_amount': 'float32'
+        "pickup_datetime": "datetime64[ms]",
+        "dropoff_datetime": "datetime64[ms]",
+        "passenger_count": "int32",
+        "trip_distance": "float32",
+        "pickup_longitude": "float32",
+        "pickup_latitude": "float32",
+        "rate_code": "int32",
+        "dropoff_longitude": "float32",
+        "dropoff_latitude": "float32",
+        "fare_amount": "float32",
     }
 
     # helper function which takes a DataFrame partition
@@ -70,23 +74,24 @@ def cleanup(df):
 
             # fixes datetime error found by Ty Mckercher and fixed by Paul
             # Mahler
-            if df_part[col].dtype == 'object' and col in [
-                    'pickup_datetime', 'dropoff_datetime'
+            if df_part[col].dtype == "object" and col in [
+                "pickup_datetime",
+                "dropoff_datetime",
             ]:
-                df_part[col] = df_part[col].astype('datetime64[ms]')
+                df_part[col] = df_part[col].astype("datetime64[ms]")
                 continue
 
             # if column was read as a string, recast as float
-            if df_part[col].dtype == 'object':
-                df_part[col] = df_part[col].str.fillna('-1')
-                df_part[col] = df_part[col].astype('float32')
+            if df_part[col].dtype == "object":
+                df_part[col] = df_part[col].str.fillna("-1")
+                df_part[col] = df_part[col].astype("float32")
             else:
                 # downcast from 64bit to 32bit types
                 # Tesla T4 are faster on 32bit ops
-                if 'int' in str(df_part[col].dtype):
-                    df_part[col] = df_part[col].astype('int32')
-                if 'float' in str(df_part[col].dtype):
-                    df_part[col] = df_part[col].astype('float32')
+                if "int" in str(df_part[col].dtype):
+                    df_part[col] = df_part[col].astype("int32")
+                if "float" in str(df_part[col].dtype):
+                    df_part[col] = df_part[col].astype("float32")
                 df_part[col] = df_part[col].fillna(-1)
 
         return df_part
@@ -114,11 +119,12 @@ def cleanup(df):
 # In[10]:
 
 
-def haversine_distance_kernel(pickup_latitude, pickup_longitude,
-                              dropoff_latitude, dropoff_longitude, h_distance):
+def haversine_distance_kernel(
+    pickup_latitude, pickup_longitude, dropoff_latitude, dropoff_longitude, h_distance
+):
     for i, (x_1, y_1, x_2, y_2) in enumerate(
-            zip(pickup_latitude, pickup_longitude, dropoff_latitude,
-                dropoff_longitude)):
+        zip(pickup_latitude, pickup_longitude, dropoff_latitude, dropoff_longitude)
+    ):
         x_1 = pi / 180 * x_1
         y_1 = pi / 180 * y_1
         x_2 = pi / 180 * x_2
@@ -126,7 +132,7 @@ def haversine_distance_kernel(pickup_latitude, pickup_longitude,
 
         dlon = y_2 - y_1
         dlat = x_2 - x_1
-        a = sin(dlat / 2)**2 + cos(x_1) * cos(x_2) * sin(dlon / 2)**2
+        a = sin(dlat / 2) ** 2 + cos(x_1) * cos(x_2) * sin(dlon / 2) ** 2
 
         c = 2 * asin(sqrt(a))
         r = 6371  # Radius of earth in kilometers
@@ -145,60 +151,66 @@ def day_of_the_week_kernel(day, month, year, day_of_week):
         c = 20
         d = day[i]
         m = month[i] + shift + 1
-        day_of_week[i] = (d + math.floor(m * 2.6) + y + (y // 4) +
-                          (c // 4) - 2 * c) % 7
+        day_of_week[i] = (d + math.floor(m * 2.6) + y + (y // 4) + (c // 4) - 2 * c) % 7
 
 
 def add_features(df):
-    df['hour'] = df['pickup_datetime'].dt.hour
-    df['year'] = df['pickup_datetime'].dt.year
-    df['month'] = df['pickup_datetime'].dt.month
-    df['day'] = df['pickup_datetime'].dt.day
-    df['diff'] = df['dropoff_datetime'].astype(
-        'int32') - df['pickup_datetime'].astype('int32')
+    df["hour"] = df["pickup_datetime"].dt.hour
+    df["year"] = df["pickup_datetime"].dt.year
+    df["month"] = df["pickup_datetime"].dt.month
+    df["day"] = df["pickup_datetime"].dt.day
+    df["diff"] = df["dropoff_datetime"].astype("int32") - df["pickup_datetime"].astype(
+        "int32"
+    )
 
-    df['pickup_latitude_r'] = df['pickup_latitude'] // .01 * .01
-    df['pickup_longitude_r'] = df['pickup_longitude'] // .01 * .01
-    df['dropoff_latitude_r'] = df['dropoff_latitude'] // .01 * .01
-    df['dropoff_longitude_r'] = df['dropoff_longitude'] // .01 * .01
+    df["pickup_latitude_r"] = df["pickup_latitude"] // 0.01 * 0.01
+    df["pickup_longitude_r"] = df["pickup_longitude"] // 0.01 * 0.01
+    df["dropoff_latitude_r"] = df["dropoff_latitude"] // 0.01 * 0.01
+    df["dropoff_longitude_r"] = df["dropoff_longitude"] // 0.01 * 0.01
 
-    df = df.drop('pickup_datetime')
-    df = df.drop('dropoff_datetime')
+    df = df.drop("pickup_datetime")
+    df = df.drop("dropoff_datetime")
 
-    df = df.apply_rows(haversine_distance_kernel,
-                       incols=[
-                           'pickup_latitude', 'pickup_longitude',
-                           'dropoff_latitude', 'dropoff_longitude'
-                       ],
-                       outcols=dict(h_distance=np.float32),
-                       kwargs=dict())
+    df = df.apply_rows(
+        haversine_distance_kernel,
+        incols=[
+            "pickup_latitude",
+            "pickup_longitude",
+            "dropoff_latitude",
+            "dropoff_longitude",
+        ],
+        outcols=dict(h_distance=np.float32),
+        kwargs=dict(),
+    )
 
-    df = df.apply_rows(day_of_the_week_kernel,
-                       incols=['day', 'month', 'year'],
-                       outcols=dict(day_of_week=np.float32),
-                       kwargs=dict())
+    df = df.apply_rows(
+        day_of_the_week_kernel,
+        incols=["day", "month", "year"],
+        outcols=dict(day_of_week=np.float32),
+        kwargs=dict(),
+    )
 
-    df['is_weekend'] = (df['day_of_week'] < 2).astype(np.float32)
+    df["is_weekend"] = (df["day_of_week"] < 2).astype(np.float32)
     return df
 
 
 def load(base_path):
-    data_path = os.path.join(base_path, 'yellow_tripdata_2014-01.csv')
+    data_path = os.path.join(base_path, "yellow_tripdata_2014-01.csv")
     df_2014 = dask_cudf.read_csv(data_path)
     df_2014 = cleanup(df_2014)
 
     # apply a list of filter conditions to throw out records with missing or
     # outlier values
     query_frags = [
-        'fare_amount > 0 and fare_amount < 500',
-        'passenger_count > 0 and passenger_count < 6',
-        'pickup_longitude > -75 and pickup_longitude < -73',
-        'dropoff_longitude > -75 and dropoff_longitude < -73',
-        'pickup_latitude > 40 and pickup_latitude < 42',
-        'dropoff_latitude > 40 and dropoff_latitude < 42'
+        "fare_amount > 0 and fare_amount < 500",
+        "passenger_count > 0 and passenger_count < 6",
+        "pickup_longitude > -75 and pickup_longitude < -73",
+        "dropoff_longitude > -75 and dropoff_longitude < -73",
+        "pickup_latitude > 40 and pickup_latitude < 42",
+        "dropoff_latitude > 40 and dropoff_latitude < 42",
     ]
     taxi_df = df_2014
-    taxi_df = taxi_df.query(' and '.join(query_frags))
+    taxi_df = taxi_df.query(" and ".join(query_frags))
 
     # actually add the features
     taxi_df = taxi_df.map_partitions(add_features)
@@ -218,11 +230,11 @@ def load(base_path):
     # workflow.
 
     # create a Y_train ddf with just the target variable
-    X_train = taxi_df.query('day < 25').persist()
-    Y_train = X_train[[
-        'fare_amount'
-    ]].persist()  # drop the target variable from the training ddf
-    X_train = X_train[X_train.columns.difference(['fare_amount'])]
+    X_train = taxi_df.query("day < 25").persist()
+    Y_train = X_train[
+        ["fare_amount"]
+    ].persist()  # drop the target variable from the training ddf
+    X_train = X_train[X_train.columns.difference(["fare_amount"])]
 
     # this wont return until all data is in GPU memory
     wait([X_train, Y_train])
@@ -236,11 +248,12 @@ def load(base_path):
 
 class Taxi(DataSet):
     def __init__(self, args):
-        self.uri = 'https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2014-01.csv'
-        self.taxi_directory = os.path.join(
-            args.local_directory, 'taxi', '2014')
+        self.uri = (
+            "https://s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2014-01.csv"
+        )
+        self.taxi_directory = os.path.join(args.local_directory, "taxi", "2014")
         self.retrieve(self.taxi_directory)
-        self.task = 'reg:squarederror'
+        self.task = "reg:squarederror"
 
     def load(self, args):
         train_X, train_y = load(self.taxi_directory)
