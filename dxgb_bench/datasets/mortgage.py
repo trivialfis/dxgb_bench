@@ -77,7 +77,7 @@ def load_dateframe(path, dtypes, cols, backend):
 
 
 def load_performance_data(path, backend):
-    if backend == "dask_cudf":
+    if backend == "dask_cudf" or backend == "cudf":
         category = "int64"
     else:
         category = "category"
@@ -120,7 +120,7 @@ def load_performance_data(path, backend):
 
 
 def load_acq_data(acq_dir, backend):
-    if backend == "dask_cudf":
+    if backend == "dask_cudf" or backend == "cudf":
         category = "int64"
     else:
         category = "category"
@@ -163,8 +163,7 @@ def preprocessing(perf, acq, backend):
     df = perf.merge(acq, how="left", on=["loan_id"])
     y = df["current_loan_delinquency_status"]
     if backend == "cudf":
-        df.drop_column("current_loan_delinquency_status")
-        X = df
+        X = df[df.columns.difference(["current_loan_delinquency_status"])]
     else:
         columns = list(df.columns).remove("current_loan_delinquency_status")
         X = df.loc[columns]

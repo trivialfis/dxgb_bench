@@ -39,7 +39,7 @@ class XgbDaskGpuHist(XgbDaskBase):
     def fit(self, X, y, weight=None):
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskDeviceQuantileDMatrix"):
-                dtrain = dxgb.DaskDeviceQuantileDMatrix(
+                dtrain = dxgb.DaskDMatrix(
                     self.client, data=X, label=y, weight=weight
                 )
             with Timer(self.name, "train"):
@@ -52,6 +52,28 @@ class XgbDaskGpuHist(XgbDaskBase):
                 )
                 self.output = output
                 print(output["history"])
+                return output
+
+
+class XgbGpuHist:
+    def __init__(self, parameters, rounds):
+        self.name = "xgboost-dask-gpu-hist"
+        self.parameters = parameters
+        self.num_boost_round = rounds
+        self.parameters["tree_method"] = "gpu_hist"
+
+    def fit(self, X, y, weight=None):
+        with xgb.config_context(verbosity=1):
+            with Timer(self.name, "DeviceQuantileDMatrix"):
+                dtrain = xgb.DeviceQuantileDMatrix(data=X, label=y, weight=weight)
+            with Timer(self.name, "train"):
+                output = xgb.train(
+                    params=self.parameters,
+                    dtrain=dtrain,
+                    evals=[(dtrain, "Train")],
+                    num_boost_round=self.num_boost_round,
+                )
+                self.output = output
                 return output
 
 
@@ -84,3 +106,5 @@ def factory(name, task, client, args):
         return XgbDaskCpuHist(parameters, args.rounds, client)
     elif name == "xgboost-dask-cpu-approx":
         return XgbDaskCpuApprox(parameters, args.rounds, client)
+    elif name == "xgboost-gpu-hist":
+        return XgbGpuHist(parameters, args.rounds)

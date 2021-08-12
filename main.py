@@ -69,11 +69,12 @@ def main(args):
 
     def run_benchmark(client):
         (X, y, w), task = data_factory(args.data, args)
-        with Timer(args.backend, "Wait"):
-            X = X.persist()
-            y = y.persist()
-            wait(X)
-            wait(y)
+        if args.backend != "cudf":
+            with Timer(args.backend, "Wait"):
+                X = X.persist()
+                y = y.persist()
+                wait(X)
+                wait(y)
         algo = algorihm.factory(args.algo, task, client, args)
         algo.fit(X, y, w)
         # predictions = algo.predict(X)
