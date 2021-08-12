@@ -1,4 +1,5 @@
 from xgboost import dask as dxgb
+import xgboost as xgb
 from .utils import Timer, fprint
 
 
@@ -10,15 +11,17 @@ class XgbDaskBase:
 
     def fit(self, X, y, weight=None):
         with Timer(self.name, 'DMatrix'):
-            dtrain = dxgb.DaskDeviceQuantileDMatrix(
+            dtrain = dxgb.DaskDMatrix(
                 self.client, data=X, label=y, weight=weight
             )
         with Timer(self.name, 'train'):
             output = dxgb.train(client=self.client,
                                 params=self.parameters,
                                 dtrain=dtrain,
+                                evals=[(dtrain, "Train")],
                                 num_boost_round=self.num_boost_round)
             self.output = output
+            print(output["history"])
             return output
 
     def predict(self, X):
@@ -34,19 +37,22 @@ class XgbDaskGpuHist(XgbDaskBase):
         self.parameters["tree_method"] = "gpu_hist"
 
     def fit(self, X, y, weight=None):
-        with Timer(self.name, "DMatrix"):
-            dtrain = dxgb.DaskDeviceQuantileDMatrix(
-                self.client, data=X, label=y, weight=weight
-            )
-        with Timer(self.name, "train"):
-            output = dxgb.train(
-                client=self.client,
-                params=self.parameters,
-                dtrain=dtrain,
-                num_boost_round=self.num_boost_round,
-            )
-            self.output = output
-            return output
+        with xgb.config_context(verbosity=1):
+            with Timer(self.name, "DaskDeviceQuantileDMatrix"):
+                dtrain = dxgb.DaskDeviceQuantileDMatrix(
+                    self.client, data=X, label=y, weight=weight
+                )
+            with Timer(self.name, "train"):
+                output = dxgb.train(
+                    client=self.client,
+                    params=self.parameters,
+                    dtrain=dtrain,
+                    evals=[(dtrain, "Train")],
+                    num_boost_round=self.num_boost_round,
+                )
+                self.output = output
+                print(output["history"])
+                return output
 
 
 class XgbDaskCpuHist(XgbDaskBase):
@@ -65,11 +71,13 @@ class XgbDaskCpuApprox(XgbDaskBase):
 
 def factory(name, task, client, args):
     parameters = {
-        'max_depth': 16,
+        'max_depth': args.max_depth,
+        "grow_policy": args.policy,
+        "single_precision_histogram": args.f32_hist,
         'nthread': args.cpus,
         'objective': task,
-        'verbosity': 1
     }
+    print("parameters:", parameters)
     if name == 'xgboost-dask-gpu-hist':
         return XgbDaskGpuHist(parameters, args.rounds, client)
     elif name == "xgboost-dask-cpu-hist":

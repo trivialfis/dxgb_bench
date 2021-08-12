@@ -76,14 +76,14 @@ def main(args):
             wait(y)
         algo = algorihm.factory(args.algo, task, client, args)
         algo.fit(X, y, w)
-        predictions = algo.predict(X)
-        metric: numpy.ndarray = dm.metrics.mean_squared_error(
-            y.to_dask_array().map_blocks(cupy.array),
-            predictions.to_dask_array().map_blocks(cupy.array),
-        )
+        # predictions = algo.predict(X)
+        # metric: numpy.ndarray = dm.metrics.mean_squared_error(
+        #     y.to_dask_array().map_blocks(cupy.array),
+        #     predictions.to_dask_array().map_blocks(cupy.array),
+        # )
         timer = Timer.global_timer()
         timer["accuracy"] = dict()
-        timer["accuracy"]["mse"] = float(metric)
+        # timer["accuracy"]["mse"] = float(metric)
 
     with TemporaryDirectory(args.temporary_directory):
         # race condition for creating directory.
@@ -178,6 +178,13 @@ if __name__ == "__main__":
     parser.add_argument("--data", type=str, help="Name of dataset.", required=True)
     parser.add_argument(
         "--backend", type=str, help="Data loading backend.", default="dask_cudf"
+    )
+    parser.add_argument(
+        "--f32-hist", type=int, help="Use single precision histogram.", default=0
+    )
+    parser.add_argument("--max-depth", type=int, default=16)
+    parser.add_argument(
+        "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
     )
     args = parser.parse_args()
     try:
