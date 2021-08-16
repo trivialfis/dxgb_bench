@@ -39,7 +39,7 @@ class XgbDaskGpuHist(XgbDaskBase):
     def fit(self, X, y, weight=None):
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskDeviceQuantileDMatrix"):
-                dtrain = dxgb.DaskDMatrix(
+                dtrain = dxgb.DaskDeviceQuantileDMatrix(
                     self.client, data=X, label=y, weight=weight
                 )
             with Timer(self.name, "train"):

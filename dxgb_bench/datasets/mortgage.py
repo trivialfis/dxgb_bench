@@ -233,7 +233,7 @@ class Mortgage(DataSet):
         self.task = "binary:logistic"
 
     def load(self, args):
-        dirpath = os.path.join(args.local_directory, "mortgage-parquet-" + args.backend)
+        dirpath = os.path.join(self.local_directory, "mortgage-parquet-" + args.backend)
         if not os.path.exists(dirpath):
             os.mkdir(dirpath)
 
