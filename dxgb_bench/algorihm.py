@@ -102,7 +102,7 @@ def factory(name, task, client, args):
     print("parameters:", parameters)
     if args.backend.find("dask") != -1:
         if name == "xgboost-gpu-hist":
-            return XgbDaskGpuHist(parameters, args.rounds)
+            return XgbDaskGpuHist(parameters, args.rounds, client)
         elif name == "xgboost-cpu-approx":
             return XgbDaskCpuApprox(parameters, args.rounds, client)
         elif name == "xgboost-cpu-hist":
