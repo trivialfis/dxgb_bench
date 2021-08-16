@@ -171,7 +171,7 @@ if __name__ == "__main__":
         default=dask_cuda.utils.get_n_gpus(),
     )
     parser.add_argument(
-        "--algo", type=str, help="Used algorithm", default="xgboost-dask-gpu-hist"
+        "--algo", type=str, help="Used algorithm", default="xgboost-gpu-hist"
     )
     parser.add_argument(
         "--rounds", type=int, default=1000, help="Number of boosting rounds."

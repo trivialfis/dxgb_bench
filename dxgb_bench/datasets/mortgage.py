@@ -2,6 +2,7 @@ from dask import dataframe as dd
 import numpy as np
 from collections import OrderedDict
 import os
+from distributed import wait
 from dxgb_bench.utils import DataSet, fprint, read_csv
 import tarfile
 
@@ -17,25 +18,16 @@ def datetime_name(backend):
     if backend == "dask_cudf" or backend == "cudf":
         return "date"
     else:
-        return "object"
+        return "date"
 
 
 def convert_dtypes(df, dtypes, delta, backend):
     for i, column in enumerate(dtypes.items()):
         name = column[0]
-        if column[1] == "category" and backend == "dask":
+        if column[1] == "str" and (backend == "cudf" or backend == "dask_cudf"):
             df[name] = (
-                df[name].astype("category").cat.as_known().cat.codes.astype("float32")
+                df[name].astype("category").cat.codes.astype("float32")
             )
-        elif column[1] == "object":  # workaround a dask/pandas bug
-            # where datetime cannot be parsed.
-            df[name] = dd.to_datetime(df[name])
-            # to float
-            df[name] = ((df[name] - df[name].min()) / np.timedelta64(1, "D")).astype(
-                "float32"
-            )
-        # Not sure how to convert dask_cudf DateTimeColumn to normal numeric
-        # values.
         elif (
             df.dtypes[i].name == "datetime64[ms]"
             or df.dtypes[i].name == "datetime64[ns]"
@@ -57,20 +49,29 @@ def concat(dfs, backend):
 
 def load_dateframe(path, dtypes, cols, backend):
     dfs = []
+
+    transformed = {}
+    for key, t in dtypes.items():
+        if t == "category":
+            transformed[key] = "str"
+        else:
+            transformed[key] = t
+
     for root, subdir, files in os.walk(path):
         for f in files:
             fprint("Reading: ", f, "with", backend)
             df = read_csv(
                 os.path.join(root, f),
-                blocksize="32MB",
+                # blocksize="32MB",
                 sep="|",
-                dtype=dtypes,
+                dtype=transformed,
                 header=None,
                 names=cols,
                 skiprows=1,
                 backend=backend,
             )
             dfs.append(df)
+
     concated = concat(dfs, backend)
     concated = convert_dtypes(concated, dtypes, "1D", backend)
     return concated
@@ -78,11 +79,11 @@ def load_dateframe(path, dtypes, cols, backend):
 
 def load_performance_data(path, backend):
     if backend == "dask_cudf" or backend == "cudf":
-        category = "int64"
+        category = "str"
     else:
         category = "category"
     dtypes = OrderedDict(
-        [("loan_id", "int64"),
+        [("loan_id", "uint64"),
          ("monthly_reporting_period", datetime_name(backend)),
          ("servicer", category),
          ("interest_rate", "float32"),
@@ -121,11 +122,11 @@ def load_performance_data(path, backend):
 
 def load_acq_data(acq_dir, backend):
     if backend == "dask_cudf" or backend == "cudf":
-        category = "int64"
+        category = "str"
     else:
         category = "category"
     dtypes = OrderedDict([
-        ("loan_id", "int64"),
+        ("loan_id", "uint64"),
         ("orig_channel", category),
         ("seller_name", category),
         ("orig_interest_rate", "float64"),
@@ -150,6 +151,7 @@ def load_acq_data(acq_dir, backend):
         ("coborrow_credit_score", "float64"),
         ("mortgage_insurance_type", "float64"),
         ("relocation_mortgage_indicator", category),
+        ("something", "int64")
     ])
 
     keys = [k for k, v in dtypes.items()]
@@ -157,6 +159,15 @@ def load_acq_data(acq_dir, backend):
     fprint("Number of columns:", len(keys))
     acq = load_dateframe(path=acq_dir, dtypes=dtypes, cols=keys, backend=backend)
     return acq
+
+
+def load_parquet(backend, *args, **kwargs):
+    if backend == "dask_cudf":
+        return dask_cudf.read_parquet(*args, **kwargs)
+    elif backend == "cudf":
+        return cudf.read_parquet(*args, **kwargs)
+    elif backend == "dask":
+        return dd.read_parquet(*args, **kwargs)
 
 
 def preprocessing(perf, acq, backend):
@@ -222,7 +233,25 @@ class Mortgage(DataSet):
         self.task = "binary:logistic"
 
     def load(self, args):
-        acq = load_acq_data(self.acq_dir, args.backend)
-        perf = load_performance_data(self.perf_dir, args.backend)
-        train_X, train_y = preprocessing(perf, acq, args.backend)
-        return train_X, train_y, None
+        dirpath = os.path.join(args.local_directory, "mortgage-parquet-" + args.backend)
+        if not os.path.exists(dirpath):
+            os.mkdir(dirpath)
+
+        parquet_X = os.path.join(dirpath, "mortgage-X")
+
+        if not os.path.exists(parquet_X):
+            acq = load_acq_data(self.acq_dir, args.backend)
+            perf = load_performance_data(self.perf_dir, args.backend)
+            train_X, train_y = preprocessing(perf, acq, args.backend)
+
+            print("Saving to parquet:", parquet_X)
+            train_X["labels"] = train_y
+            train_X.to_parquet(parquet_X)
+            wait(train_X)
+        else:
+            print("Reading from cached parquet.")
+
+        df = load_parquet(args.backend, parquet_X)
+        y = df["labels"]
+        X = df[df.columns.difference(["labels"])]
+        return X, y, None

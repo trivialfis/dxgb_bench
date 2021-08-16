@@ -100,11 +100,23 @@ def factory(name, task, client, args):
         'objective': task,
     }
     print("parameters:", parameters)
-    if name == 'xgboost-dask-gpu-hist':
-        return XgbDaskGpuHist(parameters, args.rounds, client)
-    elif name == "xgboost-dask-cpu-hist":
-        return XgbDaskCpuHist(parameters, args.rounds, client)
-    elif name == "xgboost-dask-cpu-approx":
-        return XgbDaskCpuApprox(parameters, args.rounds, client)
-    elif name == "xgboost-gpu-hist":
-        return XgbGpuHist(parameters, args.rounds)
+    if args.backend.find("dask") != -1:
+        if name == "xgboost-gpu-hist":
+            return XgbDaskGpuHist(parameters, args.rounds)
+        elif name == "xgboost-cpu-approx":
+            return XgbDaskCpuApprox(parameters, args.rounds, client)
+        elif name == "xgboost-cpu-hist":
+            return XgbDaskCpuHist(parameters, args.rounds, client)
+    else:
+        if name == "xgboost-gpu-hist":
+            return XgbGpuHist(parameters, args.rounds)
+
+    raise ValueError(
+        "Unknown algorithm: ",
+        name,
+        " expecting one of the: {",
+        "xgboost-gpu-hist",
+        "xgboost-cpu-approx",
+        "xgboost-cpu-hist",
+        "}"
+    )
