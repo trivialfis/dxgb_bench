@@ -67,12 +67,15 @@ class XgbGpuHist:
             with Timer(self.name, "DeviceQuantileDMatrix"):
                 dtrain = xgb.DeviceQuantileDMatrix(data=X, label=y, weight=weight)
             with Timer(self.name, "train"):
+                evals_result = {}
                 output = xgb.train(
                     params=self.parameters,
                     dtrain=dtrain,
                     evals=[(dtrain, "Train")],
+                    evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
                 )
+                print(evals_result)
                 self.output = output
                 return output
 
