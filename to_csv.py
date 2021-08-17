@@ -14,42 +14,28 @@ def main(args):
                 json_files.append(path)
 
     if not json_files:
-        print("No JSON file found under " + args.json_directory)
+        print("No JSON file is found under " + args.json_directory)
         return
 
     out = os.path.join(args.output_directory, args.output_name)
     with open(out, "w") as fd:
-        f = json_files[0]
-        fields = ["file"]
-        with open(f, "r") as sample_fd:
-            b = json.load(sample_fd)
-            for key, value in b.items():
-                fields = fields + list(value.keys())
-
-        writer = csv.DictWriter(fd, fieldnames=fields)
-        writer.writeheader()
-
+        header = set()
+        rows = []
         for f in json_files:
-            with open(f, "r") as fd:
-                b = json.load(fd)
+            with open(f, "r") as in_fd:
+                b = json.load(in_fd)
 
             row = {}
-            for key, value in b["args"].items():
-                if value is None:
-                    value = "Null"
-                row[key] = value
+            for _, items in b.items():
+                for key, val in items.items():
+                    row[key] = val
 
-            for key, value in b[b["args"]["algo"]].items():
-                row[key] = value
+            header = header.union(set(row.keys()))
+            rows.append(row)
 
-            for key, value in b[b["args"]["backend"]].items():
-                row[key] = value
-
-            for key, value in b["packages"].items():
-                row[key] = value
-            row["file"] = f
-            print(row)
-            writer.writerow(row)
+        writer = csv.DictWriter(fd, fieldnames=header)
+        writer.writeheader()
+        writer.writerows(rows)
 
 
 if __name__ == "__main__":
