@@ -99,9 +99,11 @@ def factory(name, task, client, args):
         'max_depth': args.max_depth,
         "grow_policy": args.policy,
         "single_precision_histogram": args.f32_hist,
-        'nthread': args.cpus,
         'objective': task,
     }
+    if args.backend.find("dask") != -1:
+        parameters["nthread"] = args.cpus
+
     print("parameters:", parameters)
     if args.backend.find("dask") != -1:
         if name == "xgboost-gpu-hist":
