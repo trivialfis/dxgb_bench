@@ -3,9 +3,11 @@ import psutil
 import os
 import sys
 import json
+from typing import List
 
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
+import pynvml
 import dask_ml as dm
 
 from dxgb_bench.datasets import factory as data_factory
@@ -42,6 +44,7 @@ def packages_version():
         "dask_cuda": dask_cuda.__version__,
         "xgboost": xgboost.__version__,
         "cupy": cupy.__version__ if cupy else None,
+        "pynvml": pynvml.__version__,
     }
     return packages
 
@@ -103,6 +106,15 @@ def main(args):
     if not os.path.exists(args.output_directory):
         os.mkdir(args.output_directory)
 
+    if args.device == "GPU":
+        pynvml.nvmlInit()
+        devices: List[str] = []
+        n_devices = pynvml.nvmlDeviceGetCount()
+        for i in range(n_devices):
+            handle = pynvml.nvmlDeviceGetHandleByIndex(i)
+            name: bytes = pynvml.nvmlDeviceGetName(handle)
+            devices.append(name.decode("utf-8"))
+
     # Don't override the previous result.
     i = 0
     while True:
@@ -124,6 +136,7 @@ def main(args):
             timer = Timer.global_timer()
             timer["packages"] = packages_version()
             timer["args"] = args.__dict__
+            timer["devices"] = devices
             json.dump(timer, fd, indent=2)
             break
 

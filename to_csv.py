@@ -2,9 +2,10 @@ import os
 import csv
 import json
 import argparse
+from typing import Set
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     json_files = []
 
     for root, subdir, files in os.walk(args.json_directory):
@@ -19,7 +20,7 @@ def main(args):
 
     out = os.path.join(args.output_directory, args.output_name)
     with open(out, "w") as fd:
-        header = set()
+        header: Set[str] = set()
         rows = []
         for f in json_files:
             with open(f, "r") as in_fd:
