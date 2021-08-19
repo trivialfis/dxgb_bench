@@ -55,9 +55,34 @@ class XgbDaskGpuHist(XgbDaskBase):
                 return output
 
 
+class XgbCpuHist:
+    def __init__(self, parameters, rounds):
+        self.name = "xgboost-cpu-hist"
+        self.parameters = parameters
+        self.num_boost_round = rounds
+        self.parameters["tree_method"] = "hist"
+
+    def fit(self, X, y, weight=None):
+        with xgb.config_context(verbosity=1):
+            with Timer(self.name, "DMatrix"):
+                dtrain = xgb.DMatrix(data=X, label=y, weight=weight)
+            with Timer(self.name, "train"):
+                evals_result = {}
+                output = xgb.train(
+                    params=self.parameters,
+                    dtrain=dtrain,
+                    evals=[(dtrain, "Train")],
+                    evals_result=evals_result,
+                    num_boost_round=self.num_boost_round,
+                )
+                print(evals_result)
+                self.output = output
+                return output
+
+
 class XgbGpuHist:
     def __init__(self, parameters, rounds):
-        self.name = "xgboost-dask-gpu-hist"
+        self.name = "xgboost-gpu-hist"
         self.parameters = parameters
         self.num_boost_round = rounds
         self.parameters["tree_method"] = "gpu_hist"
@@ -115,6 +140,8 @@ def factory(name, task, client, args):
     else:
         if name == "xgboost-gpu-hist":
             return XgbGpuHist(parameters, args.rounds)
+        elif name == "xgboost-cpu-hist":
+            return XgbCpuHist(parameters, args.rounds)
 
     raise ValueError(
         "Unknown algorithm: ",
