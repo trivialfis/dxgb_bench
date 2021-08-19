@@ -14,8 +14,8 @@ import cudf
 import pandas
 
 
-DC = Union[da.Array, dd.Array]  # dask collection
-ID = Union[cudf.DataFrame, pandas.DataFrame]  # input data
+DC = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
+ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
 
 
 class XgbDaskBase:
