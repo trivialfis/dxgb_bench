@@ -8,7 +8,6 @@ from typing import List
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 import pynvml
-import dask_ml as dm
 
 from dxgb_bench.datasets import factory as data_factory
 from dxgb_bench.utils import Timer, fprint, TemporaryDirectory
@@ -79,15 +78,11 @@ def main(args):
                 wait(X)
                 wait(y)
         algo = algorihm.factory(args.algo, task, client, args)
-        algo.fit(X, y, w)
-        # predictions = algo.predict(X)
-        # metric: numpy.ndarray = dm.metrics.mean_squared_error(
-        #     y.to_dask_array().map_blocks(cupy.array),
-        #     predictions.to_dask_array().map_blocks(cupy.array),
-        # )
+        eval_results: dict = algo.fit(X, y, w)
+        print(eval_results)
         timer = Timer.global_timer()
-        timer["accuracy"] = dict()
-        # timer["accuracy"]["mse"] = float(metric)
+        for k, v in list(eval_results.values()).items():
+            timer[k] = v
 
     with TemporaryDirectory(args.temporary_directory):
         # race condition for creating directory.

@@ -21,8 +21,7 @@ class XgbDaskBase:
                                 evals=[(dtrain, "Train")],
                                 num_boost_round=self.num_boost_round)
             self.output = output
-            print(output["history"])
-            return output
+            return output["history"]
 
     def predict(self, X):
         with Timer(self.name, "predict"):
@@ -51,8 +50,7 @@ class XgbDaskGpuHist(XgbDaskBase):
                     num_boost_round=self.num_boost_round,
                 )
                 self.output = output
-                print(output["history"])
-                return output
+                return output["history"]
 
 
 class XgbDaskCpuHist(XgbDaskBase):
@@ -83,9 +81,11 @@ class XgbBase:
                     evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
                 )
-                print(evals_result)
                 self.output = output
-                return output
+                return evals_result
+
+    def predict(self, X):
+        return self.output.inplace_predict(X)
 
 
 class XgbCpuHist(XgbBase):
@@ -124,9 +124,8 @@ class XgbGpuHist:
                     evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
                 )
-                print(evals_result)
                 self.output = output
-                return output
+                return evals_result
 
 
 def factory(name, task, client, args):
