@@ -28,7 +28,10 @@ def main(args: argparse.Namespace) -> None:
                 b = json.load(in_fd)
 
             row = {}
-            for _, items in b.items():
+            for fk, items in b.items():
+                if not isinstance(items, dict):
+                    row[fk] = items
+                    continue
                 for key, val in items.items():
                     row[key] = val
 
