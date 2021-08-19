@@ -3,3 +3,4 @@ dxgb_bench_workspace
 *.gz
 *.csv
 __pycache__
+*.qdrep
