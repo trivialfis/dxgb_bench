@@ -1,10 +1,11 @@
-from dxgb_bench.utils import DataSet, fprint, read_csv
+from dxgb_bench.utils import DataSet, fprint, read_csv, DType
+import argparse
 import os
 import gzip
 
 
 class Higgs(DataSet):
-    def __init__(self, args):
+    def __init__(self, args: argparse.Namespace) -> None:
         self.uri = "https://archive.ics.uci.edu/ml/machine-learning-databases/00280/HIGGS.csv.gz"
 
         local_directory = os.path.join(args.local_directory, "HIGGS")
@@ -22,9 +23,9 @@ class Higgs(DataSet):
                 fd.write(data)
 
         assert os.path.exists(self.csv_file)
-        self.task = "reg:squarederror"
+        self.task = "binary:logistic"
 
-    def load(self, args):
+    def load(self, args: argparse.Namespace) -> DType:
         colnames = ["label"] + ["feat-%02d" % i for i in range(1, 29)]
         df = read_csv(
             self.csv_file,

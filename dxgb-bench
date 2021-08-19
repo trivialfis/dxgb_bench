@@ -84,7 +84,7 @@ def main(args: argparse.Namespace) -> None:
         print(eval_results)
         timer = Timer.global_timer()
         dataset_results = list(eval_results.values())
-        assert len(dataset_results) == 0
+        assert len(dataset_results) == 1
         for k, v in dataset_results[0].items():
             timer[k] = v
 

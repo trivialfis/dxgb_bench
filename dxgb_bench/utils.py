@@ -4,8 +4,11 @@ import sys
 import time
 import shutil
 import os
+from typing import Union, Any
 
 from dask import dataframe as dd
+from dask import array as da
+import pandas
 
 try:
     import cudf
@@ -15,7 +18,7 @@ except ImportError:
     dask_cudf = None
 
 
-def fprint(*args, **kwargs):
+def fprint(*args: Any, **kwargs: Any) -> None:
     print(*args, **kwargs)
     sys.stdout.flush()
 
@@ -23,16 +26,29 @@ def fprint(*args, **kwargs):
 fprint.__doc__ = print.__doc__
 
 
+DC = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
+ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
+DType = Union[
+    cudf.DataFrame,
+    pandas.DataFrame,
+    cudf.Series,
+    pandas.Series,
+    da.Array,
+    dd.DataFrame,
+    dd.Series,
+]
+
+
 def read_csv(
-    path,
-    sep,
+    path: str,
+    sep: str,
     dtype,
     header,
     names,
     backend,
     skiprows=0,
     blocksize=dd.io.csv.AUTO_BLOCKSIZE,
-):
+) -> DType:
     if backend == "dask_cudf":
         df = dask_cudf.read_csv(
             path, delimiter=sep, dtype=dtype, header=None, names=names
