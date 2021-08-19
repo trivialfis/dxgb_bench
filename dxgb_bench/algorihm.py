@@ -2,6 +2,9 @@ from xgboost import dask as dxgb
 import xgboost as xgb
 from .utils import Timer, fprint
 
+from distributed import Client
+from typing import Optional
+
 
 class XgbDaskBase:
     def __init__(self, parameters, rounds, client):
@@ -128,7 +131,7 @@ class XgbGpuHist:
                 return evals_result
 
 
-def factory(name, task, client, args):
+def factory(name, task, client: Optional[Client], args):
     parameters = {
         'max_depth': args.max_depth,
         "grow_policy": args.policy,

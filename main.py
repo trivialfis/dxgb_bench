@@ -3,7 +3,7 @@ import psutil
 import os
 import sys
 import json
-from typing import List
+from typing import List, Optional
 
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
@@ -69,20 +69,25 @@ def main(args):
             assert args.workers is None or args.workers <= total_gpus
             return LocalCUDACluster(*user_args, **kwargs)
 
-    def run_benchmark(client):
+    def run_benchmark(client: Optional[Client]):
         (X, y, w), task = data_factory(args.data, args)
-        if args.backend != "cudf":
-            with Timer(args.backend, "Wait"):
+        if args.backend.find("dask") != -1:
+            with Timer(args.backend, "dask-wait"):
                 X = X.persist()
                 y = y.persist()
                 wait(X)
                 wait(y)
         algo = algorihm.factory(args.algo, task, client, args)
-        eval_results: dict = algo.fit(X, y, w)
+        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
         print(eval_results)
         timer = Timer.global_timer()
-        for k, v in list(eval_results.values()).items():
+        dataset_results = list(eval_results.values())
+        assert len(dataset_results) == 0
+        for k, v in dataset_results[0].items():
             timer[k] = v
+
+    if args.backend.find("dask") != -1:
+        run_benchmark(None)
 
     with TemporaryDirectory(args.temporary_directory):
         # race condition for creating directory.

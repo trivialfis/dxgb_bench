@@ -92,9 +92,9 @@ global_timer = {}
 
 
 class Timer:
-    def __init__(self, name, proc):
+    def __init__(self, name: str, proc: str):
         self.name = name
-        self.proc = proc
+        self.proc = proc + " (sec)"
 
     def __enter__(self):
         self.start = time.time()
