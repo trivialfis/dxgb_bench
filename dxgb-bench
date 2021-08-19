@@ -4,7 +4,7 @@ import psutil
 import os
 import sys
 import json
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
@@ -34,7 +34,7 @@ except ImportError:
     cupy = None
 
 
-def packages_version():
+def packages_version() -> Dict[str, Optional[str]]:
     packages = {
         "numpy": numpy.__version__,
         "dask": dask.__version__,
@@ -50,7 +50,7 @@ def packages_version():
     return packages
 
 
-def print_version():
+def print_version() -> None:
     fprint("Package version:")
     packages = packages_version()
     for name, version in packages.items():
@@ -58,12 +58,12 @@ def print_version():
     fprint()
 
 
-def main(args):
+def main(args: argparse.Namespace) -> None:
     print_version()
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
-    def cluster_type(*user_args, **kwargs):
+    def cluster_type(*user_args: Any, **kwargs: Any) -> LocalCluster:
         if args.device == "CPU":
             return LocalCluster(*user_args, **kwargs)
         else:
@@ -71,7 +71,7 @@ def main(args):
             assert args.workers is None or args.workers <= total_gpus
             return LocalCUDACluster(*user_args, **kwargs)
 
-    def run_benchmark(client: Optional[Client]):
+    def run_benchmark(client: Optional[Client]) -> None:
         (X, y, w), task = data_factory(args.data, args)
         if args.backend.find("dask") != -1:
             with Timer(args.backend, "dask-wait"):

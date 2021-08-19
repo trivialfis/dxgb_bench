@@ -6,7 +6,7 @@ if __name__ == "__main__":
         name="dxgb-bench",
         version="0.0.0",
         description="Benchmark scripts for XGBoost.",
-        scripts=["dxgb-bench"],
+        scripts=["dxgb-bench", "dxgb-to-csv"],
         install_requires=[
             "numpy",
             "pandas",

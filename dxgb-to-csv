@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import os
 import csv
 import json
@@ -34,7 +35,7 @@ def main(args: argparse.Namespace) -> None:
             header = header.union(set(row.keys()))
             rows.append(row)
 
-        writer = csv.DictWriter(fd, fieldnames=header)
+        writer = csv.DictWriter(fd, fieldnames=list(header))
         writer.writeheader()
         writer.writerows(rows)
 
