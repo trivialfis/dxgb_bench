@@ -55,13 +55,21 @@ class XgbDaskGpuHist(XgbDaskBase):
                 return output
 
 
-class XgbCpuHist:
-    def __init__(self, parameters, rounds):
-        self.name = "xgboost-cpu-hist"
-        self.parameters = parameters
-        self.num_boost_round = rounds
+class XgbDaskCpuHist(XgbDaskBase):
+    def __init__(self, parameters, rounds, client):
+        super().__init__(parameters, rounds, client)
+        self.name = "xgboost-dask-cpu-hist"
         self.parameters["tree_method"] = "hist"
 
+
+class XgbDaskCpuApprox(XgbDaskBase):
+    def __init__(self, parameters, rounds, client):
+        super().__init__(parameters, rounds, client)
+        self.name = "xgboost-dask-cpu-approx"
+        self.parameters["tree_method"] = "approx"
+
+
+class XgbBase:
     def fit(self, X, y, weight=None):
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DMatrix"):
@@ -78,6 +86,22 @@ class XgbCpuHist:
                 print(evals_result)
                 self.output = output
                 return output
+
+
+class XgbCpuHist(XgbBase):
+    def __init__(self, parameters, rounds):
+        self.name = "xgboost-cpu-hist"
+        self.parameters = parameters
+        self.num_boost_round = rounds
+        self.parameters["tree_method"] = "hist"
+
+
+class XgbCpuApprox(XgbBase):
+    def __init__(self, parameters, rounds):
+        self.name = "xgboost-cpu-approx"
+        self.parameters = parameters
+        self.num_boost_round = rounds
+        self.parameters["tree_method"] = "approx"
 
 
 class XgbGpuHist:
@@ -105,20 +129,6 @@ class XgbGpuHist:
                 return output
 
 
-class XgbDaskCpuHist(XgbDaskBase):
-    def __init__(self, parameters, rounds, client):
-        super().__init__(parameters, rounds, client)
-        self.name = "xgboost-dask-cpu-hist"
-        self.parameters["tree_method"] = "hist"
-
-
-class XgbDaskCpuApprox(XgbDaskBase):
-    def __init__(self, parameters, rounds, client):
-        super().__init__(parameters, rounds, client)
-        self.name = "xgboost-dask-cpu-approx"
-        self.parameters["tree_method"] = "approx"
-
-
 def factory(name, task, client, args):
     parameters = {
         'max_depth': args.max_depth,
@@ -142,6 +152,8 @@ def factory(name, task, client, args):
             return XgbGpuHist(parameters, args.rounds)
         elif name == "xgboost-cpu-hist":
             return XgbCpuHist(parameters, args.rounds)
+        elif name == "xgboost-cpu-approx":
+            return XgbCpuApprox(parameters, args.rounds)
 
     raise ValueError(
         "Unknown algorithm: ",
