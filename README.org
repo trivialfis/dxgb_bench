@@ -1,11 +1,11 @@
 Some simple scripts for running xgboost-dask pipeline.  Heavily inspired by [[https://github.com/NVIDIA/gbm-bench][gbm-bench]] .
-By default these scripts use ~dask_cudf~ as bank-end for manipulating datasets.
+By default these scripts use ~dask_cudf~ as bank-end for ETL.
 
 * Available datasets:
   - mortgage
-#+BEGIN_EXAMPLE
+  #+BEGIN_EXAMPLE
       --data=mortgage:2 for using 2 years of the data. 4, 8, 16, 17 are also available.
-#+END_EXAMPLE
+  #+END_EXAMPLE
   - taxi yellow tripdata 2014-01  (Copied from rapids' demo)
   - higgs
   - YearPrediction
@@ -16,27 +16,25 @@ By default these scripts use ~dask_cudf~ as bank-end for manipulating datasets.
   - CPU Approx
 
 * Usage
-#+BEGIN_SRC bash
-python main.py --algo='xgboost-dask-gpu-hist' --data='mortgage' --backend='dask_cudf'
-#+END_SRC
+  Install dxgb_bench:
+  #+BEGIN_SRC bash
+    pip install .
+  #+END_SRC
 
-Format multiple benchmark results recorded in JSON into a single CSV file:
-#+BEGIN_SRC bash
-python to_csv.py --json-directory='benchmark_outputs' --output-directory='benchmark_outputs'
-#+END_SRC
+  #+BEGIN_SRC bash
+    dxgb-bench --algo='xgboost-gpu-hist' --data='mortgage' --backend='dask_cudf'
+  #+END_SRC
 
-The result is saved into a JSON file along with packages' version.  Each run will try to
-avoid overwriting previous saved file, so one can run it multiple times without renaming
-output file at each run.
+  Format multiple benchmark results recorded in JSON into a single CSV file:
+  #+BEGIN_SRC bash
+    dxgb-to-csv --json-directory='benchmark_outputs' --output-directory='benchmark_outputs'
+  #+END_SRC
+
+  The result is saved into a JSON file along with packages' version.  Each run will try to
+  avoid overwriting previous saved file, so one can run it multiple times without renaming
+  output file at each run.
 
 * Dependencies
-  - XGBoost
-  - CUDA
-  - cuDF
-  - dask[complete]  # pandas, distributed are implicitly included
-  - dask_cudf
-  - dask_cuda
-  - dask_ml
-  - cupy
+  See XGBoost.yml for details.  XGBoost itself is assumed to be installed from source.
 
 #  LocalWords:  LocalWords tripdata XGBoost CUDA cuDF
