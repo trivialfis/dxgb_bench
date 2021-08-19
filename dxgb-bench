@@ -180,12 +180,6 @@ if __name__ == "__main__":
         default=psutil.cpu_count(logical=False),
     )
     parser.add_argument(
-        "--gpus",
-        type=int,
-        help="Number of GPUs.  One worker for each GPU.",
-        default=dask_cuda.utils.get_n_gpus(),
-    )
-    parser.add_argument(
         "--algo", type=str, help="Used algorithm", default="xgboost-gpu-hist"
     )
     parser.add_argument(
