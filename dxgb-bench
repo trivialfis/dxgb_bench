@@ -88,7 +88,7 @@ def main(args: argparse.Namespace) -> None:
         for k, v in dataset_results[0].items():
             timer[k] = v[-1]
 
-    if args.backend.find("dask") != -1:
+    if args.backend.find("dask") == -1:
         run_benchmark(None)
 
     with TemporaryDirectory(args.temporary_directory):

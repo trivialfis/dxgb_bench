@@ -59,7 +59,7 @@ def rec(v_i: int, variables: list, spec: list) -> None:
 
 def launch(dirpath: str, parameters: Args) -> None:
     variables = []
-    constants = []
+    constants = [("--local-directory", dirpath)]
     for key, value in parameters.items():
         prefix = "--" + key
         if isinstance(value, list):
