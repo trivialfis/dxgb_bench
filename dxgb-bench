@@ -90,20 +90,20 @@ def main(args: argparse.Namespace) -> None:
 
     if args.backend.find("dask") == -1:
         run_benchmark(None)
-
-    with TemporaryDirectory(args.temporary_directory):
-        # race condition for creating directory.
-        # dask.config.set({'temporary_directory': args.temporary_directory})
-        if args.scheduler is not None:
-            with Client(scheduler_file=args.scheduler) as client:
-                run_benchmark(client)
-        else:
-            with cluster_type(
-                n_workers=args.workers, threads_per_worker=args.cpus
-            ) as cluster:
-                print("dashboard link:", cluster.dashboard_link)
-                with Client(cluster) as client:
+    else:
+        with TemporaryDirectory(args.temporary_directory):
+            # race condition for creating directory.
+            # dask.config.set({'temporary_directory': args.temporary_directory})
+            if args.scheduler is not None:
+                with Client(scheduler_file=args.scheduler) as client:
                     run_benchmark(client)
+            else:
+                with cluster_type(
+                    n_workers=args.workers, threads_per_worker=args.cpus
+                ) as cluster:
+                    print("dashboard link:", cluster.dashboard_link)
+                    with Client(cluster) as client:
+                        run_benchmark(client)
 
     if not os.path.exists(args.output_directory):
         os.mkdir(args.output_directory)
