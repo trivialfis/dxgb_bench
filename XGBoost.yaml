@@ -1,0 +1,17 @@
+name: XGBoost
+channels:
+- rapidsai
+- nvidia
+- conda-forge
+dependencies:
+- cudf
+- cupy
+- pynvml
+- dask-cuda
+- dask-cudf
+- dask
+- distributed
+- numpy
+- pandas
+- pynvml
+- psutil
