@@ -11,7 +11,7 @@ from dxgb_bench.utils import DataSet
 
 def factory(name: str, args: argparse.Namespace) -> Tuple[DataSet, str]:
     if name.startswith("mortgage"):
-        d = Mortgage(args)
+        d: DataSet = Mortgage(args)
         return d, d.task
     elif name == "taxi":
         d = Taxi(args)

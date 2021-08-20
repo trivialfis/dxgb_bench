@@ -90,11 +90,12 @@ def show_progress(block_num, block_size, total_size):
 
 
 class DataSet:
-    uri = None
+    uri: Optional[str] = None
 
     def retrieve(self, local_directory: str) -> str:
         if not os.path.exists(local_directory):
             os.makedirs(local_directory)
+        assert self.uri
         filename = os.path.join(local_directory, os.path.basename(self.uri))
         if not os.path.exists(filename):
             fprint(
