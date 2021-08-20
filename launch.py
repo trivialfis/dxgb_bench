@@ -43,6 +43,16 @@ higgs_distributed = higgs.copy()
 higgs_distributed["backend"] = "dask_cudf"
 higgs_distributed["workers"] = 2
 
+covtype = mortgage.copy()
+covtype["data"] = "covtype"
+
+covtype_distributed = covtype.copy()
+covtype_distributed["backend"] = "dask_cudf"
+covtype_distributed["workers"] = 2
+
+year = mortgage.copy()
+year["data"] = "year"
+
 
 def rec(v_i: int, variables: list, spec: list) -> None:
     if v_i == len(variables):

@@ -1,10 +1,12 @@
-from dxgb_bench.utils import DataSet, read_csv, fprint
+from dxgb_bench.utils import DataSet, read_csv, fprint, DType
 import os
 import zipfile
+import argparse
+from typing import Optional, Tuple
 
 
 class YearPrediction(DataSet):
-    def __init__(self, args):
+    def __init__(self, args: argparse.Namespace) -> None:
         self.uri = (
             "https://archive.ics.uci.edu/ml/machine-learning-"
             "databases/00203/YearPredictionMSD.txt.zip"
@@ -20,7 +22,7 @@ class YearPrediction(DataSet):
 
         self.task = "reg:squarederror"
 
-    def load(self, args):
+    def load(self, args: argparse.Namespace) -> Tuple[DType, DType, Optional[DType]]:
         year = read_csv(
             self.csv_path,
             header=None,
