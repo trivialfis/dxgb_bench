@@ -4,18 +4,9 @@ import argparse
 from xgboost import dask as dxgb
 import xgboost as xgb
 
-from .utils import Timer, fprint
+from .utils import Timer, fprint, DC, ID
 
 from distributed import Client
-from dask import array as da
-from dask import dataframe as dd
-
-import cudf
-import pandas
-
-
-DC = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
-ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
 
 
 class XgbDaskBase:
