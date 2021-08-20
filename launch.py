@@ -53,6 +53,10 @@ covtype_distributed["workers"] = 2
 year = mortgage.copy()
 year["data"] = "year"
 
+year_distributed = year.copy()
+year_distributed["backend"] = "dask_cudf"
+year_distributed["workers"] = 2
+
 
 def rec(v_i: int, variables: list, spec: list) -> None:
     if v_i == len(variables):
@@ -90,10 +94,17 @@ def launch(dirpath: str, parameters: Args) -> None:
 def main(local_directory: str) -> None:
     launch(local_directory, mortgage)
     launch(local_directory, mortgage_distributed)
+
     launch(local_directory, mortgage_2y)
 
     launch(local_directory, higgs)
     launch(local_directory, higgs_distributed)
+
+    launch(local_directory, covtype)
+    launch(local_directory, covtype_distributed)
+
+    launch(local_directory, year)
+    launch(local_directory, year_distributed)
 
 
 if __name__ == "__main__":
