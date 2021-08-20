@@ -72,14 +72,18 @@ def main(args: argparse.Namespace) -> None:
             return LocalCUDACluster(*user_args, **kwargs)
 
     def run_benchmark(client: Optional[Client]) -> None:
-        (X, y, w), task = data_factory(args.data, args)
+        d, task = data_factory(args.data, args)
+        (X, y, w) = d.load(args)
+        extra_args = d.extra_args()
+
         if args.backend.find("dask") != -1:
             with Timer(args.backend, "dask-wait"):
                 X = X.persist()
                 y = y.persist()
                 wait(X)
                 wait(y)
-        algo = algorihm.factory(args.algo, task, client, args)
+
+        algo = algorihm.factory(args.algo, task, client, args, extra_args)
         eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
         print(eval_results)
         timer = Timer.global_timer()

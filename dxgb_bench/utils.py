@@ -3,8 +3,9 @@ from urllib.request import urlretrieve
 import sys
 import time
 import shutil
+import argparse
 import os
-from typing import Union, Any
+from typing import Union, Any, Dict, Tuple, Optional
 
 from dask import dataframe as dd
 from dask import array as da
@@ -91,7 +92,7 @@ def show_progress(block_num, block_size, total_size):
 class DataSet:
     uri = None
 
-    def retrieve(self, local_directory):
+    def retrieve(self, local_directory: str) -> str:
         if not os.path.exists(local_directory):
             os.makedirs(local_directory)
         filename = os.path.join(local_directory, os.path.basename(self.uri))
@@ -102,6 +103,13 @@ class DataSet:
                 )
             )
             urlretrieve(self.uri, filename, show_progress)
+        return filename
+
+    def extra_args(self) -> Dict[str, Any]:
+        return {}
+
+    def load(self, args: argparse.Namespace) -> Tuple[DType, DType, Optional[DType]]:
+        raise NotImplementedError()
 
 
 global_timer = {}
@@ -112,7 +120,7 @@ class Timer:
         self.name = name
         self.proc = proc + " (sec)"
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         self.start = time.time()
         fprint(self.name, self.proc, "started: ", time.ctime())
 

@@ -1,4 +1,4 @@
-from typing import Optional, Union
+from typing import Optional, Union, Dict, Any
 import argparse
 
 from xgboost import dask as dxgb
@@ -151,7 +151,11 @@ class XgbGpuHist(XgbBase):
 
 
 def factory(
-    name: str, task: str, client: Optional[Client], args: argparse.Namespace
+    name: str,
+    task: str,
+    client: Optional[Client],
+    args: argparse.Namespace,
+    extra_args: Dict[str, Any]
 ) -> Union[XgbBase, XgbDaskBase]:
     parameters = {
         "max_depth": args.max_depth,
@@ -159,6 +163,8 @@ def factory(
         "single_precision_histogram": args.f32_hist,
         "objective": task,
     }
+    parameters.update(extra_args)
+
     if args.backend.find("dask") != -1:
         parameters["nthread"] = args.cpus
 
