@@ -2,7 +2,7 @@
 import subprocess
 import psutil
 import argparse
-from typing import Dict, Union, List, Any
+from typing import Dict, Union, List, Any, Tuple
 
 
 def check_call(*args: Any, **kwargs: Any) -> None:
@@ -31,6 +31,7 @@ mortgage_distributed["workers"] = 2
 mortgage_distributed["backend"] = "dask_cudf"
 
 mortgage_2y = mortgage.copy()
+mortgage_2y["data"] = "mortgage:2"
 mortgage_2y["backend"] = "dask_cudf"
 mortgage_2y["workers"] = 2
 
@@ -59,7 +60,7 @@ def rec(v_i: int, variables: list, spec: list) -> None:
 
 def launch(dirpath: str, parameters: Args) -> None:
     variables = []
-    constants = [("--local-directory", dirpath)]
+    constants: List[Tuple[str, Union[str, int]]] = [("--local-directory", dirpath)]
     for key, value in parameters.items():
         prefix = "--" + key
         if isinstance(value, list):
@@ -72,7 +73,6 @@ def launch(dirpath: str, parameters: Args) -> None:
             item = (prefix, value)
             constants.append(item)
 
-    n_variables = len(variables)
     spec = [k + "=" + str(v) for k, v in constants]
     rec(0, variables, spec)
 
