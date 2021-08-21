@@ -46,7 +46,7 @@ def main(args: argparse.Namespace) -> None:
     filtered = [
         "data",
         "policy",
-        "f32_hist",
+        "max_depth",
         "backend",
         "workers",
         "train (sec)",
