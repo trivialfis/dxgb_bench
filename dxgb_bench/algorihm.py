@@ -7,6 +7,30 @@ import xgboost as xgb
 from .utils import Timer, fprint, DC, ID
 
 from distributed import Client
+from time import time
+
+
+EvalsLog = xgb.callback.TrainingCallback.EvalsLog
+
+
+class PrintTime(xgb.callback.TrainingCallback):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def before_training(self, model: xgb.Booster) -> xgb.Booster:
+        self.start = time()
+        return model
+
+    def after_iteration(
+        self, model: xgb.Booster, epoch: int, evals_log: EvalsLog
+    ) -> bool:
+        print("After iteration:", time() - self.start)
+        return False
+
+    def after_training(self, model: xgb.Booster) -> xgb.Booster:
+        self.end = time()
+        print("Training end:", self.end - self.start)
+        return model
 
 
 class XgbDaskBase:
@@ -42,9 +66,7 @@ class XgbDaskGpuHist(XgbDaskBase):
         self.name = "xgboost-dask-gpu-hist"
         self.parameters["tree_method"] = "gpu_hist"
 
-    def fit(
-        self, X: DC, y: DC, weight: Optional[DC] = None
-    ) -> xgb.callback.TrainingCallback.EvalsLog:
+    def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskDeviceQuantileDMatrix"):
                 dtrain = dxgb.DaskDeviceQuantileDMatrix(
@@ -82,14 +104,12 @@ class XgbBase:
         self.parameters = parameters
         self.num_boost_round = rounds
 
-    def fit(
-        self, X: ID, y: ID, weight: Optional[ID] = None
-    ) -> xgb.callback.TrainingCallback.EvalsLog:
+    def fit(self, X: ID, y: ID, weight: Optional[ID] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DMatrix"):
                 dtrain = xgb.DMatrix(data=X, label=y, weight=weight)
             with Timer(self.name, "train"):
-                evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+                evals_result: EvalsLog = {}
                 output = xgb.train(
                     params=self.parameters,
                     dtrain=dtrain,
@@ -122,14 +142,12 @@ class XgbGpuHist(XgbBase):
         parameters["tree_method"] = "gpu_hist"
         super().__init__("xgboost-gpu-hist", parameters, rounds)
 
-    def fit(
-        self, X: ID, y: ID, weight: Optional[ID] = None
-    ) -> xgb.callback.TrainingCallback.EvalsLog:
+    def fit(self, X: ID, y: ID, weight: Optional[ID] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DeviceQuantileDMatrix"):
                 dtrain = xgb.DeviceQuantileDMatrix(data=X, label=y, weight=weight)
             with Timer(self.name, "train"):
-                evals_result: xgb.callback.TrainingCallback.EvalsLog = {}
+                evals_result: EvalsLog = {}
                 output = xgb.train(
                     params=self.parameters,
                     dtrain=dtrain,
