@@ -86,6 +86,9 @@ def main(args: argparse.Namespace) -> None:
         algo = algorihm.factory(args.algo, task, client, args, extra_args)
         eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
         print(eval_results)
+        if args.model_out is not None:
+            algo.booster.save_model(args.model_out)
+
         timer = Timer.global_timer()
         dataset_results = list(eval_results.values())
         assert len(dataset_results) == 1
@@ -203,6 +206,9 @@ if __name__ == "__main__":
     parser.add_argument("--max-depth", type=int, default=16)
     parser.add_argument(
         "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
+    )
+    parser.add_argument(
+        "--model-out", type=str, default=None,
     )
     args = parser.parse_args()
     try:
