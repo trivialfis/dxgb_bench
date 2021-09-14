@@ -16,7 +16,7 @@ gpu_hist = "xgboost-gpu-hist"
 
 mortgage: Args = {
     "data": "mortgage",
-    "algo": "xgboost-gpu-hist",
+    "algo": ["xgboost-gpu-hist", "xgboost-cpu-hist"],
     "cpus": psutil.cpu_count(logical=True),
     "rounds": 200,
     "backend": "cudf",
@@ -25,10 +25,6 @@ mortgage: Args = {
     "workers": 1,
     "f32-hist": 0,
 }
-
-mortgage_distributed = mortgage.copy()
-mortgage_distributed["workers"] = 2
-mortgage_distributed["backend"] = "dask_cudf"
 
 mortgage_2y = mortgage.copy()
 mortgage_2y["data"] = "mortgage:2"
@@ -39,23 +35,15 @@ mortgage_2y["workers"] = 2
 higgs = mortgage.copy()
 higgs["data"] = "higgs"
 
-higgs_distributed = higgs.copy()
-higgs_distributed["backend"] = "dask_cudf"
-higgs_distributed["workers"] = 2
-
 covtype = mortgage.copy()
 covtype["data"] = "covtype"
-
-covtype_distributed = covtype.copy()
-covtype_distributed["backend"] = "dask_cudf"
-covtype_distributed["workers"] = 2
 
 year = mortgage.copy()
 year["data"] = "year"
 
-year_distributed = year.copy()
-year_distributed["backend"] = "dask_cudf"
-year_distributed["workers"] = 2
+airline = mortgage.copy()
+airline["backend"] = "cudf"
+airline["data"] = "airline"
 
 
 def rec(v_i: int, variables: list, spec: list) -> None:
@@ -93,19 +81,16 @@ def launch(dirpath: str, parameters: Args) -> None:
 
 def main(local_directory: str) -> None:
     launch(local_directory, mortgage)
-    launch(local_directory, mortgage_distributed)
 
     launch(local_directory, mortgage_2y)
 
     launch(local_directory, higgs)
-    launch(local_directory, higgs_distributed)
 
     launch(local_directory, covtype)
-    launch(local_directory, covtype_distributed)
 
     launch(local_directory, year)
-    launch(local_directory, year_distributed)
 
+    launch(local_directory, airline)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
