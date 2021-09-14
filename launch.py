@@ -20,7 +20,7 @@ mortgage: Args = {
     "cpus": psutil.cpu_count(logical=True),
     "rounds": 200,
     "backend": "cudf",
-    "max-depth": 16,
+    "max-depth": 8,
     "policy": ["depthwise", "lossguide"],
     "workers": 1,
     "f32-hist": 0,
