@@ -247,7 +247,8 @@ class Mortgage(DataSet):
             print("Saving to parquet:", parquet_X)
             train_X["labels"] = train_y
             train_X.to_parquet(parquet_X)
-            wait(train_X)
+            if args.backend != "cudf":
+                wait(train_X)
         else:
             print("Reading from cached parquet.")
 
