@@ -3,6 +3,7 @@ from .taxi import Taxi
 from .higgs import Higgs
 from .year import YearPrediction
 from .covtype import Covtype
+from .airline import Airline
 
 import argparse
 from typing import Tuple
@@ -24,6 +25,9 @@ def factory(name: str, args: argparse.Namespace) -> Tuple[DataSet, str]:
         return d, d.task
     elif name == "covtype":
         d = Covtype(args)
+        return d, d.task
+    elif name == "airline":
+        d = Airline(args)
         return d, d.task
     else:
         raise ValueError("Unknown dataset:", name)
