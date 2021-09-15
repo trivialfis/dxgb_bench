@@ -5,6 +5,7 @@ import json
 import argparse
 from typing import Set
 import pandas as pd
+import numpy as np
 
 
 def main(args: argparse.Namespace) -> None:
@@ -43,22 +44,14 @@ def main(args: argparse.Namespace) -> None:
         writer.writeheader()
         writer.writerows(rows)
 
-    filtered = [
-        "data",
-        "policy",
-        "max_depth",
-        "backend",
-        "workers",
-        "train (sec)",
-    ]
+    filtered = []
     df = pd.DataFrame(rows, columns=header)
 
-    if "logloss" in df.columns:
-        filtered.append("logloss")
-    if "mlogloss" in df.columns:
-        filtered.append("mlogloss")
-    if "rmse" in df.columns:
-        filtered.append("rmse")
+    for i in range(len(df.columns)):
+        if not isinstance(df.iloc[0, i], list) and not np.all(
+            df.iloc[:, i].values == df.iloc[0, i]
+        ):
+            filtered.append(df.columns[i])
 
     df = df[filtered]
     df = df.sort_values(filtered, ascending=[False] * len(filtered))
