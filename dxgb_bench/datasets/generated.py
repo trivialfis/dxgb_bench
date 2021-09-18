@@ -13,42 +13,49 @@ import cupyx
 
 def make_regression(args: argparse.Namespace) -> Tuple[np.ndarray, np.ndarray]:
     print(args.n_samples, args.n_features, args.sparsity)
-    n_threads = args.cpus
+    n_threads = min(args.cpus, args.n_features)
 
-    def random_csr(t_id: int) -> sparse.csc_matrix:
+    def random_csc(t_id: int) -> sparse.csc_matrix:
         rng = np.random.default_rng(1994 * t_id)
-        thread_size = args.n_samples // n_threads
+        thread_size = args.n_features // n_threads
         if t_id == n_threads - 1:
-            n_samples = args.n_samples - t_id * thread_size
+            n_features = args.n_features - t_id * thread_size
         else:
-            n_samples = thread_size
+            n_features = thread_size
 
         X = sparse.random(
-            m=n_samples, n=args.n_features, density=1.0 - args.sparsity, random_state=rng
+            m=args.n_samples, n=n_features, density=1.0 - args.sparsity, random_state=rng
         ).tocsc()
-        return X
+        y = np.zeros((args.n_samples, 1))
+
+        for i in range(X.shape[1]):
+            size = X.indptr[i+1] - X.indptr[i]
+            print(size, X[:, i].toarray().shape)
+            if size != 0:
+                y += X[:, i].toarray() * rng.random((args.n_samples, 1)) * 0.2
+
+        return X, y
 
     futures = []
     with ThreadPoolExecutor(max_workers=n_threads) as executor:
         for i in range(n_threads):
-            futures.append(executor.submit(random_csr, i))
+            futures.append(executor.submit(random_csc, i))
 
-    results = []
+    X_results = []
+    y_results = []
     for f in futures:
-        results.append(f.result())
+        X, y = f.result()
+        X_results.append(X)
+        y_results.append(y)
 
-    X = sparse.vstack(results, format="csc")
-    y = np.zeros((args.n_samples, 1))
+    assert len(y_results) == n_threads
 
-    rng = np.random.RandomState(1994)
-    for i in range(X.shape[1]):
-        size = X.indptr[i+1] - X.indptr[i]
-        print(size, X[:, i].toarray().shape)
-        if size != 0:
-            y += X[:, i].toarray() * rng.randn(args.n_samples, 1) * 0.2
+    X = sparse.hstack(X_results, format="csr")
+    y = np.asarray(y_results)
+    y = y.reshape((y.shape[0], y.shape[1])).T
+    y = np.sum(y, axis=1)
 
-    X = X.tocsr()
-
+    print(X.shape, y.shape)
     return X, y
 
 
