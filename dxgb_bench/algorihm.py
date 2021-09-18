@@ -174,7 +174,7 @@ def factory(
     }
     parameters.update(extra_args)
 
-    if args.backend.find("dask") != -1:
+    if args.backend.find("dask") == -1:
         parameters["nthread"] = args.cpus
 
     print("parameters:", parameters)
