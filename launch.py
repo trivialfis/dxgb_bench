@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import subprocess
+import json
+import os
 import psutil
 import argparse
 from typing import Dict, Union, List, Any, Tuple
@@ -55,10 +57,23 @@ generated["sparsity"] = [0.8, 0.4]
 generated["task"] = "reg"
 
 
-def rec(v_i: int, variables: list, spec: list) -> None:
+history = []
+
+
+def rec(v_i: int, variables: list, spec: list, resume: bool) -> None:
     if v_i == len(variables):
         cmd = ["dxgb-bench"] + spec
+
+        if resume and cmd in history:
+            print(f"Skipping: {cmd}")
+            return
+
         check_call(cmd)
+
+        history.append(tuple(cmd))
+        with open("./history.json", "w") as fd:
+            json.dump(history, fd)
+
         return
 
     n_varients = len(variables[v_i])
@@ -66,7 +81,7 @@ def rec(v_i: int, variables: list, spec: list) -> None:
         k, v = variables[v_i][i]
         appended = spec.copy()
         appended.append(k + "=" + str(v))
-        rec(v_i + 1, variables, appended)
+        rec(v_i + 1, variables, appended, resume)
 
 
 def launch(dirpath: str, parameters: Args) -> None:
@@ -85,10 +100,16 @@ def launch(dirpath: str, parameters: Args) -> None:
             constants.append(item)
 
     spec = [k + "=" + str(v) for k, v in constants]
-    rec(0, variables, spec)
+    resume = args.resume == 1
+    rec(0, variables, spec, resume)
 
 
 def main(local_directory: str) -> None:
+    global history
+    if os.path.exists("./history.json"):
+        with open("./history.json", "r") as fd:
+            history = json.load(fd)
+
     launch(local_directory, generated)
 
     launch(local_directory, mortgage)
@@ -111,6 +132,12 @@ if __name__ == "__main__":
         type=str,
         help="Local directory for storing the dataset.",
         required=True,
+    )
+    parser.add_argument(
+        "--resume",
+        type=int,
+        help="Resume from last session.",
+        default=0,
     )
     args = parser.parse_args()
     main(args.local_directory)

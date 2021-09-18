@@ -87,7 +87,7 @@ def main(args: argparse.Namespace) -> None:
 
         algo = algorihm.factory(args.algo, task, client, args, extra_args)
         eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
-        print(eval_results)
+        print("Evaluation results:", eval_results)
         if args.model_out is not None:
             algo.booster.save_model(args.model_out)
 
@@ -181,6 +181,7 @@ if __name__ == "__main__":
         type=int,
         choices=[0, 1],
         help="Whether XGBoost should run evaluation at each iteration.",
+        default=0,
     )
     parser.add_argument(
         "--scheduler",

@@ -7,12 +7,17 @@ from concurrent.futures import ThreadPoolExecutor
 from dxgb_bench.utils import DataSet, DType, fprint
 from scipy import sparse
 import numpy as np
-import cupy as cp
-import cupyx
 
 
 def make_regression(args: argparse.Namespace) -> Tuple[np.ndarray, np.ndarray]:
-    print(args.n_samples, args.n_features, args.sparsity)
+    fprint(
+        "n_samples:",
+        args.n_samples,
+        "n_features:",
+        args.n_features,
+        "sparsity:",
+        args.sparsity,
+    )
     n_threads = min(args.cpus, args.n_features)
 
     def random_csc(t_id: int) -> sparse.csc_matrix:
@@ -24,12 +29,15 @@ def make_regression(args: argparse.Namespace) -> Tuple[np.ndarray, np.ndarray]:
             n_features = thread_size
 
         X = sparse.random(
-            m=args.n_samples, n=n_features, density=1.0 - args.sparsity, random_state=rng
+            m=args.n_samples,
+            n=n_features,
+            density=1.0 - args.sparsity,
+            random_state=rng,
         ).tocsc()
         y = np.zeros((args.n_samples, 1))
 
         for i in range(X.shape[1]):
-            size = X.indptr[i+1] - X.indptr[i]
+            size = X.indptr[i + 1] - X.indptr[i]
             print(size, X[:, i].toarray().shape)
             if size != 0:
                 y += X[:, i].toarray() * rng.random((args.n_samples, 1)) * 0.2
@@ -89,8 +97,7 @@ class Generated(DataSet):
             return
 
         X, y = make_regression(args)
-        # X = X.get()
-        # y = cp.asnumpy(y)
+
         with open(self.X_path, "wb") as fd:
             pickle.dump(X, fd)
         with open(self.y_path, "wb") as fd:
