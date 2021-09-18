@@ -82,6 +82,8 @@ def main(args: argparse.Namespace) -> None:
                 y = y.persist()
                 wait(X)
                 wait(y)
+        else:
+            cupy.cuda.runtime.deviceSynchronize()
 
         algo = algorihm.factory(args.algo, task, client, args, extra_args)
         eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
