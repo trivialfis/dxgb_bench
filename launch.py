@@ -13,17 +13,20 @@ def check_call(*args: Any, **kwargs: Any) -> None:
 Args = Dict[str, Union[List[Union[str, int]], str, int]]
 
 gpu_hist = "xgboost-gpu-hist"
+cpu_hist = "xgboost-cpu-hist"
 
 mortgage: Args = {
     "data": "mortgage",
-    "algo": ["xgboost-gpu-hist", "xgboost-cpu-hist"],
+    "algo": [gpu_hist],
+    "colsample_bynode": [0.6, None],
     "cpus": psutil.cpu_count(logical=True),
-    "rounds": 200,
+    "rounds": [200, 500],
     "backend": "cudf",
-    "max-depth": 8,
+    "max-depth": [8, 12],
     "policy": ["depthwise", "lossguide"],
     "workers": 1,
     "f32-hist": 0,
+    "eval": 0,
 }
 
 mortgage_2y = mortgage.copy()
@@ -45,24 +48,12 @@ airline = mortgage.copy()
 airline["backend"] = "cudf"
 airline["data"] = "airline"
 
-
-generated: Args = {
-    "data": "generated",
-    "n_samples": int(2e7),
-    "n_features": [256, 128, 64],
-    "sparsity": [0.8, 0.4, 0.2],
-    "eval": 0,
-    "task": "reg",
-    "algo": ["xgboost-gpu-hist"],
-    "colsample_bynode": [0.6, None],
-    "cpus": psutil.cpu_count(logical=False),
-    "rounds": [200, 500],
-    "backend": "cudf",
-    "max-depth": [8, 12],
-    "policy": ["depthwise", "lossguide"],
-    "workers": 1,
-    "f32-hist": 0,
-}
+generated = mortgage.copy()
+generated["data"] = "generated"
+generated["n_samples"] = int(2e7)
+generated["n_features"] = [256, 128, 64]
+generated["sparsity"] = [0.8, 0.4, 0.2]
+generated["task"] = "reg"
 
 
 def rec(v_i: int, variables: list, spec: list) -> None:
