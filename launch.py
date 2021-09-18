@@ -46,6 +46,22 @@ airline["backend"] = "cudf"
 airline["data"] = "airline"
 
 
+generated: Args = {
+    "data": "generated",
+    "n_samples": 1e8,
+    "n_features": [64, 128],
+    "sparsity": [0.2, 0.4, 0.8],
+    "algo": ["xgboost-gpu-hist", "xgboost-cpu-hist"],
+    "cpus": psutil.cpu_count(logical=False),
+    "rounds": [200, 500],
+    "backend": "cudf",
+    "max-depth": [8, 12],
+    "policy": ["depthwise", "lossguide"],
+    "workers": 1,
+    "f32-hist": 0,
+}
+
+
 def rec(v_i: int, variables: list, spec: list) -> None:
     if v_i == len(variables):
         cmd = ["dxgb-bench"] + spec
@@ -80,9 +96,11 @@ def launch(dirpath: str, parameters: Args) -> None:
 
 
 def main(local_directory: str) -> None:
+    launch(local_directory, generated)
+
     launch(local_directory, mortgage)
 
-    launch(local_directory, mortgage_2y)
+    # launch(local_directory, mortgage_2y)
 
     launch(local_directory, higgs)
 
@@ -91,6 +109,7 @@ def main(local_directory: str) -> None:
     launch(local_directory, year)
 
     launch(local_directory, airline)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
