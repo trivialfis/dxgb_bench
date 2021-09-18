@@ -51,6 +51,7 @@ generated: Args = {
     "n_samples": int(1e8),
     "n_features": [64, 128, 256],
     "sparsity": [0.2, 0.4, 0.8],
+    "task": "reg",
     "algo": ["xgboost-gpu-hist"],
     "cpus": psutil.cpu_count(logical=False),
     "rounds": [200, 500],
