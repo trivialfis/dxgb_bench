@@ -18,7 +18,6 @@ cpu_hist = "xgboost-cpu-hist"
 mortgage: Args = {
     "data": "mortgage",
     "algo": [gpu_hist],
-    "colsample_bynode": [0.6, None],
     "cpus": psutil.cpu_count(logical=True),
     "rounds": [200, 500],
     "backend": "cudf",
