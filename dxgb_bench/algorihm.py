@@ -62,7 +62,7 @@ class XgbDaskBase:
                 dtrain=dtrain,
                 evals=evals,
                 num_boost_round=self.num_boost_round,
-                callbacks=callbacks,
+                # callbacks=callbacks,
             )
             self.booster = output["booster"]
             return output["history"]
@@ -100,7 +100,7 @@ class XgbDaskGpuHist(XgbDaskBase):
                     dtrain=dtrain,
                     evals=evals,
                     num_boost_round=self.num_boost_round,
-                    callbacks=callbacks,
+                    # callbacks=callbacks,
                 )
                 self.booster = output["booster"]
                 return output["history"]
@@ -148,7 +148,7 @@ class XgbBase:
                     evals=evals,
                     evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
-                    callbacks=callbacks,
+                    # callbacks=callbacks,
                 )
                 self.booster = output
                 return evals_result
@@ -204,7 +204,7 @@ class XgbGpuHist(XgbBase):
                     evals=evals,
                     evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
-                    callbacks=callbacks,
+                    # callbacks=callbacks,
                 )
                 self.booster = output
                 return evals_result
