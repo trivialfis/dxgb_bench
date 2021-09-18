@@ -121,9 +121,10 @@ class Timer:
         self.name = name
         self.proc = proc + " (sec)"
 
-    def __enter__(self) -> None:
+    def __enter__(self) -> "Timer":
         self.start = time.time()
         fprint(self.name, self.proc, "started: ", time.ctime())
+        return self
 
     def __exit__(self, type, value, traceback):
         end = time.time()

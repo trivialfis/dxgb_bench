@@ -48,9 +48,10 @@ airline["data"] = "airline"
 
 generated: Args = {
     "data": "generated",
-    "n_samples": int(2e6),
-    "n_features": [64, 128, 256],
-    "sparsity": [0.2, 0.4, 0.8],
+    "n_samples": int(2e7),
+    "n_features": [256, 128, 64],
+    "sparsity": [0.8, 0.4, 0.2],
+    "eval": 0,
     "task": "reg",
     "algo": ["xgboost-gpu-hist"],
     "cpus": psutil.cpu_count(logical=False),

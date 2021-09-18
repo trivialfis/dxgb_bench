@@ -93,9 +93,11 @@ def main(args: argparse.Namespace) -> None:
 
         timer = Timer.global_timer()
         dataset_results = list(eval_results.values())
-        assert len(dataset_results) == 1
-        for k, v in dataset_results[0].items():
-            timer[k] = v[-1]
+        if args.eval:
+            assert len(dataset_results) == 1
+
+            for k, v in dataset_results[0].items():
+                timer[k] = v[-1]
 
     if args.backend.find("dask") == -1:
         run_benchmark(None)
@@ -173,6 +175,12 @@ if __name__ == "__main__":
         type=str,
         help="Directory storing benchmark results.",
         default="benchmark_outputs",
+    )
+    parser.add_argument(
+        "--eval",
+        type=int,
+        choices=[0, 1],
+        help="Whether XGBoost should run evaluation at each iteration.",
     )
     parser.add_argument(
         "--scheduler",
