@@ -222,6 +222,8 @@ def factory(
         "grow_policy": args.policy,
         "single_precision_histogram": args.f32_hist,
         "objective": task,
+        "subsample": args.subsample,
+        "colsample_bynode": args.colsample_bynode,
     }
     parameters.update(extra_args)
 

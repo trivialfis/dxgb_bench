@@ -234,6 +234,9 @@ if __name__ == "__main__":
     parser.add_argument(
         "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
     )
+    parser.add_argument("--subsample", type=float, default=None)
+    parser.add_argument("--colsample_bynode", type=float, default=None)
+    # output model
     parser.add_argument(
         "--model-out", type=str, default=None,
     )

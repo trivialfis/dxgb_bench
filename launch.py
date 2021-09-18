@@ -54,6 +54,7 @@ generated: Args = {
     "eval": 0,
     "task": "reg",
     "algo": ["xgboost-gpu-hist"],
+    "colsample_bynode": [0.6, None],
     "cpus": psutil.cpu_count(logical=False),
     "rounds": [200, 500],
     "backend": "cudf",
