@@ -51,8 +51,8 @@ airline["data"] = "airline"
 generated = mortgage.copy()
 generated["data"] = "generated"
 generated["n_samples"] = int(2e7)
-generated["n_features"] = [256, 128, 64]
-generated["sparsity"] = [0.8, 0.4, 0.2]
+generated["n_features"] = [256, 64]
+generated["sparsity"] = [0.8, 0.4]
 generated["task"] = "reg"
 
 
