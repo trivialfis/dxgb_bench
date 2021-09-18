@@ -48,7 +48,7 @@ airline["data"] = "airline"
 
 generated: Args = {
     "data": "generated",
-    "n_samples": int(2e7),
+    "n_samples": int(2e6),
     "n_features": [64, 128, 256],
     "sparsity": [0.2, 0.4, 0.8],
     "task": "reg",
