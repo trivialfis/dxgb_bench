@@ -145,7 +145,7 @@ class XgbGpuHist(XgbBase):
     def fit(self, X: ID, y: ID, weight: Optional[ID] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DeviceQuantileDMatrix"):
-                dtrain = xgb.DeviceQuantileDMatrix(data=X, label=y, weight=weight)
+                dtrain = xgb.DMatrix(data=X, label=y, weight=weight)
             with Timer(self.name, "train"):
                 evals_result: EvalsLog = {}
                 output = xgb.train(

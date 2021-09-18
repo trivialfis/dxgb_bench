@@ -192,7 +192,24 @@ if __name__ == "__main__":
     parser.add_argument(
         "--rounds", type=int, default=1000, help="Number of boosting rounds."
     )
+    # data
     parser.add_argument("--data", type=str, help="Name of dataset.", required=True)
+    parser.add_argument(
+        "--n_samples", type=int, help="Number of samples for generated dataset."
+    )
+    parser.add_argument(
+        "--n_features", type=int, help="Number of features for generated dataset."
+    )
+    parser.add_argument(
+        "--sparsity", type=float, help="Sparsity of generated dataset."
+    )
+    parser.add_argument(
+        "--task",
+        type=str,
+        help="Type of generated dataset.",
+        choices=["reg", "cls", "aft", "rank"]
+    )
+    # tree parameters
     parser.add_argument(
         "--backend", type=str, help="Data loading backend.", default="dask_cudf"
     )
