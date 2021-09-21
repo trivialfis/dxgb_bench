@@ -4,6 +4,7 @@ import json
 import os
 import psutil
 import argparse
+from time import time
 from typing import Dict, Union, List, Any, Tuple
 
 
@@ -20,6 +21,7 @@ cpu_hist = "xgboost-cpu-hist"
 mortgage: Args = {
     "data": "mortgage",
     "algo": [gpu_hist],
+    "colsample_bynode": [0.6, 1.0],
     "cpus": psutil.cpu_count(logical=True),
     "rounds": [200, 500],
     "backend": "cudf",
@@ -140,4 +142,7 @@ if __name__ == "__main__":
         default=0,
     )
     args = parser.parse_args()
+    start = time()
     main(args.local_directory)
+    end = time()
+    print("Total duration:", end - start)

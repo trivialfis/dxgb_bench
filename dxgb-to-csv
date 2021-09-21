@@ -53,6 +53,7 @@ def main(args: argparse.Namespace) -> None:
         ):
             filtered.append(df.columns[i])
 
+    filtered = sorted(filtered)
     df = df[filtered]
     df = df.sort_values(filtered, ascending=[False] * len(filtered))
     out = os.path.join(args.output_directory, args.output_name + "-short.csv")
