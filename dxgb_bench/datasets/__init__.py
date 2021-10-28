@@ -4,6 +4,7 @@ from .higgs import Higgs
 from .year import YearPrediction
 from .covtype import Covtype
 from .airline import Airline
+from .epsilon import Epsilon
 from .generated import Generated
 
 import argparse
@@ -29,6 +30,9 @@ def factory(name: str, args: argparse.Namespace) -> Tuple[DataSet, str]:
         return d, d.task
     elif name == "airline":
         d = Airline(args)
+        return d, d.task
+    elif name == "epsilon":
+        d = Epsilon(args)
         return d, d.task
     elif name == "generated":
         d = Generated(args)

@@ -1,9 +1,16 @@
-from dask_bench.utils import DataSet
+from dxgb_bench.utils import DataSet, DType
+from sklearn.datasets import load_svmlight_file
+import argparse
+import numpy as np
+import pickle
 import os
 
 
 class Epsilon(DataSet):
-    def __init__(self, args):
+    def __init__(self, args: argparse.Namespace) -> None:
+        if args.backend.find("dask") != -1:
+            raise ValueError("Unspported backend for Epsilon")
+
         url_train = (
             "https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary"
             "/epsilon_normalized.bz2"
@@ -12,8 +19,30 @@ class Epsilon(DataSet):
             "https://www.csie.ntu.edu.tw/~cjlin/libsvmtools/datasets/binary"
             "/epsilon_normalized.t.bz2"
         )
-        local_directory = os.path.join(args.local_directory, "Epsilon")
-        self.retrieve(local_directory)
+        self.local_directory = os.path.join(args.local_directory, "epsilon")
+        self.uri = url_train
+        train_path = self.retrieve(self.local_directory)
+        self.uri = url_test
+        test_path = self.retrieve(self.local_directory)
 
-    def load(self, args):
-        pass
+        self.pickle_path = os.path.join(self.local_directory, "epsilon-dxgb.pkl")
+        if not os.path.exists(self.pickle_path):
+            X_train, y_train = load_svmlight_file(train_path, dtype=np.float32)
+            X_test, y_test = load_svmlight_file(test_path, dtype=np.float32)
+            X_train = X_train.toarray()
+            X_test = X_test.toarray()
+            y_train[y_train <= 0] = 0
+            y_test[y_test <= 0] = 0
+
+            X_train = np.vstack((X_train, X_test))
+            y_train = np.append(y_train, y_test)
+
+            with open(os.path.join(self.pickle_path), "wb") as fd:
+                pickle.dump((X_train, y_train), fd)
+
+        self.task = "binary:logistic"
+
+    def load(self, args: argparse.Namespace) -> DType:
+        with open(self.pickle_path, "rb") as fd:
+            X, y = pickle.load(fd)
+        return X, y, None

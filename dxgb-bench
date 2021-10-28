@@ -60,6 +60,8 @@ def print_version() -> None:
 
 def main(args: argparse.Namespace) -> None:
     print_version()
+    args.local_directory = os.path.expanduser(args.local_directory)
+
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
