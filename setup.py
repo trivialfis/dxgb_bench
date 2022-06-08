@@ -10,11 +10,9 @@ if __name__ == "__main__":
         install_requires=[
             "numpy",
             "pandas",
-            "cudf",
             "dask",
             "distributed",
             "dask-cuda",
-            "dask-cudf",
             "pynvml",
             "psutil",
         ],
