@@ -220,7 +220,6 @@ def factory(
     parameters = {
         "max_depth": args.max_depth,
         "grow_policy": args.policy,
-        "single_precision_histogram": args.f32_hist,
         "objective": task,
         "subsample": args.subsample,
         "colsample_bynode": args.colsample_bynode,
