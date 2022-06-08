@@ -161,13 +161,13 @@ class XgbCpuHist(XgbBase):
     def __init__(self, parameters: dict, rounds: int, eval: bool) -> None:
         self.parameters = parameters
         parameters["tree_method"] = "hist"
-        super().__init__("xgboost-cpu-hist", parameters, rounds)
+        super().__init__("xgboost-cpu-hist", parameters, rounds, eval)
 
 
 class XgbCpuApprox(XgbBase):
     def __init__(self, parameters: dict, rounds: int, eval: bool) -> None:
         parameters["tree_method"] = "approx"
-        super().__init__("xgboost-cpu-approx", parameters, rounds)
+        super().__init__("xgboost-cpu-approx", parameters, rounds, eval)
 
 
 class XgbGpuHist(XgbBase):
