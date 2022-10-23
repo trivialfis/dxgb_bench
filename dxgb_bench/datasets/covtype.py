@@ -1,10 +1,11 @@
 import argparse
-import os
 import gzip
-from typing import Tuple, Optional, Dict, Any
+import os
+from typing import Any, Dict, Optional, Tuple
 
 import numpy as np
-from dxgb_bench.utils import DataSet, fprint, read_csv, DType
+
+from dxgb_bench.utils import DataSet, DType, fprint, read_csv
 
 
 class Covtype(DataSet):

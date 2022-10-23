@@ -1,8 +1,9 @@
-from dxgb_bench.utils import DataSet, read_csv, fprint, DType
+import argparse
 import os
 import zipfile
-import argparse
 from typing import Optional, Tuple
+
+from dxgb_bench.utils import DataSet, DType, fprint, read_csv
 
 
 class YearPrediction(DataSet):

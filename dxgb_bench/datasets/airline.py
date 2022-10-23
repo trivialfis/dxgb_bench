@@ -1,9 +1,11 @@
-import os
 import argparse
 import bz2
+import os
+from typing import Optional, Tuple
+
 import numpy as np
-from dxgb_bench.utils import DataSet, fprint, read_csv, DType
-from typing import Tuple, Optional
+
+from dxgb_bench.utils import DataSet, DType, fprint, read_csv
 
 
 class Airline(DataSet):

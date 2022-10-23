@@ -2,12 +2,14 @@
 are not really useful for benchmarking.
 
 """
-from dxgb_bench.utils import DataSet
 import math
+import os
+from math import asin, cos, pi, sin, sqrt
+
 import numpy as np
 from dask.distributed import wait
-import os
-from math import cos, sin, asin, sqrt, pi
+
+from dxgb_bench.utils import DataSet
 
 try:
     import dask_cudf

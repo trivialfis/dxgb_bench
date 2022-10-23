@@ -1,26 +1,24 @@
 #!/usr/bin/env python
 import argparse
-import psutil
+import json
 import os
 import sys
-import json
-from typing import List, Optional, Dict, Any
-
-from dask.distributed import Client, LocalCluster, wait
-from dask_cuda import LocalCUDACluster
-import pynvml
-
-from dxgb_bench.datasets import factory as data_factory
-from dxgb_bench.utils import Timer, fprint, TemporaryDirectory
-from dxgb_bench import algorihm
+from typing import Any, Dict, List, Optional
 
 import dask
-import pandas
+import dask_cuda
 import distributed
 import numpy
-
-import dask_cuda
+import pandas
+import psutil
+import pynvml
 import xgboost
+from dask.distributed import Client, LocalCluster, wait
+from dask_cuda import LocalCUDACluster
+
+from dxgb_bench import algorihm
+from dxgb_bench.datasets import factory as data_factory
+from dxgb_bench.utils import TemporaryDirectory, Timer, fprint
 
 try:
     import cudf

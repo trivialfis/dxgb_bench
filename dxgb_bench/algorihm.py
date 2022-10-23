@@ -1,15 +1,13 @@
-from typing import Optional, Union, Dict, Any
 import argparse
-
-from xgboost import dask as dxgb
-import xgboost as xgb
-
-from .utils import Timer, fprint, DC, ID
-import tqdm
-
-from distributed import Client
 from time import time
+from typing import Any, Dict, Optional, Union
 
+import tqdm
+import xgboost as xgb
+from distributed import Client
+from xgboost import dask as dxgb
+
+from .utils import DC, ID, Timer
 
 EvalsLog = xgb.callback.TrainingCallback.EvalsLog
 
@@ -37,7 +35,9 @@ class Progress(xgb.callback.TrainingCallback):
 
 
 class XgbDaskBase:
-    def __init__(self, parameters: dict, rounds: int, client: Client, eval: bool) -> None:
+    def __init__(
+        self, parameters: dict, rounds: int, client: Client, eval: bool
+    ) -> None:
         self.parameters = parameters
         self.client = client
         self.num_boost_round = rounds
@@ -74,8 +74,10 @@ class XgbDaskBase:
 
 
 class XgbDaskGpuHist(XgbDaskBase):
-    def __init__(self, parameters: dict, rounds: int, client: Client, eval: bool) -> None:
-        super().__init__(parameters, rounds, client, eval)
+    def __init__(
+        self, parameters: dict, rounds: int, client: Client, should_eval: bool
+    ) -> None:
+        super().__init__(parameters, rounds, client, should_eval)
         self.name = "xgboost-dask-gpu-hist"
         self.parameters["tree_method"] = "gpu_hist"
 
@@ -107,14 +109,18 @@ class XgbDaskGpuHist(XgbDaskBase):
 
 
 class XgbDaskCpuHist(XgbDaskBase):
-    def __init__(self, parameters: dict, rounds: int, client: Client, eval: bool) -> None:
+    def __init__(
+        self, parameters: dict, rounds: int, client: Client, eval: bool
+    ) -> None:
         super().__init__(parameters, rounds, client, eval)
         self.name = "xgboost-dask-cpu-hist"
         self.parameters["tree_method"] = "hist"
 
 
 class XgbDaskCpuApprox(XgbDaskBase):
-    def __init__(self, parameters: dict, rounds: int, client: Client, eval: bool) -> None:
+    def __init__(
+        self, parameters: dict, rounds: int, client: Client, eval: bool
+    ) -> None:
         super().__init__(parameters, rounds, client, eval)
         self.name = "xgboost-dask-cpu-approx"
         self.parameters["tree_method"] = "approx"

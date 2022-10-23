@@ -1,11 +1,12 @@
 #!/usr/bin/env python
-import subprocess
+import argparse
 import json
 import os
-import psutil
-import argparse
+import subprocess
 from time import time
-from typing import Dict, Union, List, Any, Tuple
+from typing import Any, Dict, List, Tuple, Union
+
+import psutil
 
 
 def check_call(*args: Any, **kwargs: Any) -> None:

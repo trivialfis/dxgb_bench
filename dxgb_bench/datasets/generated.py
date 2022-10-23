@@ -1,12 +1,13 @@
-from typing import Tuple, Optional
 import argparse
 import os
 import pickle
 from concurrent.futures import ThreadPoolExecutor
+from typing import Optional, Tuple
+
+import numpy as np
+from scipy import sparse
 
 from dxgb_bench.utils import DataSet, DType, fprint
-from scipy import sparse
-import numpy as np
 
 
 def make_regression(args: argparse.Namespace) -> Tuple[np.ndarray, np.ndarray]:

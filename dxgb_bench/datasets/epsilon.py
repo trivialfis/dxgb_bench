@@ -1,9 +1,11 @@
-from dxgb_bench.utils import DataSet, DType
-from sklearn.datasets import load_svmlight_file
 import argparse
-import numpy as np
-import pickle
 import os
+import pickle
+
+import numpy as np
+from sklearn.datasets import load_svmlight_file
+
+from dxgb_bench.utils import DataSet, DType
 
 
 class Epsilon(DataSet):

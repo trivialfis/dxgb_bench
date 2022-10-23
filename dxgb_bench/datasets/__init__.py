@@ -1,15 +1,16 @@
-from .mortgage import Mortgage
-from .taxi import Taxi
-from .higgs import Higgs
-from .year import YearPrediction
-from .covtype import Covtype
-from .airline import Airline
-from .epsilon import Epsilon
-from .generated import Generated
-
 import argparse
 from typing import Tuple
+
 from dxgb_bench.utils import DataSet
+
+from .airline import Airline
+from .covtype import Covtype
+from .epsilon import Epsilon
+from .generated import Generated
+from .higgs import Higgs
+from .mortgage import Mortgage
+from .taxi import Taxi
+from .year import YearPrediction
 
 
 def factory(name: str, args: argparse.Namespace) -> Tuple[DataSet, str]:

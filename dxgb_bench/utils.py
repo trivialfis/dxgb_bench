@@ -1,15 +1,15 @@
-import tqdm
-from urllib.request import urlretrieve
-import sys
-import time
-import shutil
 import argparse
 import os
-from typing import Union, Any, Dict, Tuple, Optional
+import shutil
+import sys
+import time
+from typing import Any, Dict, Optional, Tuple, Union
+from urllib.request import urlretrieve
 
-from dask import dataframe as dd
-from dask import array as da
 import pandas
+import tqdm
+from dask import array as da
+from dask import dataframe as dd
 
 try:
     import cudf

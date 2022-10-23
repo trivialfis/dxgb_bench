@@ -1,9 +1,11 @@
-from dask import dataframe as dd
-from collections import OrderedDict
 import os
-from distributed import wait
-from dxgb_bench.utils import DataSet, fprint, read_csv
 import tarfile
+from collections import OrderedDict
+
+from dask import dataframe as dd
+from distributed import wait
+
+from dxgb_bench.utils import DataSet, fprint, read_csv
 
 try:
     import cudf
