@@ -170,18 +170,6 @@ class XgbCpuHist(XgbBase):
         parameters["tree_method"] = "hist"
         super().__init__("xgboost-cpu-hist", parameters, rounds, should_eval)
 
-
-class XgbCpuApprox(XgbBase):
-    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
-        parameters["tree_method"] = "approx"
-        super().__init__("xgboost-cpu-approx", parameters, rounds, should_eval)
-
-
-class XgbGpuHist(XgbBase):
-    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
-        parameters["tree_method"] = "gpu_hist"
-        super().__init__("xgboost-gpu-hist", parameters, rounds, should_eval)
-
     def fit(self, X: ID, y: ID, weight: Optional[ID] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             n_threads = self.parameters.get("nthread", 1)
@@ -215,6 +203,19 @@ class XgbGpuHist(XgbBase):
                 )
                 self.booster = output
                 return evals_result
+
+
+class XgbCpuApprox(XgbBase):
+    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
+        parameters["tree_method"] = "approx"
+        super().__init__("xgboost-cpu-approx", parameters, rounds, should_eval)
+
+
+class XgbGpuHist(XgbCpuHist):
+    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
+        self.parameters = parameters
+        parameters["tree_method"] = "hist"
+        XgbBase.__init__(self, "xgboost-gpu-hist", parameters, rounds, should_eval)
 
 
 def factory(
