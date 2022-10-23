@@ -9,13 +9,14 @@ if __name__ == "__main__":
         install_requires=[
             "numpy",
             "pandas",
-            "cudf",
+            # "cudf",
             "dask",
             "distributed",
-            "dask-cuda",
-            "dask-cudf",
+            # "dask-cuda",
+            # "dask-cudf",
             "pynvml",
             "psutil",
+            "typing_extensions",
         ],
         packages=find_packages(),
     )

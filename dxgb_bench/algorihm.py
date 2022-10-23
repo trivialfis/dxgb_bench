@@ -1,11 +1,11 @@
 import argparse
 from time import time
 from typing import Any, Dict, Optional, Union
-from typing_extensions import TypeAlias
 
 import tqdm
 import xgboost as xgb
 from distributed import Client
+from typing_extensions import TypeAlias
 from xgboost import dask as dxgb
 
 from .utils import DC, ID, Timer

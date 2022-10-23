@@ -26,7 +26,7 @@ mortgage: Args = {
     "cpus": psutil.cpu_count(logical=True),
     "rounds": [200, 500],
     "backend": "cudf",
-    "max-depth": [8, 12],
+    "max-depth": [8, 16],
     "policy": ["depthwise", "lossguide"],
     "workers": 1,
     "f32-hist": 0,
@@ -56,9 +56,11 @@ generated = mortgage.copy()
 generated["data"] = "generated"
 generated["n_samples"] = int(2e7)
 generated["n_features"] = [256, 64]
-generated["sparsity"] = [0.8, 0.4]
+generated["sparsity"] = [0.8, 0.4, 0.1]
 generated["task"] = "reg"
 
+epsilon = mortgage.copy()
+epsilon["data"] = "epsilon"
 
 history = []
 
@@ -113,11 +115,12 @@ def main(local_directory: str) -> None:
         with open("./history.json", "r") as fd:
             history = json.load(fd)
 
+    local_directory = os.path.expanduser(local_directory)
     launch(local_directory, generated)
 
     launch(local_directory, mortgage)
 
-    # launch(local_directory, mortgage_2y)
+    launch(local_directory, mortgage_2y)
 
     launch(local_directory, higgs)
 

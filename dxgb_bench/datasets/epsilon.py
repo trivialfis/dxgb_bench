@@ -1,6 +1,7 @@
 import argparse
 import os
 import pickle
+from typing import Optional, Tuple
 
 import numpy as np
 from sklearn.datasets import load_svmlight_file
@@ -44,7 +45,7 @@ class Epsilon(DataSet):
 
         self.task = "binary:logistic"
 
-    def load(self, args: argparse.Namespace) -> DType:
+    def load(self, args: argparse.Namespace) -> Tuple[DType, DType, Optional[DType]]:
         with open(self.pickle_path, "rb") as fd:
             X, y = pickle.load(fd)
         return X, y, None
