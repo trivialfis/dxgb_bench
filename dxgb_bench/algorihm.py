@@ -1,6 +1,7 @@
 import argparse
 from time import time
 from typing import Any, Dict, Optional, Union
+from typing_extensions import TypeAlias
 
 import tqdm
 import xgboost as xgb
@@ -9,7 +10,7 @@ from xgboost import dask as dxgb
 
 from .utils import DC, ID, Timer
 
-EvalsLog = xgb.callback.TrainingCallback.EvalsLog
+EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
 
 
 class Progress(xgb.callback.TrainingCallback):
@@ -62,7 +63,7 @@ class XgbDaskBase:
                 dtrain=dtrain,
                 evals=evals,
                 num_boost_round=self.num_boost_round,
-                # callbacks=callbacks,
+                callbacks=callbacks,
             )
             self.booster = output["booster"]
             return output["history"]
@@ -102,7 +103,7 @@ class XgbDaskGpuHist(XgbDaskBase):
                     dtrain=dtrain,
                     evals=evals,
                     num_boost_round=self.num_boost_round,
-                    # callbacks=callbacks,
+                    callbacks=callbacks,
                 )
                 self.booster = output["booster"]
                 return output["history"]
@@ -143,7 +144,7 @@ class XgbBase:
                 evals = [(dtrain, "Train")]
                 callbacks = []
             else:
-                evals = ()
+                evals = []
                 callbacks = [Progress(self.num_boost_round)]
 
             with Timer(self.name, "train"):
@@ -154,7 +155,7 @@ class XgbBase:
                     evals=evals,
                     evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
-                    # callbacks=callbacks,
+                    callbacks=callbacks,
                 )
                 self.booster = output
                 return evals_result
@@ -164,22 +165,22 @@ class XgbBase:
 
 
 class XgbCpuHist(XgbBase):
-    def __init__(self, parameters: dict, rounds: int, eval: bool) -> None:
+    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
         self.parameters = parameters
         parameters["tree_method"] = "hist"
-        super().__init__("xgboost-cpu-hist", parameters, rounds)
+        super().__init__("xgboost-cpu-hist", parameters, rounds, should_eval)
 
 
 class XgbCpuApprox(XgbBase):
-    def __init__(self, parameters: dict, rounds: int, eval: bool) -> None:
+    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
         parameters["tree_method"] = "approx"
-        super().__init__("xgboost-cpu-approx", parameters, rounds)
+        super().__init__("xgboost-cpu-approx", parameters, rounds, should_eval)
 
 
 class XgbGpuHist(XgbBase):
-    def __init__(self, parameters: dict, rounds: int, eval: bool) -> None:
+    def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
         parameters["tree_method"] = "gpu_hist"
-        super().__init__("xgboost-gpu-hist", parameters, rounds, eval)
+        super().__init__("xgboost-gpu-hist", parameters, rounds, should_eval)
 
     def fit(self, X: ID, y: ID, weight: Optional[ID] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
@@ -199,7 +200,7 @@ class XgbGpuHist(XgbBase):
                 evals = [(dtrain, "Train")]
                 callbacks = []
             else:
-                evals = ()
+                evals = []
                 callbacks = [Progress(self.num_boost_round)]
 
             with Timer(self.name, "train"):
@@ -210,7 +211,7 @@ class XgbGpuHist(XgbBase):
                     evals=evals,
                     evals_result=evals_result,
                     num_boost_round=self.num_boost_round,
-                    # callbacks=callbacks,
+                    callbacks=callbacks,
                 )
                 self.booster = output
                 return evals_result
@@ -221,7 +222,7 @@ def factory(
     task: str,
     client: Optional[Client],
     args: argparse.Namespace,
-    extra_args: Dict[str, Any]
+    extra_args: Dict[str, Any],
 ) -> Union[XgbBase, XgbDaskBase]:
     parameters = {
         "max_depth": args.max_depth,
@@ -236,10 +237,11 @@ def factory(
     if args.backend.find("dask") == -1:
         parameters["nthread"] = args.cpus
 
-    print("parameters:", parameters)
+    print("parameters:", parameters, flush=True)
     should_eval = args.eval == 1
 
     if args.backend.find("dask") != -1:
+        assert client is not None
         if name == "xgboost-gpu-hist":
             return XgbDaskGpuHist(parameters, args.rounds, client, should_eval)
         elif name == "xgboost-cpu-approx":

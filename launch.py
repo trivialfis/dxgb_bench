@@ -14,7 +14,7 @@ def check_call(*args: Any, **kwargs: Any) -> None:
     subprocess.check_call(*args, **kwargs)
 
 
-Args = Dict[str, Union[List[Union[str, int]], str, int]]
+Args = Dict[str, Union[List[Union[str, int, float]], str, int]]
 
 gpu_hist = "xgboost-gpu-hist"
 cpu_hist = "xgboost-cpu-hist"
