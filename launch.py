@@ -29,8 +29,7 @@ mortgage: Args = {
     "max-depth": [8, 16],
     "policy": ["depthwise", "lossguide"],
     "workers": 1,
-    "f32-hist": 0,
-    "eval": 0,
+    "eval": [0, 1],
 }
 
 mortgage_2y = mortgage.copy()
