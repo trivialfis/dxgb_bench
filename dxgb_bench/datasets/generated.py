@@ -39,7 +39,6 @@ def make_regression(args: argparse.Namespace) -> Tuple[np.ndarray, np.ndarray]:
 
         for i in range(X.shape[1]):
             size = X.indptr[i + 1] - X.indptr[i]
-            print(size, X[:, i].toarray().shape)
             if size != 0:
                 y += X[:, i].toarray() * rng.random((args.n_samples, 1)) * 0.2
 
