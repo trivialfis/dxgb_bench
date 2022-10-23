@@ -185,9 +185,9 @@ class XgbGpuHist(XgbBase):
     def fit(self, X: ID, y: ID, weight: Optional[ID] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             n_threads = self.parameters.get("nthread", 1)
-            with Timer(self.name, "DeviceQuantileDMatrix") as timer:
+            with Timer(self.name, "QuantileDMatrix") as timer:
                 try:
-                    dtrain = xgb.DeviceQuantileDMatrix(
+                    dtrain = xgb.QuantileDMatrix(
                         data=X, label=y, weight=weight, nthread=n_threads
                     )
                 except TypeError:
