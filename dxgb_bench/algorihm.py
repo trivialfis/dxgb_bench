@@ -74,18 +74,18 @@ class XgbDaskBase:
             return predictions
 
 
-class XgbDaskGpuHist(XgbDaskBase):
+class XgbDaskCpuHist(XgbDaskBase):
     def __init__(
-        self, parameters: dict, rounds: int, client: Client, should_eval: bool
+        self, parameters: dict, rounds: int, client: Client, eval: bool
     ) -> None:
-        super().__init__(parameters, rounds, client, should_eval)
-        self.name = "xgboost-dask-gpu-hist"
-        self.parameters["tree_method"] = "gpu_hist"
+        super().__init__(parameters, rounds, client, eval)
+        self.name = "xgboost-dask-cpu-hist"
+        self.parameters["tree_method"] = "hist"
 
     def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
-            with Timer(self.name, "DaskDeviceQuantileDMatrix"):
-                dtrain = dxgb.DaskDeviceQuantileDMatrix(
+            with Timer(self.name, "DaskQuantileDMatrix"):
+                dtrain = dxgb.DaskQuantileDMatrix(
                     self.client, data=X, label=y, weight=weight
                 )
 
@@ -109,13 +109,13 @@ class XgbDaskGpuHist(XgbDaskBase):
                 return output["history"]
 
 
-class XgbDaskCpuHist(XgbDaskBase):
+class XgbDaskGpuHist(XgbDaskCpuHist):
     def __init__(
-        self, parameters: dict, rounds: int, client: Client, eval: bool
+        self, parameters: dict, rounds: int, client: Client, should_eval: bool
     ) -> None:
-        super().__init__(parameters, rounds, client, eval)
-        self.name = "xgboost-dask-cpu-hist"
-        self.parameters["tree_method"] = "hist"
+        XgbDaskBase.__init__(self, parameters, rounds, client, should_eval)
+        self.name = "xgboost-dask-gpu-hist"
+        self.parameters["tree_method"] = "gpu_hist"
 
 
 class XgbDaskCpuApprox(XgbDaskBase):
