@@ -214,7 +214,7 @@ class XgbCpuApprox(XgbBase):
 class XgbGpuHist(XgbCpuHist):
     def __init__(self, parameters: dict, rounds: int, should_eval: bool) -> None:
         self.parameters = parameters
-        parameters["tree_method"] = "hist"
+        parameters["tree_method"] = "gpu_hist"
         XgbBase.__init__(self, "xgboost-gpu-hist", parameters, rounds, should_eval)
 
 
