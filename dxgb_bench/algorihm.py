@@ -133,7 +133,7 @@ class XgbDaskGpuApprox(XgbDaskBase):
         self, parameters: dict, rounds: int, client: Client, eval: bool
     ) -> None:
         super().__init__(parameters, rounds, client, eval)
-        self.name = "xgboost-dask-cpu-approx"
+        self.name = "xgboost-dask-gpu-approx"
         self.parameters["tree_method"] = "approx"
         self.parameters["device"] = "cuda"
 
@@ -255,10 +255,12 @@ def factory(
         assert client is not None
         if name == "xgboost-gpu-hist":
             return XgbDaskGpuHist(parameters, args.rounds, client, should_eval)
-        elif name == "xgboost-cpu-approx":
-            return XgbDaskCpuApprox(parameters, args.rounds, client, should_eval)
+        elif name == "xgboost-gpu-approx":
+            return XgbDaskGpuApprox(parameters, args.rounds, client, should_eval)
         elif name == "xgboost-cpu-hist":
             return XgbDaskCpuHist(parameters, args.rounds, client, should_eval)
+        elif name == "xgboost-cpu-approx":
+            return XgbDaskCpuApprox(parameters, args.rounds, client, should_eval)
     else:
         if name == "xgboost-gpu-hist":
             return XgbGpuHist(parameters, args.rounds, should_eval)
