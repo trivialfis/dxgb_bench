@@ -86,7 +86,7 @@ class XgbDaskCpuHist(XgbDaskBase):
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskQuantileDMatrix"):
                 dtrain = dxgb.DaskQuantileDMatrix(
-                    self.client, data=X, label=y, weight=weight
+                    self.client, data=X, label=y, weight=weight, enable_categorical=True
                 )
 
             if self.should_eval:
@@ -115,7 +115,8 @@ class XgbDaskGpuHist(XgbDaskCpuHist):
     ) -> None:
         XgbDaskBase.__init__(self, parameters, rounds, client, should_eval)
         self.name = "xgboost-dask-gpu-hist"
-        self.parameters["tree_method"] = "gpu_hist"
+        self.parameters["tree_method"] = "hist"
+        self.parameters["device"] = "cuda"
 
 
 class XgbDaskCpuApprox(XgbDaskBase):
@@ -125,6 +126,16 @@ class XgbDaskCpuApprox(XgbDaskBase):
         super().__init__(parameters, rounds, client, eval)
         self.name = "xgboost-dask-cpu-approx"
         self.parameters["tree_method"] = "approx"
+
+
+class XgbDaskGpuApprox(XgbDaskBase):
+    def __init__(
+        self, parameters: dict, rounds: int, client: Client, eval: bool
+    ) -> None:
+        super().__init__(parameters, rounds, client, eval)
+        self.name = "xgboost-dask-cpu-approx"
+        self.parameters["tree_method"] = "approx"
+        self.parameters["device"] = "cuda"
 
 
 class XgbBase:
@@ -175,7 +186,7 @@ class XgbCpuHist(XgbBase):
             n_threads = self.parameters.get("nthread", 1)
             with Timer(self.name, "QuantileDMatrix") as timer:
                 try:
-                    dtrain = xgb.QuantileDMatrix(
+                    dtrain: xgb.DMatrix = xgb.QuantileDMatrix(
                         data=X, label=y, weight=weight, nthread=n_threads
                     )
                 except TypeError:

@@ -15,24 +15,10 @@ except ImportError:
     dask_cudf = None
 
 
-def datetime_name(backend):
-    if backend == "dask_cudf" or backend == "cudf":
-        return "date"
-    else:
-        return "date"
-
-
 def convert_dtypes(df, dtypes, delta, backend):
     for i, column in enumerate(dtypes.items()):
         name = column[0]
-        if column[1] == "str" and (backend == "cudf" or backend == "dask_cudf"):
-            df[name] = (
-                df[name].astype("category").cat.codes.astype("float32")
-            )
-        elif (
-            df.dtypes[i].name == "datetime64[ms]"
-            or df.dtypes[i].name == "datetime64[ns]"
-        ):
+        if df.dtypes[i].name == "datetime64[ms]":
             df[name] = df[name].dt.day
     return df
 
@@ -53,17 +39,14 @@ def load_dateframe(path, dtypes, cols, backend):
 
     transformed = {}
     for key, t in dtypes.items():
-        if t == "category":
-            transformed[key] = "str"
-        else:
-            transformed[key] = t
+        transformed[key] = t
 
     for root, subdir, files in os.walk(path):
         for f in files:
             fprint("Reading: ", f, "with", backend)
             df = read_csv(
                 os.path.join(root, f),
-                # blocksize="32MB",
+                blocksize="32MB",
                 sep="|",
                 dtype=transformed,
                 header=None,
@@ -79,28 +62,25 @@ def load_dateframe(path, dtypes, cols, backend):
 
 
 def load_performance_data(path, backend):
-    if backend == "dask_cudf" or backend == "cudf":
-        category = "str"
-    else:
-        category = "category"
+    category = "category"
     dtypes = OrderedDict(
         [("loan_id", "uint64"),
-         ("monthly_reporting_period", datetime_name(backend)),
+         ("monthly_reporting_period", "datetime64[ms]"),
          ("servicer", category),
          ("interest_rate", "float32"),
          ("current_actual_upb", "float32"),
          ("loan_age", "float32"),
          ("remaining_months_to_legal_maturity", "float32"),
          ("adj_remaining_months_to_maturity", "float32"),
-         ("maturity_date", datetime_name(backend)),
+         ("maturity_date", "datetime64[ms]"),
          ("msa", "float32"),
          ("current_loan_delinquency_status", "int32"),
          ("mod_flag", category),
          ("zero_balance_code", category),
-         ("zero_balance_effective_date", datetime_name(backend)),
-         ("last_paid_installment_date", datetime_name(backend)),
-         ("foreclosed_after", datetime_name(backend)),
-         ("disposition_date", datetime_name(backend)),
+         ("zero_balance_effective_date", "datetime64[ms]"),
+         ("last_paid_installment_date", "datetime64[ms]"),
+         ("foreclosed_after", "datetime64[ms]"),
+         ("disposition_date", "datetime64[ms]"),
          ("foreclosure_costs", "float32"),
          ("prop_preservation_and_repair_costs", "float32"),
          ("asset_recovery_costs", "float32"),
@@ -133,8 +113,8 @@ def load_acq_data(acq_dir, backend):
         ("orig_interest_rate", "float64"),
         ("orig_upb", "int64"),
         ("orig_loan_term", "int64"),
-        ("orig_date", datetime_name(backend)),
-        ("first_pay_date", datetime_name(backend)),
+        ("orig_date", "datetime64[ms]"),
+        ("first_pay_date", "datetime64[ms]"),
         ("orig_ltv", "float64"),
         ("orig_cltv", "float64"),
         ("num_borrowers", "float64"),
