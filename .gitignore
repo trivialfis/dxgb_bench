@@ -4,3 +4,6 @@ dxgb_bench_workspace
 *.csv
 __pycache__
 *.qdrep
+dist
+cufile.log
+*.egg-info

@@ -1,40 +1,38 @@
 Some simple scripts for running xgboost-dask pipeline.  Heavily inspired by [[https://github.com/NVIDIA/gbm-bench][gbm-bench]] .
-By default these scripts use ~dask_cudf~ as bank-end for ETL.
+By default these scripts use _dask_cudf_ as bank-end for ETL.
 
-* Available datasets:
+# Available datasets:
   - mortgage
-  #+BEGIN_EXAMPLE
+```
       --data=mortgage:2 for using 2 years of the data. 4, 8, 16, 17 are also available.
-  #+END_EXAMPLE
+```
   - taxi yellow tripdata 2014-01  (Copied from rapids' demo)
   - higgs
   - YearPrediction
 
-* Available algorithms:
+# Available algorithms:
   - GPU Histogram
   - CPU Histogram
   - CPU Approx
 
-* Usage
+# Usage
   Install dxgb_bench:
-  #+BEGIN_SRC bash
+```
     pip install .
-  #+END_SRC
+```
 
-  #+BEGIN_SRC bash
+```
     dxgb-bench --algo='xgboost-gpu-hist' --data='mortgage' --backend='dask_cudf'
-  #+END_SRC
+```
 
   Format multiple benchmark results recorded in JSON into a single CSV file:
-  #+BEGIN_SRC bash
+```
     dxgb-to-csv --json-directory='benchmark_outputs' --output-directory='benchmark_outputs'
-  #+END_SRC
+```
 
   The result is saved into a JSON file along with packages' version.  Each run will try to
   avoid overwriting previous saved file, so one can run it multiple times without renaming
   output file at each run.
 
-* Dependencies
+# Dependencies
   See XGBoost.yml for details.  XGBoost itself is assumed to be installed from source.
-
-#  LocalWords:  LocalWords tripdata XGBoost CUDA cuDF
