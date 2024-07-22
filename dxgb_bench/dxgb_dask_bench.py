@@ -154,7 +154,7 @@ def main(args: argparse.Namespace) -> None:
             break
 
 
-if __name__ == "__main__":
+def cli_main() -> None:
     parser = argparse.ArgumentParser(
         description="Arguments for benchmarking with XGBoost dask."
     )

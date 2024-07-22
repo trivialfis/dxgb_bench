@@ -63,7 +63,7 @@ def main(args: argparse.Namespace) -> None:
     df.to_excel(out, index=False)
 
 
-if __name__ == "__main__":
+def cli_main() -> None:
     parser = argparse.ArgumentParser(
         description="Arguments for converting JSON result to CSV format"
     )

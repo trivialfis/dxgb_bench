@@ -1,3 +1,0 @@
-dask[complete]
-dask-ml
-dask-cuda
