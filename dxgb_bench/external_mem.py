@@ -8,7 +8,7 @@ import numpy as np
 import rmm
 import xgboost as xgb
 from sklearn.datasets import make_regression
-from xgboost.testing.data import make_dense_regression
+from xgboost.compat import concat
 
 
 class EmTestIterator(xgb.DataIter):
@@ -32,7 +32,7 @@ class EmTestIterator(xgb.DataIter):
         return X, y
 
     def next(self, input_data: Callable) -> int:
-        print("Next", flush=True)
+        print("Next:", self._it, flush=True)
         if self._it == len(self._file_paths):
             return 0
 
@@ -42,7 +42,50 @@ class EmTestIterator(xgb.DataIter):
         return 1
 
     def reset(self) -> None:
+        print("Reset:", flush=True)
         self._it = 0
+
+
+def make_dense_regression(
+    n_samples: int, n_features: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Make dense synthetic data for regression."""
+    n_cpus = os.cpu_count()
+    assert n_cpus is not None
+    n_threads = min(n_cpus, n_samples)
+    start = 0
+
+    def make_regression(
+        n_samples_per_batch: int, seed: int
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        # A custom version of make_regression since sklearn doesn't support np
+        # generator.
+        rng = np.random.default_rng(seed)
+        X = rng.normal(
+            loc=0.0, scale=1.5, size=(n_samples_per_batch, n_features)
+        ).astype(np.float32)
+        err = rng.normal(0.0, scale=0.2, size=(n_samples_per_batch,)).astype(np.float32)
+        y = X.sum(axis=1) + err
+        return X, y
+
+    futures = []
+    n_samples_per_batch = n_samples // n_threads
+    with ThreadPoolExecutor(max_workers=n_threads) as executor:
+        for i in range(n_threads):
+            n_samples_cur = n_samples_per_batch
+            if i == n_threads - 1:
+                n_samples_cur = n_samples - start
+            fut = executor.submit(make_regression, n_samples_cur, i)
+            start += n_samples_cur
+            futures.append(fut)
+    X_arr, y_arr = [], []
+    for fut in futures:
+        X, y = fut.result()
+        X_arr.append(X)
+        y_arr.append(y)
+    X = concat(X_arr)
+    y = concat(y_arr)
+    return X, y
 
 
 def make_batches(
@@ -132,6 +175,30 @@ def run_over_subscription(
 
     booster = xgb.train(
         {"tree_method": "hist", "max_depth": 6, "device": "cuda", "max_bin": n_bins},
+        Xy,
+        num_boost_round=6,
+    )
+    return booster
+
+
+def run_ext_qdm_cpu(
+    tmpdir: str,
+    reuse: bool,
+    n_bins: int,
+    n_samples_per_batch: int,
+    n_batches: int,
+) -> xgb.Booster:
+    n_features = 512
+    files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
+
+    it = EmTestIterator(files, is_ext=False, on_host=False)
+    start = time()
+    Xy = xgb.core.ExtMemQuantileDMatrix(it, max_bin=n_bins)
+    end = time()
+    print("ExtMemQuantileDMatrix duration:", end - start)
+
+    booster = xgb.train(
+        {"tree_method": "hist", "max_depth": 6, "max_bin": n_bins},
         Xy,
         num_boost_round=6,
     )
