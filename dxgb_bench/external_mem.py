@@ -156,11 +156,9 @@ def run_over_subscription(
     is_sam: bool,
 ) -> xgb.Booster:
     if is_sam:
-        rmm.reinitialize(
-            pool_allocator=True,
-            system_memory=True,
-            system_memory_headroom_size=16 * 1024 * 1024 * 1024,
-        )
+        base_mr = rmm.mr.SamHeadroomMemoryResource(headroom=16 * 1024 * 1024 * 1024)
+        mr = rmm.mr.PoolMemoryResource(base_mr)
+        rmm.mr.set_current_device_resource(mr)
     else:
         rmm.reinitialize(pool_allocator=True)
 
