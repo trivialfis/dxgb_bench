@@ -54,5 +54,5 @@ def cli_main() -> None:
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     args = parser.parse_args()
 
-    with xgb.config_context(verbosity=3):
+    with xgb.config_context(verbosity=3, use_rmm=True):
         main(args)
