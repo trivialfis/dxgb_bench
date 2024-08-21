@@ -7,3 +7,6 @@ __pycache__
 dist
 cufile.log
 *.egg-info
+rmm_log.txt
+cachedir
+data/

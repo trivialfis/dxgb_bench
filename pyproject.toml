@@ -8,6 +8,10 @@ version = "0.0.0"
 description="Benchmarking scripts for XGBoost."
 readme = { file = "README.org", content-type = "text/markdown" }
 
+dependencies = [
+    "tqdm"
+]
+
 [project.scripts]
 dxgb-ext-bench = "dxgb_bench.dxgb_ext_bench:cli_main"
 dxgb-to-csv = "dxgb_bench.dxgb_to_csv:cli_main"
