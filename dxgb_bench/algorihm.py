@@ -8,31 +8,9 @@ from distributed import Client
 from typing_extensions import TypeAlias
 from xgboost import dask as dxgb
 
-from .utils import DC, ID, Timer
+from .utils import DC, ID, Progress, Timer
 
 EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
-
-
-class Progress(xgb.callback.TrainingCallback):
-    def __init__(self, n_rounds: int) -> None:
-        super().__init__()
-        self.n_rounds = n_rounds
-
-    def before_training(self, model: xgb.Booster) -> xgb.Booster:
-        self.start = time()
-        self.pbar = tqdm.tqdm(total=self.n_rounds, unit="iter")
-        return model
-
-    def after_iteration(
-        self, model: xgb.Booster, epoch: int, evals_log: EvalsLog
-    ) -> bool:
-        self.pbar.update(1)
-        return False
-
-    def after_training(self, model: xgb.Booster) -> xgb.Booster:
-        self.end = time()
-        self.pbar.close()
-        return model
 
 
 class XgbDaskBase:
