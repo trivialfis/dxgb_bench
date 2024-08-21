@@ -10,6 +10,8 @@ import xgboost as xgb
 from sklearn.datasets import make_regression
 from xgboost.compat import concat
 
+from .utils import Progress, Timer
+
 
 class EmTestIterator(xgb.DataIter):
     """A custom iterator for profiling external memory."""
@@ -125,6 +127,10 @@ def make_batches(
     return files
 
 
+n_rounds = 10
+n_features = 512
+
+
 def run_external_memory(
     tmpdir: str,
     reuse: bool,
@@ -134,16 +140,18 @@ def run_external_memory(
 ) -> xgb.Booster:
     rmm.reinitialize(pool_allocator=True, initial_pool_size=0)
 
-    n_features = 512
-    files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-    it = EmTestIterator(files, on_host=on_host, is_ext=True)
-    Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
-
-    booster = xgb.train(
-        {"tree_method": "hist", "max_depth": 6, "device": "cuda"},
-        Xy,
-        num_boost_round=6,
-    )
+    with Timer("ExtSparse", "make_batches"):
+        files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
+        it = EmTestIterator(files, on_host=on_host, is_ext=True)
+    with Timer("ExtSparse", "DMatrix"):
+        Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
+    with Timer("ExtSparse", "train"):
+        booster = xgb.train(
+            {"tree_method": "hist", "max_depth": 6, "device": "cuda"},
+            Xy,
+            num_boost_round=n_rounds,
+            callbacks=[Progress(n_rounds)],
+        )
     return booster
 
 
@@ -162,20 +170,25 @@ def run_over_subscription(
     else:
         rmm.reinitialize(pool_allocator=True)
 
-    n_features = 512
-    files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-    it = EmTestIterator(files, is_ext=False, on_host=False)
+    with Timer("OS", "make_batches"):
+        files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
+        it = EmTestIterator(files, is_ext=False, on_host=False)
 
-    start = time()
-    Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
-    end = time()
-    print("QuantileDMatrix duration:", end - start)
+    with Timer("OS", "QuantileDMatrix"):
+        Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
 
-    booster = xgb.train(
-        {"tree_method": "hist", "max_depth": 6, "device": "cuda", "max_bin": n_bins},
-        Xy,
-        num_boost_round=6,
-    )
+    with Timer("OS", "Train"):
+        booster = xgb.train(
+            {
+                "tree_method": "hist",
+                "max_depth": 6,
+                "device": "cuda",
+                "max_bin": n_bins,
+            },
+            Xy,
+            num_boost_round=n_rounds,
+            callbacks=[Progress(n_rounds)],
+        )
     return booster
 
 
@@ -186,18 +199,18 @@ def run_ext_qdm_cpu(
     n_samples_per_batch: int,
     n_batches: int,
 ) -> xgb.Booster:
-    n_features = 512
-    files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
+    with Timer("ExtQdm", "make_batches"):
+        files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
+        it = EmTestIterator(files, is_ext=False, on_host=False)
 
-    it = EmTestIterator(files, is_ext=False, on_host=False)
-    start = time()
-    Xy = xgb.core.ExtMemQuantileDMatrix(it, max_bin=n_bins)
-    end = time()
-    print("ExtMemQuantileDMatrix duration:", end - start)
+    with Timer("ExtQdm", "ExtMemQuantileDMatrix"):
+        Xy = xgb.core.ExtMemQuantileDMatrix(it, max_bin=n_bins)
 
-    booster = xgb.train(
-        {"tree_method": "hist", "max_depth": 6, "max_bin": n_bins},
-        Xy,
-        num_boost_round=6,
-    )
+    with Timer("ExtQdm", "train"):
+        booster = xgb.train(
+            {"tree_method": "hist", "max_depth": 6, "max_bin": n_bins},
+            Xy,
+            num_boost_round=n_rounds,
+            callbacks=[Progress(n_rounds)],
+        )
     return booster

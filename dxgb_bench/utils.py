@@ -3,11 +3,12 @@ import os
 import shutil
 import sys
 import time
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, TypeAlias, Union
 from urllib.request import urlretrieve
 
 import pandas
 import tqdm
+import xgboost as xgb
 from dask import array as da
 from dask import dataframe as dd
 
@@ -26,6 +27,7 @@ def fprint(*args: Any, **kwargs: Any) -> None:
 
 fprint.__doc__ = print.__doc__
 
+EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
 
 DC = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
 ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
@@ -113,7 +115,7 @@ class DataSet:
         raise NotImplementedError()
 
 
-global_timer = {}
+global_timer: Dict[str, Dict[str, float]] = {}
 
 
 class Timer:
@@ -134,12 +136,12 @@ class Timer:
         fprint(self.name, self.proc, "ended in: ", end - self.start, "seconds.")
 
     @staticmethod
-    def global_timer():
+    def global_timer() -> Dict[str, Dict[str, float]]:
         return global_timer
 
 
 class TemporaryDirectory:
-    def __init__(self, path):
+    def __init__(self, path: str) -> None:
         self.path = path
 
     def __enter__(self):
@@ -150,3 +152,27 @@ class TemporaryDirectory:
     def __exit__(self, *args):
         if os.path.exists(self.path):
             shutil.rmtree(self.path)
+
+
+class Progress(xgb.callback.TrainingCallback):
+    """A callback function for displaying training progress."""
+
+    def __init__(self, n_rounds: int) -> None:
+        super().__init__()
+        self.n_rounds = n_rounds
+
+    def before_training(self, model: xgb.Booster) -> xgb.Booster:
+        self.start = time.time()
+        self.pbar = tqdm.tqdm(total=self.n_rounds, unit="iter")
+        return model
+
+    def after_iteration(
+        self, model: xgb.Booster, epoch: int, evals_log: EvalsLog
+    ) -> bool:
+        self.pbar.update(1)
+        return False
+
+    def after_training(self, model: xgb.Booster) -> xgb.Booster:
+        self.end = time.time()
+        self.pbar.close()
+        return model
