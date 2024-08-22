@@ -11,6 +11,7 @@ from sklearn.datasets import make_regression
 from xgboost.compat import concat
 
 from .utils import Progress, Timer
+import cupy as cp
 
 
 class EmTestIterator(xgb.DataIter):
@@ -32,6 +33,8 @@ class EmTestIterator(xgb.DataIter):
         X = np.lib.format.open_memmap(filename=X_path, mode="r")
         y = np.lib.format.open_memmap(filename=y_path, mode="r")
         assert X.shape[0] == y.shape[0]
+        if self._device != "cpu":
+            return cp.array(X), cp.array(y)
         return X, y
 
     def next(self, input_data: Callable) -> int:
