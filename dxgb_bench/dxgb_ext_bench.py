@@ -22,9 +22,9 @@ def main(args: argparse.Namespace) -> None:
     elif args.size == "small":
         n = 2**23
     else:
-        n = 2**25
+        n = 2**26
 
-    n_batches = 32
+    n_batches = 16
 
     if args.task == "os":
         assert args.device == "cuda"
