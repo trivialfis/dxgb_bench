@@ -22,7 +22,7 @@ def main(args: argparse.Namespace) -> None:
     elif args.size == "small":
         n = 2**23
     else:
-        n = 2**24
+        n = 2**25
 
     n_batches = 32
 
