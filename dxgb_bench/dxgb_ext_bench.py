@@ -5,7 +5,7 @@ import os
 import xgboost as xgb
 
 from dxgb_bench.external_mem import (
-    run_ext_qdm_cpu,
+    run_ext_qdm,
     run_external_memory,
     run_over_subscription,
 )
@@ -55,13 +55,13 @@ def main(args: argparse.Namespace) -> None:
             n_samples_per_batch=n // n_batches,
         )
     else:
-        assert args.device == "cpu"
-        run_ext_qdm_cpu(
+        run_ext_qdm(
             data_dir,
             reuse=True,
             n_bins=256,
             n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
+            device=args.device,
         )
 
     print(Timer.global_timer())

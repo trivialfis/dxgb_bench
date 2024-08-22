@@ -17,10 +17,11 @@ class EmTestIterator(xgb.DataIter):
     """A custom iterator for profiling external memory."""
 
     def __init__(
-        self, file_paths: List[Tuple[str, str]], on_host: bool, is_ext: bool
+        self, file_paths: List[Tuple[str, str]], on_host: bool, is_ext: bool, device: str,
     ) -> None:
         self._file_paths = file_paths
         self._it = 0
+        self._device = device
         if is_ext:
             super().__init__(cache_prefix="cache", on_host=on_host)
         else:
@@ -142,7 +143,7 @@ def run_external_memory(
 
     with Timer("ExtSparse", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, on_host=on_host, is_ext=True)
+        it = EmTestIterator(files, on_host=on_host, is_ext=True, device="cpu")
     with Timer("ExtSparse", "DMatrix"):
         Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
     with Timer("ExtSparse", "train"):
@@ -172,7 +173,7 @@ def run_over_subscription(
 
     with Timer("OS", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, is_ext=False, on_host=False)
+        it = EmTestIterator(files, is_ext=False, on_host=False, device="cpu")
 
     with Timer("OS", "QuantileDMatrix"):
         Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
@@ -192,23 +193,29 @@ def run_over_subscription(
     return booster
 
 
-def run_ext_qdm_cpu(
+def run_ext_qdm(
     tmpdir: str,
     reuse: bool,
     n_bins: int,
     n_samples_per_batch: int,
     n_batches: int,
+    device: str,
 ) -> xgb.Booster:
     with Timer("ExtQdm", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, is_ext=False, on_host=False)
+        it = EmTestIterator(files, is_ext=False, on_host=False, device=device)
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix"):
         Xy = xgb.core.ExtMemQuantileDMatrix(it, max_bin=n_bins)
 
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
-            {"tree_method": "hist", "max_depth": 6, "max_bin": n_bins},
+            {
+                "tree_method": "hist",
+                "max_depth": 6,
+                "max_bin": n_bins,
+                "device": device,
+            },
             Xy,
             num_boost_round=n_rounds,
             callbacks=[Progress(n_rounds)],
