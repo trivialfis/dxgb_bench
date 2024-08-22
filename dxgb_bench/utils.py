@@ -9,13 +9,15 @@ from urllib.request import urlretrieve
 import pandas
 import tqdm
 import xgboost as xgb
-from dask import array as da
-from dask import dataframe as dd
 
 try:
     import cudf
     import dask_cudf
+    from dask import array as da
+    from dask import dataframe as dd
 except ImportError:
+    da = None
+    dd = None
     cudf = None
     dask_cudf = None
 
