@@ -15,11 +15,28 @@ try:
     import dask_cudf
     from dask import array as da
     from dask import dataframe as dd
+
+    DC: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
+    ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
+    DType = Union[
+        cudf.DataFrame,
+        pandas.DataFrame,
+        cudf.Series,
+        pandas.Series,
+        da.Array,
+        dd.DataFrame,
+        dd.Series,
+    ]
+
 except ImportError:
     da = None
     dd = None
     cudf = None
     dask_cudf = None
+
+    DC: TypeAlias = Any
+    ID: TypeAlias = Any
+    DType: TypeAlias = Any
 
 
 def fprint(*args: Any, **kwargs: Any) -> None:
@@ -31,17 +48,6 @@ fprint.__doc__ = print.__doc__
 
 EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
 
-DC = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
-ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
-DType = Union[
-    cudf.DataFrame,
-    pandas.DataFrame,
-    cudf.Series,
-    pandas.Series,
-    da.Array,
-    dd.DataFrame,
-    dd.Series,
-]
 
 
 def read_csv(
