@@ -58,7 +58,7 @@ def read_csv(
     names,
     backend,
     skiprows=0,
-    blocksize=dd.io.csv.AUTO_BLOCKSIZE,
+    # blocksize=dd.io.csv.AUTO_BLOCKSIZE,
 ) -> DType:
     if backend == "dask_cudf":
         df = dask_cudf.read_csv(
