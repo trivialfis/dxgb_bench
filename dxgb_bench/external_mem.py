@@ -206,7 +206,7 @@ def run_ext_qdm(
 ) -> xgb.Booster:
     with Timer("ExtQdm", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, is_ext=False, on_host=False, device=device)
+        it = EmTestIterator(files, is_ext=True, on_host=True, device=device)
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix"):
         Xy = xgb.core.ExtMemQuantileDMatrix(it, max_bin=n_bins)
