@@ -204,6 +204,8 @@ def run_ext_qdm(
     n_batches: int,
     device: str,
 ) -> xgb.Booster:
+    rmm.reinitialize(pool_allocator=True)
+
     with Timer("ExtQdm", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
         it = EmTestIterator(files, is_ext=True, on_host=True, device=device)
