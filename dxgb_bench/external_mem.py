@@ -264,13 +264,13 @@ def run_ext_qdm(
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(
-            files, is_ext=False, on_host=True, device=device, split=True, is_eval=False
+            files, is_ext=True, on_host=True, device=device, split=True, is_eval=False
         )
         Xy_train = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Valid"):
         it_valid = EmTestIterator(
-            files, is_ext=False, on_host=True, device=device, split=True, is_eval=True
+            files, is_ext=True, on_host=True, device=device, split=True, is_eval=True
         )
         Xy_valid = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins, ref=Xy_train)
 
