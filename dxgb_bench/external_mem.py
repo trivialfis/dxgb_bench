@@ -6,11 +6,13 @@ from typing import Any, Callable, List, Tuple
 
 import numpy as np
 import rmm
+from rmm.allocators.cupy import rmm_cupy_allocator
 import xgboost as xgb
 from sklearn.datasets import make_regression
 from xgboost.compat import concat
 
 from .utils import Progress, Timer
+import cupy as cp
 
 
 class EmTestIterator(xgb.DataIter):
@@ -27,10 +29,17 @@ class EmTestIterator(xgb.DataIter):
         else:
             super().__init__()
 
+
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
+        gc.collect()
+
         X_path, y_path = self._file_paths[self._it]
-        X = np.lib.format.open_memmap(filename=X_path, mode="r")
-        y = np.lib.format.open_memmap(filename=y_path, mode="r")
+        if self._device != "cpu":
+            X = cp.load(X_path)
+            y = cp.load(y_path)
+        else:
+            X = np.lib.format.open_memmap(filename=X_path, mode="r")
+            y = np.lib.format.open_memmap(filename=y_path, mode="r")
         assert X.shape[0] == y.shape[0]
         return X, y
 
@@ -201,6 +210,11 @@ def run_ext_qdm(
     n_batches: int,
     device: str,
 ) -> xgb.Booster:
+    base_mr = rmm.mr.CudaAsyncMemoryResource()
+    mr = rmm.mr.PoolMemoryResource(base_mr)
+    rmm.mr.set_current_device_resource(mr)
+    cp.cuda.set_allocator(rmm_cupy_allocator)
+
     with Timer("ExtQdm", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
         it = EmTestIterator(files, is_ext=False, on_host=False, device=device)

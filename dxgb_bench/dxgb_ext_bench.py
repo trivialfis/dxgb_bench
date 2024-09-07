@@ -15,16 +15,17 @@ from .utils import Timer
 
 def main(args: argparse.Namespace) -> None:
     data_dir = "./data"
+
+    n_batches = 28
+
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
     if args.size == "test":
         n = 2**16
     elif args.size == "small":
-        n = 2**23
+        n = 2**24
     else:
-        n = 2**26 + 2**24
-
-    n_batches = 32
+        n = (2 ** 23 + 2 ** 22) * n_batches
 
     if args.task == "os":
         assert args.device == "cuda"
