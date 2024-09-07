@@ -58,13 +58,15 @@ def read_csv(
     names,
     backend,
     skiprows=0,
-    blocksize=dd.io.csv.AUTO_BLOCKSIZE,
+    blocksize=None,
 ) -> DType:
     if backend == "dask_cudf":
         df = dask_cudf.read_csv(
             path, delimiter=sep, dtype=dtype, header=None, names=names
         )
     elif backend == "dask":
+        if blocksize is None:
+            blocksize = dd.io.csv.AUTO_BLOCKSIZE
         df = dd.read_csv(
             path,
             names=names,
