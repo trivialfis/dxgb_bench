@@ -4,31 +4,39 @@ from concurrent.futures import ThreadPoolExecutor
 from time import time
 from typing import Any, Callable, List, Tuple
 
+import cupy as cp
 import numpy as np
 import rmm
-from rmm.allocators.cupy import rmm_cupy_allocator
 import xgboost as xgb
+from rmm.allocators.cupy import rmm_cupy_allocator
 from sklearn.datasets import make_regression
 from xgboost.compat import concat
+from cuml.model_selection import train_test_split
 
 from .utils import Progress, Timer
-import cupy as cp
 
 
 class EmTestIterator(xgb.DataIter):
     """A custom iterator for profiling external memory."""
 
     def __init__(
-        self, file_paths: List[Tuple[str, str]], on_host: bool, is_ext: bool, device: str,
+        self,
+        file_paths: List[Tuple[str, str]],
+        on_host: bool,
+        is_ext: bool,
+        device: str,
+        split: bool,
+        is_eval: bool,
     ) -> None:
         self._file_paths = file_paths
         self._it = 0
         self._device = device
+        self._split = split
+        self._is_eval = is_eval
         if is_ext:
             super().__init__(cache_prefix="cache", on_host=on_host)
         else:
             super().__init__()
-
 
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
         gc.collect()
@@ -49,7 +57,16 @@ class EmTestIterator(xgb.DataIter):
             return 0
 
         X, y = self.load_file()
-        input_data(data=X, label=y)
+
+        if self._split:
+            X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=42)
+            if self._is_eval:
+                input_data(data=X_valid, label=y_valid)
+            else:
+                input_data(data=X_train, label=y_train)
+        else:
+            input_data(data=X, label=y)
+
         self._it += 1
         return 1
 
@@ -152,7 +169,14 @@ def run_external_memory(
 
     with Timer("ExtSparse", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, on_host=on_host, is_ext=True, device="cpu")
+        it = EmTestIterator(
+            files,
+            on_host=on_host,
+            is_ext=True,
+            device="cpu",
+            split=False,
+            is_eval=False,
+        )
     with Timer("ExtSparse", "DMatrix"):
         Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
     with Timer("ExtSparse", "train"):
@@ -182,7 +206,9 @@ def run_over_subscription(
 
     with Timer("OS", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, is_ext=False, on_host=False, device="cpu")
+        it = EmTestIterator(
+            files, is_ext=False, on_host=False, device="cpu", split=False, is_eval=False
+        )
 
     with Timer("OS", "QuantileDMatrix"):
         Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
@@ -217,10 +243,18 @@ def run_ext_qdm(
 
     with Timer("ExtQdm", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(files, is_ext=False, on_host=False, device=device)
 
-    with Timer("ExtQdm", "ExtMemQuantileDMatrix"):
-        Xy = xgb.core.ExtMemQuantileDMatrix(it, max_bin=n_bins)
+    with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
+        it_train = EmTestIterator(
+            files, is_ext=False, on_host=False, device=device, split=True, is_eval=False
+        )
+        Xy_train = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
+
+    with Timer("ExtQdm", "ExtMemQuantileDMatrix-Valid"):
+        it_valid = EmTestIterator(
+            files, is_ext=False, on_host=False, device=device, split=True, is_eval=True
+        )
+        Xy_valid = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins, ref=Xy_train)
 
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
@@ -230,8 +264,9 @@ def run_ext_qdm(
                 "max_bin": n_bins,
                 "device": device,
             },
-            Xy,
+            Xy_train,
             num_boost_round=n_rounds,
+            evals=[(Xy_train, "Train"), (Xy_valid, "Valid")],
             callbacks=[Progress(n_rounds)],
         )
     return booster
