@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import gc
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -11,9 +13,25 @@ import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
 from sklearn.datasets import make_regression
 from xgboost.compat import concat
-from cuml.model_selection import train_test_split
 
 from .utils import Progress, Timer
+
+
+def train_test_split(
+    X: cp.ndarray, y: cp.ndarray, test_size: float, random_state: int
+) -> tuple[cp.ndarray, cp.ndarray, cp.ndarray, cp.ndarray]:
+    # Only used for profiling, not suitable for real world validation.
+    n_samples = X.shape[0]
+    n_test = int(n_samples * test_size)
+    n_train = n_samples - n_test
+
+    X_train = X[:n_train, ...]
+    X_test = X[n_train:, ...]
+
+    y_train = y[:n_train]
+    y_test = y[n_train:]
+
+    return X_train, X_test, y_train, y_test
 
 
 class EmTestIterator(xgb.DataIter):
