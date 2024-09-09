@@ -295,11 +295,15 @@ def run_ext_qdm(
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
-    with Timer("ExtQdm", "make_batches"):
-        files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
+    on_the_fly = True
+
+    if not on_the_fly:
+        with Timer("ExtQdm", "make_batches"):
+            files = make_batches(
+                n_samples_per_batch, n_features, n_batches, reuse, tmpdir
+            )
 
     validation = False
-    on_the_fly = True
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(
