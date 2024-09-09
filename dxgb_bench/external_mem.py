@@ -302,6 +302,8 @@ def run_ext_qdm(
             files = make_batches(
                 n_samples_per_batch, n_features, n_batches, reuse, tmpdir
             )
+    else:
+        files = [("", "")] * n_batches
 
     validation = False
 
