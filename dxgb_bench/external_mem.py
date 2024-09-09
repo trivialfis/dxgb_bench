@@ -76,7 +76,9 @@ class EmTestIterator(xgb.DataIter):
         X, y = self.load_file()
 
         if self._split:
-            X_train, X_valid, y_train, y_valid = train_test_split(X, y, test_size=0.2, random_state=42)
+            X_train, X_valid, y_train, y_valid = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
             if self._is_eval:
                 input_data(data=X_valid, label=y_valid)
             else:
@@ -261,17 +263,34 @@ def run_ext_qdm(
     with Timer("ExtQdm", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
 
+    validation = False
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(
-            files, is_ext=True, on_host=True, device=device, split=True, is_eval=False
+            files,
+            is_ext=True,
+            on_host=True,
+            device=device,
+            split=validation,
+            is_eval=False,
         )
         Xy_train = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
 
-    with Timer("ExtQdm", "ExtMemQuantileDMatrix-Valid"):
-        it_valid = EmTestIterator(
-            files, is_ext=True, on_host=True, device=device, split=True, is_eval=True
-        )
-        Xy_valid = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins, ref=Xy_train)
+    if validation:
+        with Timer("ExtQdm", "ExtMemQuantileDMatrix-Valid"):
+            it_valid = EmTestIterator(
+                files,
+                is_ext=True,
+                on_host=True,
+                device=device,
+                split=validation,
+                is_eval=True,
+            )
+            Xy_valid = xgb.core.ExtMemQuantileDMatrix(
+                it_train, max_bin=n_bins, ref=Xy_train
+            )
+        watches = [(Xy_train, "Train"), (Xy_valid, "Valid")]
+    else:
+        watches = [(Xy_train, "Train")]
 
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
@@ -283,7 +302,7 @@ def run_ext_qdm(
             },
             Xy_train,
             num_boost_round=n_rounds,
-            evals=[(Xy_train, "Train"), (Xy_valid, "Valid")],
+            evals=watches,
             callbacks=[Progress(n_rounds)],
         )
     return booster
