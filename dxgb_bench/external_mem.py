@@ -15,6 +15,8 @@ from xgboost.compat import concat
 
 from .utils import Progress, Timer
 
+TEST_SIZE = 0.2
+
 
 def train_test_split(
     X: cp.ndarray, y: cp.ndarray, test_size: float, random_state: int
@@ -44,12 +46,20 @@ class EmTestIterator(xgb.DataIter):
         device: str,
         split: bool,
         is_eval: bool,
+        on_the_fly: bool,
+        n_samples_per_batch: int | None = None,
+        n_features: int | None = None,
     ) -> None:
         self._file_paths = file_paths
         self._it = 0
         self._device = device
         self._split = split
         self._is_eval = is_eval
+
+        self._fly = on_the_fly
+        self._n_samples_per_batch = n_samples_per_batch
+        self._n_features = n_features
+
         if is_ext:
             super().__init__(cache_prefix="cache", on_host=on_host)
         else:
@@ -73,11 +83,18 @@ class EmTestIterator(xgb.DataIter):
         if self._it == len(self._file_paths):
             return 0
 
-        X, y = self.load_file()
+        if self._fly:
+            assert self._n_samples_per_batch is not None
+            assert self._n_features is not None
+            X, y = make_dense_regression_cupy(
+                self._n_samples_per_batch, self._n_features, random_state=self._it
+            )
+        else:
+            X, y = self.load_file()
 
         if self._split:
             X_train, X_valid, y_train, y_valid = train_test_split(
-                X, y, test_size=0.2, random_state=42
+                X, y, test_size=TEST_SIZE, random_state=42
             )
             if self._is_eval:
                 input_data(data=X_valid, label=y_valid)
@@ -133,6 +150,16 @@ def make_dense_regression(
         y_arr.append(y)
     X = concat(X_arr)
     y = concat(y_arr)
+    return X, y
+
+
+def make_dense_regression_cupy(
+    n_samples: int, n_features: int, random_state: int
+) -> Tuple[cp.ndarray, cp.ndarray]:
+    rng = cp.random.default_rng(random_state)
+    X = rng.normal(loc=0.0, scale=1.5, size=(n_samples, n_features)).astype(np.float32)
+    err = rng.normal(0.0, scale=0.2, size=(n_samples,)).astype(np.float32)
+    y = X.sum(axis=1) + err
     return X, y
 
 
@@ -195,6 +222,7 @@ def run_external_memory(
             device="cpu",
             split=False,
             is_eval=False,
+            on_the_fly=False,
         )
     with Timer("ExtSparse", "DMatrix"):
         Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
@@ -222,11 +250,18 @@ def run_over_subscription(
         rmm.mr.set_current_device_resource(mr)
     else:
         rmm.reinitialize(pool_allocator=True)
+    cp.cuda.set_allocator(rmm_cupy_allocator)
 
     with Timer("OS", "make_batches"):
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
         it = EmTestIterator(
-            files, is_ext=False, on_host=False, device="cpu", split=False, is_eval=False
+            files,
+            is_ext=False,
+            on_host=False,
+            device="cpu",
+            split=False,
+            is_eval=False,
+            on_the_fly=False,
         )
 
     with Timer("OS", "QuantileDMatrix"):
@@ -264,6 +299,8 @@ def run_ext_qdm(
         files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
 
     validation = False
+    on_the_fly = True
+
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(
             files,
@@ -272,6 +309,9 @@ def run_ext_qdm(
             device=device,
             split=validation,
             is_eval=False,
+            on_the_fly=True,
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
         )
         Xy_train = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
 
@@ -284,6 +324,9 @@ def run_ext_qdm(
                 device=device,
                 split=validation,
                 is_eval=True,
+                on_the_fly=True,
+                n_samples_per_batch=n_samples_per_batch,
+                n_features=n_features,
             )
             Xy_valid = xgb.core.ExtMemQuantileDMatrix(
                 it_train, max_bin=n_bins, ref=Xy_train
