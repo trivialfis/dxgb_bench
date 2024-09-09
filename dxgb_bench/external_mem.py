@@ -156,7 +156,7 @@ def make_dense_regression(
 def make_dense_regression_cupy(
     n_samples: int, n_features: int, random_state: int
 ) -> Tuple[cp.ndarray, cp.ndarray]:
-    rng = cp.random.RandomState(random_state)
+    rng = cp.random.RandomState(cp.uint64(random_state))
     X = rng.normal(loc=0.0, scale=1.5, size=(n_samples, n_features)).astype(np.float32)
     err = rng.normal(0.0, scale=0.2, size=(n_samples,)).astype(np.float32)
     y = X.sum(axis=1) + err
