@@ -173,7 +173,7 @@ def make_batches(
     return files
 
 
-n_rounds = 10
+n_rounds = 128
 n_features = 512
 
 
