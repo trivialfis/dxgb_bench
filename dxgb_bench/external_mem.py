@@ -66,8 +66,6 @@ class EmTestIterator(xgb.DataIter):
             super().__init__()
 
     def load_file(self) -> Tuple[np.ndarray, np.ndarray]:
-        gc.collect()
-
         X_path, y_path = self._file_paths[self._it]
         if self._device != "cpu":
             X = cp.load(X_path)
@@ -82,6 +80,8 @@ class EmTestIterator(xgb.DataIter):
         print("Next:", self._it, flush=True)
         if self._it == len(self._file_paths):
             return 0
+
+        gc.collect()
 
         if self._fly:
             assert self._n_samples_per_batch is not None
