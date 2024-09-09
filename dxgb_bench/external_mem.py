@@ -11,7 +11,6 @@ import numpy as np
 import rmm
 import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
-from sklearn.datasets import make_regression
 from xgboost.compat import concat
 
 from .utils import Progress, Timer
