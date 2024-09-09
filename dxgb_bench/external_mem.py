@@ -112,7 +112,7 @@ class EmTestIterator(xgb.DataIter):
 
 
 def make_dense_regression(
-    n_samples: int, n_features: int
+    n_samples: int, n_features: int, random_state: int
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Make dense synthetic data for regression."""
     n_cpus = os.cpu_count()
@@ -125,7 +125,7 @@ def make_dense_regression(
     ) -> Tuple[np.ndarray, np.ndarray]:
         # A custom version of make_regression since sklearn doesn't support np
         # generator.
-        rng = np.random.default_rng(seed)
+        rng = np.random.default_rng(seed + random_state)
         X = rng.normal(
             loc=0.0, scale=1.5, size=(n_samples_per_batch, n_features)
         ).astype(np.float32)
@@ -156,36 +156,8 @@ def make_dense_regression(
 def make_dense_regression_cupy(
     n_samples: int, n_features: int, random_state: int
 ) -> Tuple[cp.ndarray, cp.ndarray]:
-    rng = cp.random.RandomState(cp.uint64(random_state))
-
-    if n_samples * n_features > np.iinfo(np.int32).max:
-        n_samples_per_batch = n_samples // 256
-        n_batches = 256
-    else:
-        n_samples_per_batch = n_samples
-        n_batches = 1
-
-    def make_regression(n_samples_per_batch: int, seed: int) -> tuple[cp.ndarray, cp.ndarray]:
-        X = rng.normal(loc=0.0, scale=1.5, size=(n_samples_per_batch, n_features), dtype=cp.float32)
-        err = rng.normal(0.0, scale=0.2, size=(n_samples_per_batch,)).astype(np.float32)
-        y = X.sum(axis=1) + err
-        return X, y
-
-
-    start = 0
-    X_arr, y_arr = [], []
-    for i in range(n_batches):
-        n_samples_cur = n_samples_per_batch
-        if i == n_batches - 1:
-            n_samples_cur = n_samples - start
-        X, y = make_regression(n_samples_cur, i)
-        X_arr.append(X)
-        y_arr.append(y)
-        start += n_samples_cur
-
-    X = concat(X_arr)
-    y = concat(y_arr)
-    return X, y
+    X, y = make_dense_regression(n_samples, n_features, random_state)
+    return cp.array(X), cp.array(y)
 
 
 def make_batches(
@@ -212,7 +184,9 @@ def make_batches(
     assert not files
 
     for i in range(n_batches):
-        X, y = make_dense_regression(n_samples_per_batch, n_features=n_features)
+        X, y = make_dense_regression(
+            n_samples_per_batch, n_features=n_features, random_state=i
+        )
         X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
         y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
         np.save(X_path, X)
