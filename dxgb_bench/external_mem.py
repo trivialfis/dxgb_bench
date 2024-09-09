@@ -313,7 +313,7 @@ def run_ext_qdm(
             device=device,
             split=validation,
             is_eval=False,
-            on_the_fly=True,
+            on_the_fly=on_the_fly,
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
         )
@@ -328,7 +328,7 @@ def run_ext_qdm(
                 device=device,
                 split=validation,
                 is_eval=True,
-                on_the_fly=True,
+                on_the_fly=on_the_fly,
                 n_samples_per_batch=n_samples_per_batch,
                 n_features=n_features,
             )
