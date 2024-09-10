@@ -143,13 +143,43 @@ def make_dense_regression(
             fut = executor.submit(make_regression, n_samples_cur, i)
             start += n_samples_cur
             futures.append(fut)
+
     X_arr, y_arr = [], []
     for fut in futures:
         X, y = fut.result()
         X_arr.append(X)
         y_arr.append(y)
-    X = concat(X_arr)
-    y = concat(y_arr)
+
+
+    def parallel_concat(X_arr: List[np.ndarray], y_arr: List[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+        with ThreadPoolExecutor(max_workers=n_threads) as executor_1:
+            while True:
+                X_arr_1 = []
+                y_arr_1 = []
+                X_futures = []
+
+                for i in range(0, len(X_arr), 2):
+                    if i + 1 < len(X_arr):
+                        X_fut = executor_1.submit(concat, X_arr[i: i+2])
+                        y_fut = executor_1.submit(concat, y_arr[i: i+2])
+                    else:
+                        X_fut = executor_1.submit(lambda x: x, X_arr[i])
+                        y_fut = executor_1.submit(lambda x: x, y_arr[i])
+                    X_futures.append((X_fut, y_fut))
+
+                for X_fut, y_fut in X_futures:
+                    X_arr_1.append(X_fut.result())
+                    y_arr_1.append(y_fut.result())
+
+                X_arr = X_arr_1
+                y_arr = y_arr_1
+
+                if len(X_arr) == 1 and len(y_arr) == 1:
+                    break
+        assert len(X_arr) == 1 and len(y_arr) == 1
+        return X_arr[0], y_arr[0]
+
+    X, y = parallel_concat(X_arr, y_arr)
     return X, y
 
 
