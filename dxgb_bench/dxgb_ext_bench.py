@@ -16,14 +16,14 @@ from .utils import Timer
 def main(args: argparse.Namespace) -> None:
     data_dir = "./data"
 
-    n_batches = 54
+    n_batches = args.n_batches
 
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
     if args.size == "test":
         n = 2**16
     elif args.size == "small":
-        n = 2**24
+        n = 2**23
     else:
         n = (2 ** 23 + 2 ** 22) * n_batches
 
@@ -76,7 +76,8 @@ def cli_main() -> None:
     )
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
-    parser.add_argument("--n_rounds", type=int, default=8)
+    parser.add_argument("--n_rounds", type=int, default=128)
+    parser.add_argument("--n_batches", type=int, default=54)
     args = parser.parse_args()
 
     with xgb.config_context(verbosity=3, use_rmm=True):
