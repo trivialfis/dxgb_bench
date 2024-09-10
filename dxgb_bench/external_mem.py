@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ctypes
 import gc
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -111,6 +112,31 @@ class EmTestIterator(xgb.DataIter):
         self._it = 0
 
 
+def make_reg_c(n_samples_per_batch: int, seed: int) -> Tuple[np.ndarray, np.ndarray]:
+    path = os.path.join(
+        os.path.normpath(os.path.abspath(os.path.dirname(__file__))), "libdxgbbench.so"
+    )
+    _lib = ctypes.cdll.LoadLibrary(path)
+    X = np.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
+    X_ptr = ctypes.cast(
+        X.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
+    )
+
+    y = np.empty(shape=(n_samples_per_batch,), dtype=np.float32)
+    y_ptr = ctypes.cast(
+        y.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
+    )
+
+    _lib.MakeDenseRegression(
+        ctypes.c_int64(n_samples_per_batch),
+        ctypes.c_int64(n_features),
+        ctypes.c_int64(seed),
+        X_ptr,
+        y_ptr,
+    )
+    return X, y
+
+
 def make_dense_regression(
     n_samples: int, n_features: int, random_state: int
 ) -> Tuple[np.ndarray, np.ndarray]:
@@ -123,6 +149,11 @@ def make_dense_regression(
     def make_regression(
         n_samples_per_batch: int, seed: int
     ) -> Tuple[np.ndarray, np.ndarray]:
+        try:
+            X, y = make_reg_c(n_samples_per_batch, seed)
+            return X, y
+        except Exception:
+            pass
         # A custom version of make_regression since sklearn doesn't support np
         # generator.
         rng = np.random.default_rng(seed + random_state)
@@ -140,7 +171,7 @@ def make_dense_regression(
             n_samples_cur = n_samples_per_batch
             if i == n_threads - 1:
                 n_samples_cur = n_samples - start
-            fut = executor.submit(make_regression, n_samples_cur, i)
+            fut = executor.submit(make_reg_c, n_samples_cur, i)
             start += n_samples_cur
             futures.append(fut)
 
@@ -150,8 +181,9 @@ def make_dense_regression(
         X_arr.append(X)
         y_arr.append(y)
 
-
-    def parallel_concat(X_arr: List[np.ndarray], y_arr: List[np.ndarray]) -> tuple[np.ndarray, np.ndarray]:
+    def parallel_concat(
+        X_arr: List[np.ndarray], y_arr: List[np.ndarray]
+    ) -> tuple[np.ndarray, np.ndarray]:
         with ThreadPoolExecutor(max_workers=n_threads) as executor_1:
             while True:
                 X_arr_1 = []
@@ -160,8 +192,8 @@ def make_dense_regression(
 
                 for i in range(0, len(X_arr), 2):
                     if i + 1 < len(X_arr):
-                        X_fut = executor_1.submit(concat, X_arr[i: i+2])
-                        y_fut = executor_1.submit(concat, y_arr[i: i+2])
+                        X_fut = executor_1.submit(concat, X_arr[i : i + 2])
+                        y_fut = executor_1.submit(concat, y_arr[i : i + 2])
                     else:
                         X_fut = executor_1.submit(lambda x: x, X_arr[i])
                         y_fut = executor_1.submit(lambda x: x, y_arr[i])
