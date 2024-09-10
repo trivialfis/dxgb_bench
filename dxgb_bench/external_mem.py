@@ -149,11 +149,8 @@ def make_dense_regression(
     def make_regression(
         n_samples_per_batch: int, seed: int
     ) -> Tuple[np.ndarray, np.ndarray]:
-        try:
-            X, y = make_reg_c(n_samples_per_batch, seed)
-            return X, y
-        except Exception:
-            pass
+        X, y = make_reg_c(n_samples_per_batch, seed)
+        return X, y
         # A custom version of make_regression since sklearn doesn't support np
         # generator.
         rng = np.random.default_rng(seed + random_state)
