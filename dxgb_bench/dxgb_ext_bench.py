@@ -16,7 +16,7 @@ from .utils import Timer
 def main(args: argparse.Namespace) -> None:
     data_dir = "./data"
 
-    n_batches = 28
+    n_batches = 54
 
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
