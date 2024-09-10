@@ -63,6 +63,7 @@ def main(args: argparse.Namespace) -> None:
             n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
             device=args.device,
+            n_rounds=args.n_rounds,
         )
 
     print(Timer.global_timer())
@@ -75,6 +76,7 @@ def cli_main() -> None:
     )
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
+    parser.add_argument("--n_rounds", type=int, default=8)
     args = parser.parse_args()
 
     with xgb.config_context(verbosity=3, use_rmm=True):

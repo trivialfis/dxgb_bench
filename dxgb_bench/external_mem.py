@@ -199,7 +199,7 @@ def make_batches(
     return files
 
 
-n_rounds = 128
+N_ROUNDS = 128
 n_features = 512
 
 
@@ -229,8 +229,8 @@ def run_external_memory(
         booster = xgb.train(
             {"tree_method": "hist", "max_depth": 6, "device": "cuda"},
             Xy,
-            num_boost_round=n_rounds,
-            callbacks=[Progress(n_rounds)],
+            num_boost_round=N_ROUNDS,
+            callbacks=[Progress(N_ROUNDS)],
         )
     return booster
 
@@ -275,8 +275,8 @@ def run_over_subscription(
                 "max_bin": n_bins,
             },
             Xy,
-            num_boost_round=n_rounds,
-            callbacks=[Progress(n_rounds)],
+            num_boost_round=N_ROUNDS,
+            callbacks=[Progress(N_ROUNDS)],
         )
     return booster
 
@@ -288,6 +288,7 @@ def run_ext_qdm(
     n_samples_per_batch: int,
     n_batches: int,
     device: str,
+    n_rounds: int,
 ) -> xgb.Booster:
     base_mr = rmm.mr.CudaAsyncMemoryResource()
     mr = rmm.mr.PoolMemoryResource(base_mr)
