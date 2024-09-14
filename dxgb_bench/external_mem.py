@@ -12,6 +12,7 @@ import numpy as np
 import rmm
 import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
+from xgboost.callback import TrainingCheckPoint
 from xgboost.compat import concat
 
 from .utils import Progress, Timer
@@ -409,6 +410,6 @@ def run_ext_qdm(
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
-            callbacks=[Progress(n_rounds)],
+            callbacks=[Progress(n_rounds), TrainingCheckPoint("./models", interval=4)],
         )
     return booster
