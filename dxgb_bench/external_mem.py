@@ -144,6 +144,12 @@ def make_dense_regression(
     n_samples: int, n_features: int, random_state: int
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Make dense synthetic data for regression."""
+    try:
+        X, y = make_reg_c(n_samples, random_state * n_samples)
+        return X, y
+    except Exception as e:
+        print(f"Failed to generate using the C extension. {e}")
+
     n_cpus = os.cpu_count()
     assert n_cpus is not None
     n_threads = min(n_cpus, n_samples)
@@ -170,7 +176,7 @@ def make_dense_regression(
             if i == n_threads - 1:
                 n_samples_cur = n_samples - start
             fut = executor.submit(
-                make_reg_c, n_samples_cur, start + random_state * n_samples
+                make_regression, n_samples_cur, start + random_state * n_samples
             )
             start += n_samples_cur
             futures.append(fut)
@@ -405,6 +411,9 @@ def run_ext_qdm(
         watches = [(Xy_train, "Train"), (Xy_valid, "Valid")]
     else:
         watches = [(Xy_train, "Train")]
+
+    if not os.path.exists("./models"):
+        os.mkdir("./models")
 
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
