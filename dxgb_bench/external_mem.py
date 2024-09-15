@@ -167,7 +167,7 @@ def make_dense_regression(
             n_samples_cur = n_samples_per_batch
             if i == n_threads - 1:
                 n_samples_cur = n_samples - start
-            fut = executor.submit(make_reg_c, n_samples_cur, i)
+            fut = executor.submit(make_reg_c, n_samples_cur, start)
             start += n_samples_cur
             futures.append(fut)
 
