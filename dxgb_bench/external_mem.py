@@ -409,6 +409,7 @@ def run_ext_qdm(
     if not os.path.exists("./models"):
         os.mkdir("./models")
 
+    # , TrainingCheckPoint("./models", interval=4)
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
             {
@@ -420,6 +421,6 @@ def run_ext_qdm(
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
-            callbacks=[Progress(n_rounds), TrainingCheckPoint("./models", interval=4)],
+            callbacks=[Progress(n_rounds)],
         )
     return booster

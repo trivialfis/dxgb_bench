@@ -21,7 +21,7 @@ def main(args: argparse.Namespace) -> None:
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
     if args.size == "test":
-        n = 2**16
+        n = 2**19
     elif args.size == "small":
         n = 2**23
     else:
