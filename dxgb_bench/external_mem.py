@@ -152,7 +152,7 @@ def make_dense_regression(
     ) -> Tuple[np.ndarray, np.ndarray]:
         # A custom version of make_regression since sklearn doesn't support np
         # generator.
-        rng = np.random.default_rng(seed + random_state)
+        rng = np.random.default_rng(seed)
         X = rng.normal(
             loc=0.0, scale=1.5, size=(n_samples_per_batch, n_features)
         ).astype(np.float32)
@@ -167,7 +167,9 @@ def make_dense_regression(
             n_samples_cur = n_samples_per_batch
             if i == n_threads - 1:
                 n_samples_cur = n_samples - start
-            fut = executor.submit(make_reg_c, n_samples_cur, start)
+            fut = executor.submit(
+                make_reg_c, n_samples_cur, start + random_state * n_samples
+            )
             start += n_samples_cur
             futures.append(fut)
 
