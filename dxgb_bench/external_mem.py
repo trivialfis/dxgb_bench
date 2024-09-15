@@ -9,6 +9,7 @@ from typing import Any, Callable, List, Tuple
 
 import cupy as cp
 import numpy as np
+import nvtx
 import rmm
 import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
@@ -113,6 +114,7 @@ class EmTestIterator(xgb.DataIter):
         self._it = 0
 
 
+@nvtx.annotate("make_reg_c", color="yellow", domain="dxgb")
 def make_reg_c(n_samples_per_batch: int, seed: int) -> Tuple[np.ndarray, np.ndarray]:
     path = os.path.join(
         os.path.normpath(os.path.abspath(os.path.dirname(__file__))), "libdxgbbench.so"
@@ -179,6 +181,7 @@ def make_dense_regression(
         X_arr.append(X)
         y_arr.append(y)
 
+    @nvtx.annotate("parallel_concat", color="red", domain="dxgb")
     def parallel_concat(
         X_arr: List[np.ndarray], y_arr: List[np.ndarray]
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -217,7 +220,9 @@ def make_dense_regression_cupy(
     n_samples: int, n_features: int, random_state: int
 ) -> Tuple[cp.ndarray, cp.ndarray]:
     X, y = make_dense_regression(n_samples, n_features, random_state)
-    return cp.array(X), cp.array(y)
+    with nvtx.annotate("load_cp", color="green", domain="dxgb"):
+        X, y = cp.array(X), cp.array(y)
+    return X, y
 
 
 def make_batches(
