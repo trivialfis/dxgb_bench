@@ -360,13 +360,13 @@ def run_ext_qdm(
     n_batches: int,
     device: str,
     n_rounds: int,
+    on_the_fly: bool,
+    validation: bool,
 ) -> xgb.Booster:
     base_mr = rmm.mr.CudaAsyncMemoryResource()
     mr = rmm.mr.PoolMemoryResource(base_mr)
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
-
-    on_the_fly = True
 
     if not on_the_fly:
         with Timer("ExtQdm", "make_batches"):
@@ -375,8 +375,6 @@ def run_ext_qdm(
             )
     else:
         files = [("", "")] * n_batches
-
-    validation = False
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(

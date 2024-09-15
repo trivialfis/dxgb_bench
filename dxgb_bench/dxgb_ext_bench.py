@@ -64,6 +64,8 @@ def main(args: argparse.Namespace) -> None:
             n_samples_per_batch=n // n_batches,
             device=args.device,
             n_rounds=args.n_rounds,
+            on_the_fly=args.on_the_fly == 1,
+            validation=args.valid,
         )
 
     print(Timer.global_timer())
@@ -78,6 +80,8 @@ def cli_main() -> None:
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_batches", type=int, default=54)
+    parser.add_argument("--on-the-fly", choices=[0, 1], default=1)
+    parser.add_argument("--valid", action="store_true")
     args = parser.parse_args()
 
     with xgb.config_context(verbosity=3, use_rmm=True):
