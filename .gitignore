@@ -10,3 +10,6 @@ cufile.log
 rmm_log.txt
 cachedir
 data/
+.cache
+build/
+*.so

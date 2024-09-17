@@ -6,6 +6,12 @@ import time
 from typing import Any, Dict, Optional, Tuple, TypeAlias, Union
 from urllib.request import urlretrieve
 
+try:
+    import nvtx
+except ImportError as e:
+    raise UserWarning(str(e))
+    nvtx = None
+
 import pandas
 import tqdm
 import xgboost as xgb
@@ -131,19 +137,25 @@ global_timer: Dict[str, Dict[str, float]] = {}
 class Timer:
     def __init__(self, name: str, proc: str):
         self.name = name
-        self.proc = proc + " (sec)"
+        self.proc = proc
+        self.proc_name = proc + " (sec)"
+        self.range_id = None
 
     def __enter__(self) -> "Timer":
+        if nvtx is not None:
+            self.range_id = nvtx.start_range(self.name + "-" + self.proc)
         self.start = time.time()
-        fprint(self.name, self.proc, "started: ", time.ctime())
+        fprint(self.name, self.proc_name, "started: ", time.ctime())
         return self
 
     def __exit__(self, type, value, traceback):
+        if self.range_id is not None:
+            nvtx.end_range(self.range_id)
         end = time.time()
         if self.name not in global_timer.keys():
             global_timer[self.name] = {}
-        global_timer[self.name][self.proc] = end - self.start
-        fprint(self.name, self.proc, "ended in: ", end - self.start, "seconds.")
+        global_timer[self.name][self.proc_name] = end - self.start
+        fprint(self.name, self.proc_name, "ended in: ", end - self.start, "seconds.")
 
     @staticmethod
     def global_timer() -> Dict[str, Dict[str, float]]:
