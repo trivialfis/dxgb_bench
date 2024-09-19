@@ -421,6 +421,7 @@ def run_ext_qdm(
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
+            # verbose_eval=False,
             callbacks=[Progress(n_rounds)],
         )
     return booster

@@ -188,13 +188,19 @@ class Progress(xgb.callback.TrainingCallback):
         self.pbar = tqdm.tqdm(total=self.n_rounds, unit="iter")
         return model
 
-    def after_iteration(
-        self, model: xgb.Booster, epoch: int, evals_log: EvalsLog
-    ) -> bool:
-        self.pbar.update(1)
-        return False
-
     def after_training(self, model: xgb.Booster) -> xgb.Booster:
         self.end = time.time()
         self.pbar.close()
         return model
+
+    def after_iteration(
+        self, model: xgb.Booster, epoch: int, evals_log: EvalsLog
+    ) -> bool:
+        progress_desc = []
+        for data, metrics in evals_log.items():
+            for m, res in metrics.items():
+                desc = f"{data}-{m}:{res[-1]:.4f}"
+                progress_desc.append(desc)
+        self.pbar.set_description("|".join(progress_desc), refresh=True)
+        self.pbar.update(1)
+        return False
