@@ -8,6 +8,7 @@ from dxgb_bench.external_mem import (
     run_ext_qdm,
     run_external_memory,
     run_over_subscription,
+    run_shap_values,
 )
 
 from .utils import Timer
@@ -21,7 +22,7 @@ def main(args: argparse.Namespace) -> None:
     if not os.path.exists(data_dir):
         os.mkdir(data_dir)
     if args.size == "test":
-        n = 2**19
+        n = 2**19 * n_batches
     elif args.size == "small":
         n = 2**23
     else:
@@ -55,7 +56,7 @@ def main(args: argparse.Namespace) -> None:
             n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
         )
-    else:
+    elif args.task == "ext-qdm":
         run_ext_qdm(
             data_dir,
             reuse=True,
@@ -67,6 +68,19 @@ def main(args: argparse.Namespace) -> None:
             on_the_fly=args.on_the_fly == 1,
             validation=args.valid,
         )
+    else:
+        assert args.predict_type is not None
+        assert args.model is not None
+        run_shap_values(
+            data_dir,
+            reuse=True,
+            n_bins=256,
+            n_batches=n_batches,
+            n_samples_per_batch=n // n_batches,
+            device=args.device,
+            on_the_fly=args.on_the_fly == 1,
+            args=args,
+        )
 
     print(Timer.global_timer())
 
@@ -74,7 +88,7 @@ def main(args: argparse.Namespace) -> None:
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--task", choices=["os", "osd", "ext", "ext-qdm"], required=True
+        "--task", choices=["os", "osd", "ext", "ext-qdm", "shap"], required=True
     )
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
@@ -82,6 +96,10 @@ def cli_main() -> None:
     parser.add_argument("--n_batches", type=int, default=54)
     parser.add_argument("--on-the-fly", choices=[0, 1], default=1)
     parser.add_argument("--valid", action="store_true")
+
+    parser.add_argument("--model", type=str, required=False)
+    parser.add_argument("--predict_type", choices=["contribs", "interactions"], required=False)
+
     args = parser.parse_args()
 
     with xgb.config_context(verbosity=3, use_rmm=True):

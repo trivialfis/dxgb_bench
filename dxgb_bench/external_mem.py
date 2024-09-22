@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import argparse
 import ctypes
 import gc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from time import time
-from typing import Any, Callable, List, Tuple
+from typing import Any, Callable, List, Protocol, Tuple
 
 import cupy as cp
 import numpy as np
@@ -348,6 +349,14 @@ def run_over_subscription(
     return booster
 
 
+def setup_rmm() -> None:
+    print("Use `CudaAsyncMemoryResource`.")
+    base_mr = rmm.mr.CudaAsyncMemoryResource()
+    mr = rmm.mr.PoolMemoryResource(base_mr)
+    rmm.mr.set_current_device_resource(mr)
+    cp.cuda.set_allocator(rmm_cupy_allocator)
+
+
 def run_ext_qdm(
     tmpdir: str,
     reuse: bool,
@@ -359,10 +368,7 @@ def run_ext_qdm(
     on_the_fly: bool,
     validation: bool,
 ) -> xgb.Booster:
-    base_mr = rmm.mr.CudaAsyncMemoryResource()
-    mr = rmm.mr.PoolMemoryResource(base_mr)
-    rmm.mr.set_current_device_resource(mr)
-    cp.cuda.set_allocator(rmm_cupy_allocator)
+    setup_rmm()
 
     if not on_the_fly:
         with Timer("ExtQdm", "make_batches"):
@@ -424,4 +430,118 @@ def run_ext_qdm(
             # verbose_eval=False,
             callbacks=[Progress(n_rounds)],
         )
+    booster.save_model("model.json")
     return booster
+
+
+class TestBody(Protocol):
+    @property
+    def n_bins(self) -> int: ...
+    @property
+    def n_samples_per_batch(self) -> int: ...
+    @property
+    def n_batches(self) -> int: ...
+    @property
+    def device(self) -> str: ...
+    @property
+    def on_the_fly(self) -> bool: ...
+    @property
+    def reuse(self) -> bool: ...
+    @property
+    def tmpdir(self) -> str: ...
+
+
+class MakeExtQdmMixIn:
+    def make_iter(self: TestBody) -> xgb.DMatrix:
+        if not self.on_the_fly:
+            with Timer("ExtQdm", "make_batches"):
+                files = make_batches(
+                    self.n_samples_per_batch,
+                    n_features,
+                    self.n_batches,
+                    self.reuse,
+                    self.tmpdir,
+                )
+        else:
+            files = [("", "")] * self.n_batches
+
+        with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
+            it_train = EmTestIterator(
+                files,
+                is_ext=True,
+                on_host=True,
+                device=self.device,
+                split=False,
+                is_eval=False,
+                on_the_fly=self.on_the_fly,
+                n_samples_per_batch=self.n_samples_per_batch,
+                n_features=n_features,
+            )
+            Xy_train = xgb.ExtMemQuantileDMatrix(it_train, max_bin=self.n_bins)
+        return Xy_train
+
+
+class SetupRmmMixIn:
+    def __init__(self) -> None:
+        setup_rmm()
+
+
+class TestShapValues(MakeExtQdmMixIn, SetupRmmMixIn):
+    def __init__(
+        self,
+        model_path: str,
+        predict_type: str,
+        n_bins: int,
+        n_samples_per_batch: int,
+        n_batches: int,
+        device: str,
+        on_the_fly: bool,
+        reuse: bool,
+        tmpdir: str,
+    ) -> None:
+        self.model_path = model_path
+        self.predict_type = predict_type
+
+        self.n_bins: int = n_bins
+        self.n_samples_per_batch: int = n_samples_per_batch
+        self.n_batches: int = n_batches
+        self.device: str = device
+        self.on_the_fly: bool = on_the_fly
+
+        self.reuse = reuse
+        self.tmpdir = tmpdir
+
+        super().__init__()
+
+    def run(self) -> None:
+        Xy = self.make_iter()
+        booster = xgb.Booster(model_file=self.model_path)
+        booster.set_param({"device": self.device})
+        with Timer("ShapValues", self.predict_type):
+            if self.predict_type == "contribs":
+                booster.predict(Xy, pred_contribs=True)
+            else:
+                booster.predict(Xy, pred_interactions=True)
+
+
+def run_shap_values(
+    tmpdir: str,
+    reuse: bool,
+    n_bins: int,
+    n_batches: int,
+    n_samples_per_batch: int,
+    device: str,
+    on_the_fly: bool,
+    args: argparse.Namespace,
+) -> None:
+    TestShapValues(
+        model_path=args.model,
+        predict_type=args.predict_type,
+        n_bins=n_bins,
+        n_samples_per_batch=n_samples_per_batch,
+        n_batches=n_batches,
+        device=device,
+        on_the_fly=on_the_fly,
+        reuse=reuse,
+        tmpdir=tmpdir,
+    ).run()
