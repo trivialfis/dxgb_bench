@@ -486,7 +486,7 @@ class SetupRmmMixIn:
         setup_rmm()
 
 
-class TestShapValues(MakeExtQdmMixIn, SetupRmmMixIn):
+class TestInference(MakeExtQdmMixIn, SetupRmmMixIn):
     def __init__(
         self,
         model_path: str,
@@ -517,14 +517,14 @@ class TestShapValues(MakeExtQdmMixIn, SetupRmmMixIn):
         Xy = self.make_iter()
         booster = xgb.Booster(model_file=self.model_path)
         booster.set_param({"device": self.device})
-        with Timer("ShapValues", self.predict_type):
+        with Timer("inference", self.predict_type):
             if self.predict_type == "contribs":
                 booster.predict(Xy, pred_contribs=True)
             else:
                 booster.predict(Xy, pred_interactions=True)
 
 
-def run_shap_values(
+def run_inference(
     tmpdir: str,
     reuse: bool,
     n_bins: int,
@@ -534,7 +534,7 @@ def run_shap_values(
     on_the_fly: bool,
     args: argparse.Namespace,
 ) -> None:
-    TestShapValues(
+    TestInference(
         model_path=args.model,
         predict_type=args.predict_type,
         n_bins=n_bins,

@@ -8,7 +8,7 @@ from dxgb_bench.external_mem import (
     run_ext_qdm,
     run_external_memory,
     run_over_subscription,
-    run_shap_values,
+    run_inference,
 )
 
 from .utils import Timer
@@ -71,7 +71,7 @@ def main(args: argparse.Namespace) -> None:
     else:
         assert args.predict_type is not None
         assert args.model is not None
-        run_shap_values(
+        run_inference(
             data_dir,
             reuse=True,
             n_bins=256,
@@ -88,7 +88,7 @@ def main(args: argparse.Namespace) -> None:
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--task", choices=["os", "osd", "ext", "ext-qdm", "shap"], required=True
+        "--task", choices=["os", "osd", "ext", "ext-qdm", "inf"], required=True
     )
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
@@ -98,7 +98,7 @@ def cli_main() -> None:
     parser.add_argument("--valid", action="store_true")
 
     parser.add_argument("--model", type=str, required=False)
-    parser.add_argument("--predict_type", choices=["contribs", "interactions"], required=False)
+    parser.add_argument("--predict_type", choices=["values", "contribs", "interactions"], required=False)
 
     args = parser.parse_args()
 
