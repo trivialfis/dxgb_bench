@@ -5,11 +5,12 @@ import sys
 import time
 from typing import Any, Dict, Optional, Tuple, TypeAlias, Union
 from urllib.request import urlretrieve
+import warnings
 
 try:
     import nvtx
 except ImportError as e:
-    raise UserWarning(str(e))
+    warnings.warn(str(e), UserWarning)
     nvtx = None
 
 import pandas
