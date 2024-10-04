@@ -65,6 +65,7 @@ def main(args: argparse.Namespace) -> None:
             n_samples_per_batch=n // n_batches,
             device=args.device,
             n_rounds=args.n_rounds,
+            sparsity=args.sparsity,
             on_the_fly=args.on_the_fly == 1,
             validation=args.valid,
         )
@@ -96,6 +97,7 @@ def cli_main() -> None:
     parser.add_argument("--n_batches", type=int, default=54)
     parser.add_argument("--on-the-fly", choices=[0, 1], default=1)
     parser.add_argument("--valid", action="store_true")
+    parser.add_argument("--sparsity", type=float, default=0.0)
 
     parser.add_argument("--model", type=str, required=False)
     parser.add_argument("--predict_type", choices=["values", "contribs", "interactions"], required=False)

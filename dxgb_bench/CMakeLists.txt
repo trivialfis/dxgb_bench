@@ -1,7 +1,16 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(dxgbbench LANGUAGES CXX VERSION 0.0.0)
+project(dxgbbench LANGUAGES CXX CUDA VERSION 0.0.0)
 
-add_library(dxgbbench SHARED ${CMAKE_SOURCE_DIR}/gen.cc)
+add_library(dxgbbench SHARED
+  ${CMAKE_SOURCE_DIR}/gen.cc
+  ${CMAKE_SOURCE_DIR}/gen.cu
+)
+
+target_compile_options(dxgbbench PRIVATE
+  $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+  $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+  $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+
 function(set_output_directory target dir)
   set_target_properties(${target} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${dir}

@@ -51,6 +51,7 @@ class EmTestIterator(xgb.DataIter):
         split: bool,
         is_eval: bool,
         on_the_fly: bool,
+        sparsity: float,
         n_samples_per_batch: int | None = None,
         n_features: int | None = None,
     ) -> None:
@@ -63,6 +64,7 @@ class EmTestIterator(xgb.DataIter):
         self._fly = on_the_fly
         self._n_samples_per_batch = n_samples_per_batch
         self._n_features = n_features
+        self._sparsity = sparsity
 
         if is_ext:
             super().__init__(cache_prefix="cache", on_host=on_host)
@@ -90,8 +92,12 @@ class EmTestIterator(xgb.DataIter):
         if self._fly:
             assert self._n_samples_per_batch is not None
             assert self._n_features is not None
-            X, y = make_dense_regression_cupy(
-                self._n_samples_per_batch, self._n_features, random_state=self._it
+            X, y = make_dense_regression(
+                self._device,
+                self._n_samples_per_batch,
+                self._n_features,
+                random_state=self._it,
+                sparsity=self._sparsity,
             )
         else:
             X, y = self.load_file()
@@ -116,24 +122,37 @@ class EmTestIterator(xgb.DataIter):
         gc.collect()
 
 
-def make_reg_c(n_samples_per_batch: int, seed: int) -> Tuple[np.ndarray, np.ndarray]:
+def make_reg_c(
+    is_cuda: bool, n_samples_per_batch: int, seed: int, sparsity: float
+) -> Tuple[np.ndarray, np.ndarray]:
     path = os.path.join(
         os.path.normpath(os.path.abspath(os.path.dirname(__file__))), "libdxgbbench.so"
     )
     _lib = ctypes.cdll.LoadLibrary(path)
-    X = np.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
-    X_ptr = ctypes.cast(
-        X.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
-    )
-
-    y = np.empty(shape=(n_samples_per_batch,), dtype=np.float32)
-    y_ptr = ctypes.cast(
-        y.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
-    )
+    if is_cuda:
+        X = cp.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
+        y = cp.empty(shape=(n_samples_per_batch,), dtype=np.float32)
+        X_ptr = ctypes.cast(
+            X.__cuda_array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
+        )
+        y_ptr = ctypes.cast(
+            y.__cuda_array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
+        )
+    else:
+        X = np.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
+        y = np.empty(shape=(n_samples_per_batch,), dtype=np.float32)
+        X_ptr = ctypes.cast(
+            X.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
+        )
+        y_ptr = ctypes.cast(
+            y.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
+        )
 
     _lib.MakeDenseRegression(
+        ctypes.c_bool(is_cuda),
         ctypes.c_int64(n_samples_per_batch),
         ctypes.c_int64(n_features),
+        ctypes.c_double(sparsity),
         ctypes.c_int64(seed),
         X_ptr,
         y_ptr,
@@ -142,11 +161,13 @@ def make_reg_c(n_samples_per_batch: int, seed: int) -> Tuple[np.ndarray, np.ndar
 
 
 def make_dense_regression(
-    n_samples: int, n_features: int, random_state: int
+    device: str, n_samples: int, n_features: int, *, sparsity: float, random_state: int
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Make dense synthetic data for regression."""
     try:
-        X, y = make_reg_c(n_samples, random_state * n_samples)
+        X, y = make_reg_c(
+            device == "cuda", n_samples, random_state * n_samples, sparsity=sparsity
+        )
         return X, y
     except Exception as e:
         print(f"Failed to generate using the C extension. {e}")
@@ -219,14 +240,8 @@ def make_dense_regression(
         return X_arr[0], y_arr[0]
 
     X, y = parallel_concat(X_arr, y_arr)
-    return X, y
-
-
-def make_dense_regression_cupy(
-    n_samples: int, n_features: int, random_state: int
-) -> Tuple[cp.ndarray, cp.ndarray]:
-    X, y = make_dense_regression(n_samples, n_features, random_state)
-    X, y = cp.array(X), cp.array(y)
+    if device == "cuda":
+        return cp.array(X), cp.array(y)
     return X, y
 
 
@@ -255,7 +270,11 @@ def make_batches(
 
     for i in range(n_batches):
         X, y = make_dense_regression(
-            n_samples_per_batch, n_features=n_features, random_state=i
+            "cpu",
+            n_samples_per_batch,
+            n_features=n_features,
+            random_state=i,
+            sparsity=0.0,
         )
         X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
         y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
@@ -270,7 +289,7 @@ def make_batches(
 
 
 N_ROUNDS = 128
-n_features = 512
+n_features = 16
 
 
 def run_external_memory(
@@ -375,6 +394,7 @@ def run_ext_qdm(
     n_batches: int,
     device: str,
     n_rounds: int,
+    sparsity: float,
     on_the_fly: bool,
     validation: bool,
 ) -> xgb.Booster:
@@ -399,6 +419,7 @@ def run_ext_qdm(
             on_the_fly=on_the_fly,
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
+            sparsity=sparsity,
         )
         Xy_train = xgb.core.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
 
@@ -414,6 +435,7 @@ def run_ext_qdm(
                 on_the_fly=on_the_fly,
                 n_samples_per_batch=n_samples_per_batch,
                 n_features=n_features,
+                sparsity=sparsity,
             )
             Xy_valid = xgb.core.ExtMemQuantileDMatrix(
                 it_train, max_bin=n_bins, ref=Xy_train
