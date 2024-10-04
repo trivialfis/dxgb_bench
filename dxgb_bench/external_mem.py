@@ -289,7 +289,7 @@ def make_batches(
 
 
 N_ROUNDS = 128
-n_features = 16
+n_features = 512
 
 
 def run_external_memory(
