@@ -12,6 +12,7 @@ import cupy as cp
 import numpy as np
 import rmm
 import xgboost as xgb
+from cuda import cudart
 from rmm.allocators.cupy import rmm_cupy_allocator
 from xgboost.callback import TrainingCheckPoint
 from xgboost.compat import concat
@@ -350,9 +351,17 @@ def run_over_subscription(
 
 
 def setup_rmm() -> None:
-    print("Use `CudaAsyncMemoryResource`.")
-    base_mr = rmm.mr.CudaAsyncMemoryResource()
-    mr = rmm.mr.PoolMemoryResource(base_mr)
+    print("Use `CudaAsyncMemoryResource`.", flush=True)
+    use_rmm_pool = False
+    if use_rmm_pool:
+        mr = rmm.mr.PoolMemoryResource()
+    else:
+        status, free, total = cudart.cudaMemGetInfo()
+        assert status == cudart.cudaError_t.cudaSuccess
+        use = int(free * 0.95)
+        mr = rmm.mr.CudaAsyncMemoryResource(
+            initial_pool_size=use, release_threshold=use, enable_ipc=False
+        )
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
@@ -412,10 +421,6 @@ def run_ext_qdm(
     else:
         watches = [(Xy_train, "Train")]
 
-    if not os.path.exists("./models"):
-        os.mkdir("./models")
-
-    # , TrainingCheckPoint("./models", interval=4)
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
             {
@@ -430,7 +435,6 @@ def run_ext_qdm(
             # verbose_eval=False,
             callbacks=[Progress(n_rounds)],
         )
-    booster.save_model("model.json")
     return booster
 
 
