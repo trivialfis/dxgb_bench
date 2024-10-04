@@ -1,4 +1,5 @@
 #include <limits>
+#include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/random.h>
@@ -6,7 +7,7 @@
 namespace cuda_impl {
 int MakeDenseRegression(int64_t m, int64_t n, double sparsity, int64_t seed,
                         float *out, float *y) {
-  thrust::for_each_n(thrust::make_counting_iterator(0ul), m * n,
+  thrust::for_each_n(thrust::device, thrust::make_counting_iterator(0ul), m * n,
                      [=] __host__ __device__(std::size_t i) {
                        thrust::default_random_engine rng;
                        rng.seed(seed);
@@ -20,7 +21,7 @@ int MakeDenseRegression(int64_t m, int64_t n, double sparsity, int64_t seed,
                        }
                        out[i] = dist(rng);
                      });
-  thrust::for_each_n(thrust::make_counting_iterator(0ul), m,
+  thrust::for_each_n(thrust::device, thrust::make_counting_iterator(0ul), m,
                      [=] __host__ __device__(std::size_t i) {
                        thrust::default_random_engine rng;
                        rng.seed(seed + i);

@@ -324,52 +324,6 @@ def run_external_memory(
     return booster
 
 
-def run_over_subscription(
-    tmpdir: str,
-    reuse: bool,
-    n_bins: int,
-    n_samples_per_batch: int,
-    n_batches: int,
-    is_sam: bool,
-) -> xgb.Booster:
-    if is_sam:
-        base_mr = rmm.mr.SamHeadroomMemoryResource(headroom=16 * 1024 * 1024 * 1024)
-        mr = rmm.mr.PoolMemoryResource(base_mr)
-        rmm.mr.set_current_device_resource(mr)
-    else:
-        rmm.reinitialize(pool_allocator=True)
-    cp.cuda.set_allocator(rmm_cupy_allocator)
-
-    with Timer("OS", "make_batches"):
-        files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
-        it = EmTestIterator(
-            files,
-            is_ext=False,
-            on_host=False,
-            device="cpu",
-            split=False,
-            is_eval=False,
-            on_the_fly=False,
-        )
-
-    with Timer("OS", "QuantileDMatrix"):
-        Xy = xgb.QuantileDMatrix(it, max_bin=n_bins)
-
-    with Timer("OS", "Train"):
-        booster = xgb.train(
-            {
-                "tree_method": "hist",
-                "max_depth": 6,
-                "device": "cuda",
-                "max_bin": n_bins,
-            },
-            Xy,
-            num_boost_round=N_ROUNDS,
-            callbacks=[Progress(N_ROUNDS)],
-        )
-    return booster
-
-
 def setup_rmm() -> None:
     print("Use `CudaAsyncMemoryResource`.", flush=True)
     use_rmm_pool = False

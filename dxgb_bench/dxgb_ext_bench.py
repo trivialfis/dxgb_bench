@@ -4,12 +4,7 @@ import os
 
 import xgboost as xgb
 
-from dxgb_bench.external_mem import (
-    run_ext_qdm,
-    run_external_memory,
-    run_over_subscription,
-    run_inference,
-)
+from dxgb_bench.external_mem import run_ext_qdm, run_external_memory, run_inference
 
 from .utils import Timer
 
@@ -26,28 +21,9 @@ def main(args: argparse.Namespace) -> None:
     elif args.size == "small":
         n = 2**23
     else:
-        n = (2 ** 23 + 2 ** 22) * n_batches
+        n = (2**23 + 2**22) * n_batches
 
-    if args.task == "os":
-        assert args.device == "cuda"
-        run_over_subscription(
-            data_dir,
-            True,
-            n_bins=256,
-            n_samples_per_batch=n,
-            n_batches=1,  # Single batch for OS bench.
-            is_sam=True,
-        )
-    elif args.task == "osd":
-        run_over_subscription(
-            data_dir,
-            True,
-            n_bins=256,
-            n_samples_per_batch=n,
-            n_batches=1,  # Single batch for OS bench.
-            is_sam=False,
-        )
-    elif args.task == "ext":
+    if args.task == "ext":
         assert args.device == "cuda"
         run_external_memory(
             data_dir,
@@ -88,9 +64,7 @@ def main(args: argparse.Namespace) -> None:
 
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--task", choices=["os", "osd", "ext", "ext-qdm", "inf"], required=True
-    )
+    parser.add_argument("--task", choices=["ext", "ext-qdm", "inf"], required=True)
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
     parser.add_argument("--n_rounds", type=int, default=128)
@@ -100,7 +74,9 @@ def cli_main() -> None:
     parser.add_argument("--sparsity", type=float, default=0.0)
 
     parser.add_argument("--model", type=str, required=False)
-    parser.add_argument("--predict_type", choices=["values", "contribs", "interactions"], required=False)
+    parser.add_argument(
+        "--predict_type", choices=["values", "contribs", "interactions"], required=False
+    )
 
     args = parser.parse_args()
 
