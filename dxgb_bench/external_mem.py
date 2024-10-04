@@ -113,6 +113,7 @@ class EmTestIterator(xgb.DataIter):
     def reset(self) -> None:
         print("Reset:", flush=True)
         self._it = 0
+        gc.collect()
 
 
 def make_reg_c(n_samples_per_batch: int, seed: int) -> Tuple[np.ndarray, np.ndarray]:
