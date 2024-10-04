@@ -302,6 +302,23 @@ N_ROUNDS = 128
 n_features = 512
 
 
+def setup_rmm() -> None:
+    print("Use `CudaAsyncMemoryResource`.", flush=True)
+    # rmm.reinitialize(pool_allocator=True, initial_pool_size=0)
+    use_rmm_pool = False
+    if use_rmm_pool:
+        mr = rmm.mr.PoolMemoryResource()
+    else:
+        status, free, total = cudart.cudaMemGetInfo()
+        assert status == cudart.cudaError_t.cudaSuccess
+        use = int(free * 0.95)
+        mr = rmm.mr.CudaAsyncMemoryResource(
+            initial_pool_size=use, release_threshold=use, enable_ipc=False
+        )
+    rmm.mr.set_current_device_resource(mr)
+    cp.cuda.set_allocator(rmm_cupy_allocator)
+
+
 def run_external_memory(
     tmpdir: str,
     reuse: bool,
@@ -310,7 +327,7 @@ def run_external_memory(
     n_batches: int,
     sparsity: float,
 ) -> xgb.Booster:
-    rmm.reinitialize(pool_allocator=True, initial_pool_size=0)
+    setup_rmm()
 
     with Timer("ExtSparse", "make_batches"):
         it = EmTestIterator(
@@ -338,22 +355,6 @@ def run_external_memory(
     return booster
 
 
-def setup_rmm() -> None:
-    print("Use `CudaAsyncMemoryResource`.", flush=True)
-    use_rmm_pool = False
-    if use_rmm_pool:
-        mr = rmm.mr.PoolMemoryResource()
-    else:
-        status, free, total = cudart.cudaMemGetInfo()
-        assert status == cudart.cudaError_t.cudaSuccess
-        use = int(free * 0.95)
-        mr = rmm.mr.CudaAsyncMemoryResource(
-            initial_pool_size=use, release_threshold=use, enable_ipc=False
-        )
-    rmm.mr.set_current_device_resource(mr)
-    cp.cuda.set_allocator(rmm_cupy_allocator)
-
-
 def run_ext_qdm(
     tmpdir: str,
     reuse: bool,
@@ -367,15 +368,6 @@ def run_ext_qdm(
     validation: bool,
 ) -> xgb.Booster:
     setup_rmm()
-
-    if not on_the_fly:
-        with Timer("ExtQdm", "make_batches"):
-            files = make_batches(
-                n_samples_per_batch, n_features, n_batches, reuse, tmpdir
-            )
-    else:
-        files = [("", "")] * n_batches
-
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(
             n_batches=n_batches,
