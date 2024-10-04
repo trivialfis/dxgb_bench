@@ -44,7 +44,8 @@ class EmTestIterator(xgb.DataIter):
 
     def __init__(
         self,
-        file_paths: List[Tuple[str, str]],
+        *,
+        n_batches: int,
         on_host: bool,
         is_ext: bool,
         device: str,
@@ -52,10 +53,19 @@ class EmTestIterator(xgb.DataIter):
         is_eval: bool,
         on_the_fly: bool,
         sparsity: float,
-        n_samples_per_batch: int | None = None,
-        n_features: int | None = None,
+        n_samples_per_batch: int,
+        n_features: int,
+        tmpdir: str | None = None,
     ) -> None:
-        self._file_paths = file_paths
+        if not on_the_fly:
+            assert tmpdir is not None
+            with Timer("ExtQdm", "make_batches"):
+                self._file_paths = make_batches(
+                    n_samples_per_batch, n_features, n_batches, True, tmpdir
+                )
+        else:
+            self._file_paths = [("", "")] * n_batches
+
         self._it = 0
         self._device = device
         self._split = split
@@ -298,19 +308,23 @@ def run_external_memory(
     on_host: bool,
     n_samples_per_batch: int,
     n_batches: int,
+    sparsity: float,
 ) -> xgb.Booster:
     rmm.reinitialize(pool_allocator=True, initial_pool_size=0)
 
     with Timer("ExtSparse", "make_batches"):
-        files = make_batches(n_samples_per_batch, n_features, n_batches, reuse, tmpdir)
         it = EmTestIterator(
-            files,
+            n_batches=n_batches,
             on_host=on_host,
             is_ext=True,
             device="cpu",
             split=False,
             is_eval=False,
             on_the_fly=False,
+            sparsity=sparsity,
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            tmpdir=tmpdir,
         )
     with Timer("ExtSparse", "DMatrix"):
         Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
@@ -364,7 +378,7 @@ def run_ext_qdm(
 
     with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
         it_train = EmTestIterator(
-            files,
+            n_batches=n_batches,
             is_ext=True,
             on_host=True,
             device=device,
@@ -380,7 +394,7 @@ def run_ext_qdm(
     if validation:
         with Timer("ExtQdm", "ExtMemQuantileDMatrix-Valid"):
             it_valid = EmTestIterator(
-                files,
+                n_batches=n_batches,
                 is_ext=True,
                 on_host=True,
                 device=device,
@@ -409,7 +423,7 @@ def run_ext_qdm(
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
-            # verbose_eval=False,
+            verbose_eval=False,
             callbacks=[Progress(n_rounds)],
         )
     return booster
@@ -434,21 +448,9 @@ class TestBody(Protocol):
 
 class MakeExtQdmMixIn:
     def make_iter(self: TestBody) -> xgb.DMatrix:
-        if not self.on_the_fly:
-            with Timer("ExtQdm", "make_batches"):
-                files = make_batches(
-                    self.n_samples_per_batch,
-                    n_features,
-                    self.n_batches,
-                    self.reuse,
-                    self.tmpdir,
-                )
-        else:
-            files = [("", "")] * self.n_batches
-
         with Timer("ExtQdm", "ExtMemQuantileDMatrix-Train"):
             it_train = EmTestIterator(
-                files,
+                n_batches=self.n_batches,
                 is_ext=True,
                 on_host=True,
                 device=self.device,
@@ -457,6 +459,7 @@ class MakeExtQdmMixIn:
                 on_the_fly=self.on_the_fly,
                 n_samples_per_batch=self.n_samples_per_batch,
                 n_features=n_features,
+                sparsity=0.0,
             )
             Xy_train = xgb.ExtMemQuantileDMatrix(it_train, max_bin=self.n_bins)
         return Xy_train
