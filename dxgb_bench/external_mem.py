@@ -314,7 +314,7 @@ def setup_rmm() -> None:
         mr = rmm.mr.CudaAsyncMemoryResource(
             initial_pool_size=use, release_threshold=use, enable_ipc=False
         )
-        mr = rmm.mr.LoggingResourceAdaptor(mr)
+        mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
