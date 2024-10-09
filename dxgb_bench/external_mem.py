@@ -312,7 +312,7 @@ def setup_rmm() -> None:
         assert status == cudart.cudaError_t.cudaSuccess
         use = int(free * 0.95)
         mr = rmm.mr.CudaAsyncMemoryResource(
-            initial_pool_size=use, release_threshold=use, enable_ipc=False
+            initial_pool_size=use, release_threshold=np.iinfo(np.uint64).max, enable_ipc=False
         )
         mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
     rmm.mr.set_current_device_resource(mr)
