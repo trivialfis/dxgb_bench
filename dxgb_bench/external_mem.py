@@ -5,8 +5,7 @@ import ctypes
 import gc
 import os
 from concurrent.futures import ThreadPoolExecutor
-from time import time
-from typing import Any, Callable, List, Protocol, Tuple
+from typing import Callable, List, Protocol, Tuple
 
 import cupy as cp
 import numpy as np
@@ -92,10 +91,10 @@ class EmTestIterator(xgb.DataIter):
         assert X.shape[0] == y.shape[0]
         return X, y
 
-    def next(self, input_data: Callable) -> int:
+    def next(self, input_data: Callable) -> bool:
         print("Next:", self._it, flush=True)
         if self._it == len(self._file_paths):
-            return 0
+            return False
 
         gc.collect()
 
@@ -124,7 +123,7 @@ class EmTestIterator(xgb.DataIter):
             input_data(data=X, label=y)
 
         self._it += 1
-        return 1
+        return True
 
     def reset(self) -> None:
         print("Reset:", flush=True)
@@ -315,6 +314,7 @@ def setup_rmm() -> None:
         mr = rmm.mr.CudaAsyncMemoryResource(
             initial_pool_size=use, release_threshold=use, enable_ipc=False
         )
+        mr = rmm.mr.LoggingResourceAdaptor(mr)
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
