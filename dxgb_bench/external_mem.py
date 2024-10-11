@@ -307,12 +307,11 @@ def setup_rmm() -> None:
     if use_rmm_pool:
         mr = rmm.mr.PoolMemoryResource()
     else:
-        status, free, total = cudart.cudaMemGetInfo()
-        assert status == cudart.cudaError_t.cudaSuccess
-        use = int(free * 0.95)
-        mr = rmm.mr.CudaAsyncMemoryResource(
-            initial_pool_size=use, release_threshold=np.iinfo(np.uint64).max, enable_ipc=False
-        )
+        # status, free, total = cudart.cudaMemGetInfo()
+        # assert status == cudart.cudaError_t.cudaSuccess
+        # use = int(free * 0.95)
+        mr = rmm.mr.CudaAsyncMemoryResource()
+        mr = rmm.mr.PoolMemoryResource(mr)
         mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
