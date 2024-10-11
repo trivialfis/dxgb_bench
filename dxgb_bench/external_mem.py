@@ -297,7 +297,6 @@ def make_batches(
     return files
 
 
-N_ROUNDS = 128
 n_features = 512
 
 
@@ -324,7 +323,9 @@ def run_external_memory(
     reuse: bool,
     on_host: bool,
     n_samples_per_batch: int,
+    n_bins: int,
     n_batches: int,
+    n_rounds: int,
     sparsity: float,
 ) -> xgb.Booster:
     setup_rmm()
@@ -347,10 +348,10 @@ def run_external_memory(
         Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
     with Timer("ExtSparse", "train"):
         booster = xgb.train(
-            {"tree_method": "hist", "max_depth": 6, "device": "cuda"},
+            {"tree_method": "hist", "max_depth": 6, "device": "cuda", "max_bin": n_bins},
             Xy,
-            num_boost_round=N_ROUNDS,
-            callbacks=[Progress(N_ROUNDS)],
+            num_boost_round=n_rounds,
+            callbacks=[Progress(n_rounds)],
         )
     return booster
 

@@ -29,6 +29,7 @@ def main(args: argparse.Namespace) -> None:
             data_dir,
             reuse=True,
             on_host=True,
+            n_bins=args.n_bins,
             n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
         )
@@ -36,7 +37,7 @@ def main(args: argparse.Namespace) -> None:
         run_ext_qdm(
             data_dir,
             reuse=True,
-            n_bins=256,
+            n_bins=args.n_bins,
             n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
             device=args.device,
@@ -51,7 +52,7 @@ def main(args: argparse.Namespace) -> None:
         run_inference(
             data_dir,
             reuse=True,
-            n_bins=256,
+            n_bins=args.n_bins,
             n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
             device=args.device,
@@ -69,6 +70,7 @@ def cli_main() -> None:
     parser.add_argument("--size", choices=["test", "small", "large"], default="small")
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_batches", type=int, default=54)
+    parser.add_argument("--n_bins", type=int, default=256)
     parser.add_argument("--on-the-fly", choices=[0, 1], default=1)
     parser.add_argument("--valid", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
