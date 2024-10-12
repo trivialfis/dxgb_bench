@@ -20,6 +20,9 @@ def main(args: argparse.Namespace) -> None:
         n = 2**19 * n_batches
     elif args.size == "small":
         n = 2**23
+    elif args.size == "custom":
+        assert args.n_samples_per_batch > 0
+        n = args.n_samples_per_batch * n_batches
     else:
         n = (2**23 + 2**22) * n_batches
 
@@ -67,7 +70,8 @@ def cli_main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", choices=["ext", "ext-qdm", "inf"], required=True)
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
-    parser.add_argument("--size", choices=["test", "small", "large"], default="small")
+    parser.add_argument("--size", choices=["test", "small", "large", "custom"], default="small")
+    parser.add_argument("--n_samples_per_batch", type=int, required=False)
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_batches", type=int, default=54)
     parser.add_argument("--n_bins", type=int, default=256)
