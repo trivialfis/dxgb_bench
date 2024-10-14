@@ -9,9 +9,10 @@ import xgboost as xgb
 from scipy import sparse
 from xgboost import DataIter, QuantileDMatrix
 
+from .dataiter import BenchIter, LoadIterImpl, get_file_paths, load_all, load_batches
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer
-from .dataiter import load_batches
+
 
 def datagen(
     n_samples: int,
@@ -51,27 +52,23 @@ def datagen(
 def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
     assert os.path.exists(loadfrom)
 
-    X_files: list[str] = []
-    y_files: list[str] = []
-    for root, subdirs, files in os.walk(loadfrom):
-        for f in files:
-            path = os.path.join(root, f)
-            if f.startswith("X-"):
-                X_files.append(path)
-            else:
-                y_files.append(path)
-    paths = list(zip(X_files, y_files))
-    assert paths
-
     if task == "qdm":
-        with Timer("Qdm", "train"):
-            X, y = load_batches(loadfrom, device)
+        with Timer("Qdm", "Qdm"):
+            X, y = load_all(loadfrom, device)
             Xy = QuantileDMatrix(X, y)
-            booster = xgb.train(
-                {"tree_method": "hist", "device": device}, Xy, num_boost_round=n_rounds
-            )
     else:
         assert task == "qdm-iter"
+        X_files, y_files = get_file_paths(loadfrom)
+        paths = list(zip(X_files, y_files))
+        it_impl = LoadIterImpl(paths, device=device)
+        it = BenchIter(it_impl, split=False, is_ext=False, is_eval=False)
+        with Timer("Qdm", "Qdm"):
+            Xy = QuantileDMatrix(it)
+
+    with Timer("Qdm", "train"):
+        booster = xgb.train(
+            {"tree_method": "hist", "device": device}, Xy, num_boost_round=n_rounds
+        )
 
     assert booster.num_boosted_rounds() == n_rounds
 
