@@ -77,6 +77,7 @@ def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
         )
 
     assert booster.num_boosted_rounds() == n_rounds
+    print(f"Trained for {n_rounds} iterations.")
 
 
 def cli_main() -> None:

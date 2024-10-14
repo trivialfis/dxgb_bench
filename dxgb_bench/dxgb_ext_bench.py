@@ -4,7 +4,12 @@ import os
 
 import xgboost as xgb
 
-from .external_mem import run_ext_qdm, run_external_memory, run_inference
+from .external_mem import (
+    Opts,
+    extmem_qdm_inference,
+    extmem_qdm_train,
+    extmem_spdm_train,
+)
 from .utils import Timer
 
 
@@ -25,38 +30,42 @@ def main(args: argparse.Namespace) -> None:
     else:
         n = (2**23 + 2**22) * n_batches
 
-    if args.task == "ext":
-        assert args.device == "cuda"
-        run_external_memory(
-            data_dir,
-            reuse=True,
-            on_host=True,
+    n_features = 512
+    opts = Opts(
+        n_samples_per_batch=n // n_batches,
+        n_features=n_features,
+        n_batches=n_batches,
+        sparsity=args.sparsity,
+        on_the_fly=args.on_the_fly,
+        validation=args.validation,
+        device=args.device,
+    )
+
+    if args.task == "ext-sp":
+        extmem_spdm_train(
+            opts,
             n_bins=args.n_bins,
-            n_batches=n_batches,
-            n_samples_per_batch=n // n_batches,
+            n_rounds=args.n_rounds,
+            tmpdir=data_dir,
         )
     elif args.task == "ext-qdm":
-        run_ext_qdm(
-            data_dir,
-            reuse=True,
+        extmem_qdm_train(
+            opts,
             n_bins=args.n_bins,
-            n_batches=n_batches,
-            n_samples_per_batch=n // n_batches,
-            device=args.device,
             n_rounds=args.n_rounds,
-            sparsity=args.sparsity,
-            on_the_fly=args.on_the_fly == 1,
-            validation=args.valid,
+            tmpdir=data_dir,
         )
     else:
         assert args.predict_type is not None
         assert args.model is not None
-        run_inference(
-            data_dir,
-            reuse=True,
+        extmem_qdm_inference(
+            loadfrom=data_dir,
             n_bins=args.n_bins,
-            n_batches=n_batches,
             n_samples_per_batch=n // n_batches,
+            n_features=n_features,
+            n_batches=n_batches,
+            assparse=False,
+            sparsity=args.sparsity,
             device=args.device,
             on_the_fly=args.on_the_fly == 1,
             args=args,
@@ -67,7 +76,7 @@ def main(args: argparse.Namespace) -> None:
 
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", choices=["ext", "ext-qdm", "inf"], required=True)
+    parser.add_argument("--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True)
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument(
         "--size", choices=["test", "small", "large", "custom"], default="small"
@@ -82,7 +91,7 @@ def cli_main() -> None:
 
     parser.add_argument("--model", type=str, required=False)
     parser.add_argument(
-        "--predict_type", choices=["values", "contribs", "interactions"], required=False
+        "--predict_type", choices=["value", "contrib", "interaction"], required=False
     )
 
     args = parser.parse_args()
