@@ -33,10 +33,12 @@ def main(args: argparse.Namespace) -> None:
         n_features=n_features,
         n_batches=n_batches,
         sparsity=args.sparsity,
-        on_the_fly=args.on_the_fly,
+        on_the_fly=args.fly,
         validation=args.valid,
         device=args.device,
     )
+    if not args.fly:
+        assert os.path.exists(args.loadfrom)
 
     if args.task == "ext-sp":
         extmem_spdm_train(
@@ -64,7 +66,7 @@ def main(args: argparse.Namespace) -> None:
             assparse=False,
             sparsity=args.sparsity,
             device=args.device,
-            on_the_fly=args.on_the_fly == 1,
+            on_the_fly=args.fly == 1,
             args=args,
         )
 
@@ -82,13 +84,22 @@ def cli_main() -> None:
     parser.add_argument("--loadfrom", type=str, default=dft_out)
 
     parser.add_argument(
-        "--size", choices=["test", "small", "large", "custom"], default="small"
+        "--size",
+        choices=["test", "small", "large", "custom"],
+        default="small",
+        help="""
+Predefined sizes for easier tests, use `custom` for custom data shape.
+        """,
     )
-
     parser = add_data_params(parser, required=False, n_features=512)
+
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_bins", type=int, default=256)
-    parser.add_argument("--on-the-fly", choices=[0, 1], default=1, type=int)
+    parser.add_argument(
+        "--fly",
+        action="store_true",
+        help="Generate data on the fly instead of loading it from the disk.",
+    )
     parser.add_argument("--valid", action="store_true")
 
     parser.add_argument("--model", type=str, required=False)

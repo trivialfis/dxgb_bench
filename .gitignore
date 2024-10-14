@@ -13,3 +13,4 @@ data/
 .cache
 build/
 *.so
+rmm_log*
