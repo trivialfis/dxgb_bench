@@ -6,7 +6,7 @@ from typing import Optional, Tuple
 import numpy as np
 from sklearn.datasets import load_svmlight_file
 
-from ..utils import DataSet, DType
+from ..utils import DType
 from .dataset import DataSet
 
 
