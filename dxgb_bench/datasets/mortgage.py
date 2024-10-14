@@ -5,7 +5,8 @@ from collections import OrderedDict
 from dask import dataframe as dd
 from distributed import wait
 
-from dxgb_bench.utils import DataSet, fprint, read_csv
+from ..utils import fprint, read_csv
+from .dataset import DataSet
 
 try:
     import cudf
@@ -64,37 +65,40 @@ def load_dateframe(path, dtypes, cols, backend):
 def load_performance_data(path, backend):
     category = "category"
     dtypes = OrderedDict(
-        [("loan_id", "uint64"),
-         ("monthly_reporting_period", "datetime64[ms]"),
-         ("servicer", category),
-         ("interest_rate", "float32"),
-         ("current_actual_upb", "float32"),
-         ("loan_age", "float32"),
-         ("remaining_months_to_legal_maturity", "float32"),
-         ("adj_remaining_months_to_maturity", "float32"),
-         ("maturity_date", "datetime64[ms]"),
-         ("msa", "float32"),
-         ("current_loan_delinquency_status", "int32"),
-         ("mod_flag", category),
-         ("zero_balance_code", category),
-         ("zero_balance_effective_date", "datetime64[ms]"),
-         ("last_paid_installment_date", "datetime64[ms]"),
-         ("foreclosed_after", "datetime64[ms]"),
-         ("disposition_date", "datetime64[ms]"),
-         ("foreclosure_costs", "float32"),
-         ("prop_preservation_and_repair_costs", "float32"),
-         ("asset_recovery_costs", "float32"),
-         ("misc_holding_expenses", "float32"),
-         ("holding_taxes", "float32"),
-         ("net_sale_proceeds", "float32"),
-         ("credit_enhancement_proceeds", "float32"),
-         ("repurchase_make_whole_proceeds", "float32"),
-         ("other_foreclosure_proceeds", "float32"),
-         ("non_interest_bearing_upb", "float32"),
-         ("principal_forgiveness_upb", "float32"),
-         ("repurchase_make_whole_proceeds_flag", category),
-         ("foreclosure_principal_write_off_amount", "float32"),
-         ("servicing_activity_indicator", category)])
+        [
+            ("loan_id", "uint64"),
+            ("monthly_reporting_period", "datetime64[ms]"),
+            ("servicer", category),
+            ("interest_rate", "float32"),
+            ("current_actual_upb", "float32"),
+            ("loan_age", "float32"),
+            ("remaining_months_to_legal_maturity", "float32"),
+            ("adj_remaining_months_to_maturity", "float32"),
+            ("maturity_date", "datetime64[ms]"),
+            ("msa", "float32"),
+            ("current_loan_delinquency_status", "int32"),
+            ("mod_flag", category),
+            ("zero_balance_code", category),
+            ("zero_balance_effective_date", "datetime64[ms]"),
+            ("last_paid_installment_date", "datetime64[ms]"),
+            ("foreclosed_after", "datetime64[ms]"),
+            ("disposition_date", "datetime64[ms]"),
+            ("foreclosure_costs", "float32"),
+            ("prop_preservation_and_repair_costs", "float32"),
+            ("asset_recovery_costs", "float32"),
+            ("misc_holding_expenses", "float32"),
+            ("holding_taxes", "float32"),
+            ("net_sale_proceeds", "float32"),
+            ("credit_enhancement_proceeds", "float32"),
+            ("repurchase_make_whole_proceeds", "float32"),
+            ("other_foreclosure_proceeds", "float32"),
+            ("non_interest_bearing_upb", "float32"),
+            ("principal_forgiveness_upb", "float32"),
+            ("repurchase_make_whole_proceeds_flag", category),
+            ("foreclosure_principal_write_off_amount", "float32"),
+            ("servicing_activity_indicator", category),
+        ]
+    )
 
     keys = [k for k, v in dtypes.items()]
     perf = load_dateframe(path=path, dtypes=dtypes, cols=keys, backend=backend)
@@ -106,34 +110,36 @@ def load_acq_data(acq_dir, backend):
         category = "str"
     else:
         category = "category"
-    dtypes = OrderedDict([
-        ("loan_id", "uint64"),
-        ("orig_channel", category),
-        ("seller_name", category),
-        ("orig_interest_rate", "float64"),
-        ("orig_upb", "int64"),
-        ("orig_loan_term", "int64"),
-        ("orig_date", "datetime64[ms]"),
-        ("first_pay_date", "datetime64[ms]"),
-        ("orig_ltv", "float64"),
-        ("orig_cltv", "float64"),
-        ("num_borrowers", "float64"),
-        ("dti", "float64"),
-        ("borrower_credit_score", "float64"),
-        ("first_home_buyer", category),
-        ("loan_purpose", category),
-        ("property_type", category),
-        ("num_units", "int64"),
-        ("occupancy_status", category),
-        ("property_state", category),
-        ("zip", "int64"),
-        ("mortgage_insurance_percent", "float64"),
-        ("product_type", category),
-        ("coborrow_credit_score", "float64"),
-        ("mortgage_insurance_type", "float64"),
-        ("relocation_mortgage_indicator", category),
-        ("something", "int64")
-    ])
+    dtypes = OrderedDict(
+        [
+            ("loan_id", "uint64"),
+            ("orig_channel", category),
+            ("seller_name", category),
+            ("orig_interest_rate", "float64"),
+            ("orig_upb", "int64"),
+            ("orig_loan_term", "int64"),
+            ("orig_date", "datetime64[ms]"),
+            ("first_pay_date", "datetime64[ms]"),
+            ("orig_ltv", "float64"),
+            ("orig_cltv", "float64"),
+            ("num_borrowers", "float64"),
+            ("dti", "float64"),
+            ("borrower_credit_score", "float64"),
+            ("first_home_buyer", category),
+            ("loan_purpose", category),
+            ("property_type", category),
+            ("num_units", "int64"),
+            ("occupancy_status", category),
+            ("property_state", category),
+            ("zip", "int64"),
+            ("mortgage_insurance_percent", "float64"),
+            ("product_type", category),
+            ("coborrow_credit_score", "float64"),
+            ("mortgage_insurance_type", "float64"),
+            ("relocation_mortgage_indicator", category),
+            ("something", "int64"),
+        ]
+    )
 
     keys = [k for k, v in dtypes.items()]
 
@@ -209,6 +215,7 @@ class Mortgage(DataSet):
         if not extracted:
             with tarfile.open(filename, "r:gz") as tarball:
                 fprint("Extracting", filename)
+
                 def is_within_directory(directory, target):
 
                     abs_directory = os.path.abspath(directory)
@@ -226,7 +233,6 @@ class Mortgage(DataSet):
                             raise Exception("Attempted Path Traversal in Tar File")
 
                     tar.extractall(path, members, numeric_owner=numeric_owner)
-
 
                 safe_extract(tarball, self.local_directory)
 

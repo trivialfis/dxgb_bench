@@ -4,8 +4,7 @@ import os
 
 import xgboost as xgb
 
-from dxgb_bench.external_mem import run_ext_qdm, run_external_memory, run_inference
-
+from .external_mem import run_ext_qdm, run_external_memory, run_inference
 from .utils import Timer
 
 
@@ -70,7 +69,9 @@ def cli_main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", choices=["ext", "ext-qdm", "inf"], required=True)
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
-    parser.add_argument("--size", choices=["test", "small", "large", "custom"], default="small")
+    parser.add_argument(
+        "--size", choices=["test", "small", "large", "custom"], default="small"
+    )
     parser.add_argument("--n_samples_per_batch", type=int, required=False)
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_batches", type=int, default=54)

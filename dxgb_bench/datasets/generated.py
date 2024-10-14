@@ -7,7 +7,29 @@ from typing import Optional, Tuple
 import numpy as np
 from scipy import sparse
 
-from dxgb_bench.utils import DataSet, DType, fprint
+from ..utils import DType, div_roundup, fprint
+from .dataset import DataSet
+
+
+def make_sparse_regression(
+    n_samples: int, n_features: int, sparsity: float
+) -> Tuple[sparse.csr_matrix, np.ndarray]:
+    n_threads = min(os.cpu_count(), n_samples)
+    n_samples_per_batch = div_roundup(n_samples, n_features)
+
+    def random_csr(t_id: int) -> sparse.csr_matrix:
+        rng = np.random.default_rng(1994 * t_id)
+        if t_id == n_threads - 1:
+            nspb = n_samples - (n_samples_per_batch * (n_threads - 1))
+        else:
+            nspb = n_samples_per_batch
+
+        sparse.random(
+            m=n_samples_per_batch,
+            n=n_features,
+            density=1.0 - sparsity,
+            random_state=rng,
+        )
 
 
 def make_regression(args: argparse.Namespace) -> Tuple[np.ndarray, np.ndarray]:

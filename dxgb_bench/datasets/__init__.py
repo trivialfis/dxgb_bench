@@ -1,7 +1,7 @@
 import argparse
 from typing import Tuple
 
-from dxgb_bench.utils import DataSet
+from .dataset import DataSet
 
 from .airline import Airline
 from .covtype import Covtype

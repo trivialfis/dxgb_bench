@@ -16,9 +16,9 @@ import xgboost
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 
-from dxgb_bench import algorihm
-from dxgb_bench.datasets import factory as data_factory
-from dxgb_bench.utils import TemporaryDirectory, Timer, fprint
+from . import algorihm
+from .datasets import factory as data_factory
+from .utils import TemporaryDirectory, Timer, fprint
 
 try:
     import cudf
@@ -211,14 +211,12 @@ def cli_main() -> None:
     parser.add_argument(
         "--n_features", type=int, help="Number of features for generated dataset."
     )
-    parser.add_argument(
-        "--sparsity", type=float, help="Sparsity of generated dataset."
-    )
+    parser.add_argument("--sparsity", type=float, help="Sparsity of generated dataset.")
     parser.add_argument(
         "--task",
         type=str,
         help="Type of generated dataset.",
-        choices=["reg", "cls", "aft", "rank"]
+        choices=["reg", "cls", "aft", "rank"],
     )
     # tree parameters
     parser.add_argument(
@@ -232,7 +230,9 @@ def cli_main() -> None:
     parser.add_argument("--colsample_bynode", type=float, default=None)
     # output model
     parser.add_argument(
-        "--model-out", type=str, default=None,
+        "--model-out",
+        type=str,
+        default=None,
     )
     args = parser.parse_args()
     try:

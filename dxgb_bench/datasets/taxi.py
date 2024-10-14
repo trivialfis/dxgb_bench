@@ -2,6 +2,7 @@
 are not really useful for benchmarking.
 
 """
+
 import math
 import os
 from math import asin, cos, pi, sin, sqrt
@@ -9,7 +10,7 @@ from math import asin, cos, pi, sin, sqrt
 import numpy as np
 from dask.distributed import wait
 
-from dxgb_bench.utils import DataSet
+from .dataset import DataSet
 
 try:
     import dask_cudf
