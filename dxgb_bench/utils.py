@@ -1,11 +1,11 @@
 import argparse
+import math
 import os
 import shutil
 import sys
 import time
-from typing import Any, Dict, Optional, Tuple, TypeAlias, Union
-from urllib.request import urlretrieve
 import warnings
+from typing import Any, Dict, TypeAlias, Union
 
 try:
     import nvtx
@@ -24,7 +24,9 @@ try:
     from dask import dataframe as dd
 
     DC: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
-    ID = Union[cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series]  # input data
+    ID = Union[
+        cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series
+    ]  # input data
     DType = Union[
         cudf.DataFrame,
         pandas.DataFrame,
@@ -54,7 +56,6 @@ def fprint(*args: Any, **kwargs: Any) -> None:
 fprint.__doc__ = print.__doc__
 
 EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
-
 
 
 def read_csv(
@@ -106,30 +107,6 @@ def show_progress(block_num, block_size, total_size):
     else:
         pbar.close()
         pbar = None
-
-
-class DataSet:
-    uri: Optional[str] = None
-
-    def retrieve(self, local_directory: str) -> str:
-        if not os.path.exists(local_directory):
-            os.makedirs(local_directory)
-        assert self.uri
-        filename = os.path.join(local_directory, os.path.basename(self.uri))
-        if not os.path.exists(filename):
-            fprint(
-                "Retrieving from {uri} to {filename}".format(
-                    uri=self.uri, filename=filename
-                )
-            )
-            urlretrieve(self.uri, filename, show_progress)
-        return filename
-
-    def extra_args(self) -> Dict[str, Any]:
-        return {}
-
-    def load(self, args: argparse.Namespace) -> Tuple[DType, DType, Optional[DType]]:
-        raise NotImplementedError()
 
 
 global_timer: Dict[str, Dict[str, float]] = {}
@@ -205,3 +182,8 @@ class Progress(xgb.callback.TrainingCallback):
         self.pbar.set_description("|".join(progress_desc), refresh=True)
         self.pbar.update(1)
         return False
+
+
+def div_roundup(a: int, b: int) -> int:
+    """Round up for division."""
+    return math.ceil(a / b)

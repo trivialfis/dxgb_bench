@@ -1,10 +1,9 @@
 import argparse
 from typing import Tuple
 
-from dxgb_bench.utils import DataSet
-
 from .airline import Airline
 from .covtype import Covtype
+from .dataset import DataSet
 from .epsilon import Epsilon
 from .generated import Generated
 from .higgs import Higgs

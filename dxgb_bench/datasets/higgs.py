@@ -2,7 +2,8 @@ import argparse
 import gzip
 import os
 
-from dxgb_bench.utils import DataSet, DType, fprint, read_csv
+from ..utils import DType, fprint, read_csv
+from .dataset import DataSet
 
 
 class Higgs(DataSet):

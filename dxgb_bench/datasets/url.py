@@ -3,7 +3,8 @@ import os
 import xgboost as xgb
 from sklearn.datasets import load_svmlight_file
 
-from dxgb_bench.utils import DataSet, Timer, read_csv
+from ..utils import Timer, read_csv
+from .dataset import DataSet
 
 with Timer("loading_dataset") as t:
     if os.path.exists("dtrain.bin"):

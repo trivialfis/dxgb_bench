@@ -347,7 +347,12 @@ def run_external_memory(
         Xy = xgb.DMatrix(it, missing=np.nan, enable_categorical=False)
     with Timer("ExtSparse", "train"):
         booster = xgb.train(
-            {"tree_method": "hist", "max_depth": 6, "device": "cuda", "max_bin": n_bins},
+            {
+                "tree_method": "hist",
+                "max_depth": 6,
+                "device": "cuda",
+                "max_bin": n_bins,
+            },
             Xy,
             num_boost_round=n_rounds,
             callbacks=[Progress(n_rounds)],

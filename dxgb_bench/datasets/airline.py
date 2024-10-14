@@ -5,7 +5,8 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from dxgb_bench.utils import DataSet, DType, fprint, read_csv
+from ..utils import DType, fprint, read_csv
+from .dataset import DataSet
 
 
 class Airline(DataSet):
@@ -57,5 +58,7 @@ class Airline(DataSet):
         df["ArrDelayBinary"] = 1 * (df["ArrDelay"] > 0)
         X = df[df.columns.difference(["ArrDelay", "ArrDelayBinary"])]
         y = df["ArrDelayBinary"]
-        print("Positive:", (y == 1).sum(), "Negative:", (y == 0).sum(), "Shape:", X.shape)
+        print(
+            "Positive:", (y == 1).sum(), "Negative:", (y == 0).sum(), "Shape:", X.shape
+        )
         return X, y, None

@@ -6,7 +6,8 @@ from typing import Optional, Tuple
 import numpy as np
 from sklearn.datasets import load_svmlight_file
 
-from dxgb_bench.utils import DataSet, DType
+from ..utils import DataSet, DType
+from .dataset import DataSet
 
 
 class Epsilon(DataSet):
