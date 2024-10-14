@@ -3,8 +3,8 @@ from __future__ import annotations
 import argparse
 import gc
 import os
-from typing import Callable, List, Protocol, Tuple
 from dataclasses import dataclass
+from typing import Callable, List, Protocol, Tuple
 
 import cupy as cp
 import numpy as np
@@ -86,7 +86,6 @@ def extmem_spdm_train(
     if it_valid is not None:
         Xy_valid = xgb.DMatrix(it_valid)
         watches.append((Xy_valid, "Valid"))
-
 
     with Timer("ExtSparse", "train"):
         booster = xgb.train(

@@ -75,7 +75,9 @@ def cli_main() -> None:
     dft_out = os.path.join(os.curdir, "data")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True)
+    parser.add_argument(
+        "--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True
+    )
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--loadfrom", type=str, default=dft_out)
 
@@ -88,7 +90,6 @@ def cli_main() -> None:
     parser.add_argument("--n_bins", type=int, default=256)
     parser.add_argument("--on-the-fly", choices=[0, 1], default=1, type=int)
     parser.add_argument("--valid", action="store_true")
-
 
     parser.add_argument("--model", type=str, required=False)
     parser.add_argument(
