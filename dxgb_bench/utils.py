@@ -2,10 +2,13 @@
 import math
 import os
 import shutil
+import gc
 import sys
 import time
 import warnings
-from typing import Any, Dict, TypeAlias, Union
+from typing import Any, Dict, TypeAlias, Union, Callable
+
+import numpy as np
 
 try:
     import nvtx

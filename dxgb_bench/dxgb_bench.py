@@ -11,7 +11,7 @@ from xgboost import DataIter, QuantileDMatrix
 
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer
-
+from .dataiter import load_batches
 
 def datagen(
     n_samples: int,
@@ -25,7 +25,7 @@ def datagen(
     if not os.path.exists(out):
         os.mkdir(out)
 
-    with Timer("datagen", "datagen"):
+    with Timer("datagen", "gen"):
         for i in range(n_batches):
             if not assparse:  # default
                 X, y = make_dense_regression(
@@ -38,6 +38,7 @@ def datagen(
                 np.save(os.path.join(out, f"X-{i}.npy"), X)
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
             else:
+                assert n_batches == 1, "not implemented"
                 X, y = make_sparse_regression(
                     n_samples=n_samples, n_features=n_features, sparsity=sparsity
                 )
@@ -45,21 +46,6 @@ def datagen(
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
 
     print(Timer.global_timer())
-
-
-def load_Xy(loadfrom: str, i: int)-> tuple[np.ndarray | sparse.csr_matrix, np.ndarray]:
-    Xp = os.path.join(loadfrom, f"X-{i}.npy")
-    if not os.path.exists(Xp):
-        Xp = os.path.join(loadfrom, f"X-{i}.npz")
-    yp = os.path.join(loadfrom, f"y-{i}.npy")
-    if Xp.endswith("npz"):
-        X = sparse.load_npz(Xp)
-        is_sparse = True
-    else:
-        X = np.load(Xp)
-        is_sparse = False
-    y = np.load(yp)
-    return X, y
 
 
 def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
@@ -78,20 +64,12 @@ def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
     assert paths
 
     if task == "qdm":
-        Xs, ys = [], []
-        for i in range(len(X_files)):
-            X, y = load_Xy(loadfrom, i)
-            Xs.append(X)
-            ys.append(y)
-        if isinstance(Xs[0], sparse.csr_matrix):
-            X = sparse.vstack(Xs)
-        else:
-            X = np.vstack(Xs)
-        y = np.vstack(ys)
-        Xy = QuantileDMatrix(X, y)
-        booster = xgb.train(
-            {"tree_method": "hist", "device": device}, Xy, num_boost_round=n_rounds
-        )
+        with Timer("Qdm", "train"):
+            X, y = load_batches(loadfrom, device)
+            Xy = QuantileDMatrix(X, y)
+            booster = xgb.train(
+                {"tree_method": "hist", "device": device}, Xy, num_boost_round=n_rounds
+            )
     else:
         assert task == "qdm-iter"
 
