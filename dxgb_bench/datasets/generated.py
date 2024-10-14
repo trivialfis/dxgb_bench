@@ -11,7 +11,7 @@ import numpy as np
 from scipy import sparse
 from xgboost.compat import concat
 
-from ..utils import DType, div_roundup
+from ..utils import DType, div_roundup, fprint
 from .dataset import DataSet
 
 
@@ -110,7 +110,16 @@ def make_sparse_regression(
 
 
 def psize(X: np.ndarray) -> None:
-    print(f"Estimated Size: {(X.itemsize * X.size) / (1024 ** 3)} GB")
+    n_bytes = X.itemsize * X.size
+    if n_bytes < 1024:
+        size = f"{n_bytes} B"
+    elif n_bytes < 1024**2:
+        size = f"{n_bytes / 1024} KB"
+    elif n_bytes < 1024**3:
+        size = f"{n_bytes / 1024 ** 2} MB"
+    else:
+        size = f"{n_bytes / 1024 ** 3} GB"
+    fprint(f"Estimated Size: {size}")
 
 
 def make_dense_regression(

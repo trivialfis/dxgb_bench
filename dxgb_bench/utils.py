@@ -1,11 +1,17 @@
+# Copyright (c) 2020-2024, Jiaming Yuan.  All rights reserved.
+from __future__ import annotations
+
 import argparse
+import gc
 import math
 import os
 import shutil
 import sys
 import time
 import warnings
-from typing import Any, Dict, TypeAlias, Union
+from typing import Any, Callable, Dict, TypeAlias, Union
+
+import numpy as np
 
 try:
     import nvtx
@@ -96,7 +102,7 @@ def read_csv(
 pbar = None
 
 
-def show_progress(block_num, block_size, total_size):
+def show_progress(block_num: int, block_size: int, total_size: int) -> None:
     global pbar
     if pbar is None:
         pbar = tqdm.tqdm(total=total_size / 1024, unit="kB")
@@ -109,7 +115,9 @@ def show_progress(block_num, block_size, total_size):
         pbar = None
 
 
-global_timer: Dict[str, Dict[str, float]] = {}
+GlobalTimer: TypeAlias = Dict[str, Dict[str, float]]
+
+global_timer: GlobalTimer = {}
 
 
 class Timer:
@@ -126,7 +134,7 @@ class Timer:
         fprint(self.name, self.proc_name, "started: ", time.ctime())
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, t: None, value: None, traceback: None) -> None:
         if self.range_id is not None:
             nvtx.end_range(self.range_id)
         end = time.time()
@@ -136,7 +144,7 @@ class Timer:
         fprint(self.name, self.proc_name, "ended in: ", end - self.start, "seconds.")
 
     @staticmethod
-    def global_timer() -> Dict[str, Dict[str, float]]:
+    def global_timer() -> GlobalTimer:
         return global_timer
 
 
@@ -187,3 +195,21 @@ class Progress(xgb.callback.TrainingCallback):
 def div_roundup(a: int, b: int) -> int:
     """Round up for division."""
     return math.ceil(a / b)
+
+
+def add_data_params(
+    parser: argparse.ArgumentParser,
+    required: bool,
+    n_features: int | None = None,
+) -> argparse.ArgumentParser:
+    parser.add_argument("--n_samples", type=int, required=required)
+    if n_features is not None:
+        parser.add_argument(
+            "--n_features", type=int, required=required, default=n_features
+        )
+    else:
+        parser.add_argument("--n_features", type=int, required=required)
+    parser.add_argument("--n_batches", type=int, default=1)
+    parser.add_argument("--assparse", action="store_true")
+    parser.add_argument("--sparsity", type=float, default=0.0)
+    return parser
