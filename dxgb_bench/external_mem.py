@@ -18,50 +18,6 @@ from .datasets.generated import make_dense_regression
 from .utils import Progress, Timer
 
 
-def make_batches(
-    n_samples_per_batch: int,
-    n_features: int,
-    n_batches: int,
-    reuse: bool,
-    tmpdir: str,
-) -> List[Tuple[str, str]]:
-    files: List[Tuple[str, str]] = []
-
-    if reuse:
-        for i in range(n_batches):
-            X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
-            y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
-            if not os.path.exists(X_path) or not os.path.exists(y_path):
-                files = []
-                break
-            files.append((X_path, y_path))
-
-    if files:
-        return files
-
-    assert not files
-
-    for i in range(n_batches):
-        X, y = make_dense_regression(
-            "cpu",
-            n_samples_per_batch,
-            n_features=n_features,
-            random_state=i,
-            sparsity=0.0,
-        )
-        X_path = os.path.join(tmpdir, "X-" + str(i) + ".npy")
-        y_path = os.path.join(tmpdir, "y-" + str(i) + ".npy")
-        np.save(X_path, X)
-        np.save(y_path, y)
-        files.append((X_path, y_path))
-        print(f"Saved to {X_path} and {y_path}", flush=True)
-
-    gc.collect()
-
-    return files
-
-
-
 def setup_rmm() -> None:
     print("Use `CudaAsyncMemoryResource`.", flush=True)
     use_rmm_pool = False
@@ -87,16 +43,11 @@ class Opts:
     device: str
 
 
-def make_iter(opts: Opts, tmpdir: str) -> tuple[BenchIter, BenchIter | None]:
+def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
     with Timer("MakeIter", "Make"):
         if not opts.on_the_fly:
-            files = make_batches(
-                n_samples_per_batch=opts.n_samples_per_batch,
-                n_features=opts.n_features,
-                n_batches=opts.n_batches,
-                reuse=True,
-                tmpdir=tmpdir,
-            )
+            X_files, y_files = get_file_paths(loadfrom)
+            files: list[tuple[str, str]] = list(*zip(X_files, y_files))
             it_impl: IterImpl = LoadIterImpl(files, device=opts.device)
         else:
             it_impl = SynIterImpl(
@@ -121,12 +72,12 @@ def extmem_spdm_train(
     opts: Opts,
     n_bins: int,
     n_rounds: int,
-    tmpdir: str,
+    loadfrom: str,
 ) -> xgb.Booster:
     if opts.device == "cuda":
         setup_rmm()
 
-    it_train, it_valid = make_iter(opts, tmpdir=tmpdir)
+    it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
         Xy_train = xgb.DMatrix(it_train)
 
@@ -157,12 +108,12 @@ def extmem_qdm_train(
     opts: Opts,
     n_bins: int,
     n_rounds: int,
-    tmpdir: str,
+    loadfrom: str,
 ) -> xgb.Booster:
     if opts.device == "cuda":
         setup_rmm()
 
-    it_train, it_valid = make_iter(opts, tmpdir=tmpdir)
+    it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
         Xy_train = xgb.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
 

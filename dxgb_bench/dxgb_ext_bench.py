@@ -14,12 +14,8 @@ from .utils import Timer
 
 
 def main(args: argparse.Namespace) -> None:
-    data_dir = "./data"
-
     n_batches = args.n_batches
 
-    if not os.path.exists(data_dir):
-        os.mkdir(data_dir)
     if args.size == "test":
         n = 2**19 * n_batches
     elif args.size == "small":
@@ -30,7 +26,7 @@ def main(args: argparse.Namespace) -> None:
     else:
         n = (2**23 + 2**22) * n_batches
 
-    n_features = 512
+    n_features = args.n_features
     opts = Opts(
         n_samples_per_batch=n // n_batches,
         n_features=n_features,
@@ -46,20 +42,20 @@ def main(args: argparse.Namespace) -> None:
             opts,
             n_bins=args.n_bins,
             n_rounds=args.n_rounds,
-            tmpdir=data_dir,
+            loadfrom=args.loadfrom,
         )
     elif args.task == "ext-qdm":
         extmem_qdm_train(
             opts,
             n_bins=args.n_bins,
             n_rounds=args.n_rounds,
-            tmpdir=data_dir,
+            loadfrom=args.loadfrom,
         )
     else:
         assert args.predict_type is not None
         assert args.model is not None
         extmem_qdm_inference(
-            loadfrom=data_dir,
+            loadfrom=args.loadfrom,
             n_bins=args.n_bins,
             n_samples_per_batch=n // n_batches,
             n_features=n_features,
@@ -75,13 +71,18 @@ def main(args: argparse.Namespace) -> None:
 
 
 def cli_main() -> None:
+    dft_out = os.path.join(os.curdir, "data")
+
     parser = argparse.ArgumentParser()
     parser.add_argument("--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True)
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
+    parser.add_argument("--loadfrom", type=str, default=dft_out)
+
     parser.add_argument(
         "--size", choices=["test", "small", "large", "custom"], default="small"
     )
     parser.add_argument("--n_samples_per_batch", type=int, required=False)
+    parser.add_argument("--n_features", type=int, required=False, default=512)
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_batches", type=int, default=54)
     parser.add_argument("--n_bins", type=int, default=256)
