@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import ctypes
 import gc
 import os
-from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, List, Protocol, Tuple
 
 import cupy as cp
@@ -13,10 +11,9 @@ import rmm
 import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
 from xgboost.callback import TrainingCheckPoint
-from xgboost.compat import concat
 
-from .utils import Progress, Timer
 from .datasets.generated import make_dense_regression
+from .utils import Progress, Timer
 
 TEST_SIZE = 0.2
 
