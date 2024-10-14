@@ -47,7 +47,7 @@ def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
     with Timer("MakeIter", "Make"):
         if not opts.on_the_fly:
             X_files, y_files = get_file_paths(loadfrom)
-            files: list[tuple[str, str]] = list(*zip(X_files, y_files))
+            files: list[tuple[str, str]] = list(zip(X_files, y_files))
             it_impl: IterImpl = LoadIterImpl(files, device=opts.device)
         else:
             it_impl = SynIterImpl(
@@ -134,7 +134,7 @@ def extmem_qdm_train(
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
-            verbose_eval=False,
+            verbose_eval=True,
         )
     return booster
 
@@ -156,7 +156,7 @@ def extmem_qdm_inference(
 
     if not on_the_fly:
         X_files, y_files = get_file_paths(loadfrom)
-        it_impl: IterImpl = LoadIterImpl(list(*zip(X_files, y_files)), device=device)
+        it_impl: IterImpl = LoadIterImpl(list(zip(X_files, y_files)), device=device)
     else:
         it_impl = SynIterImpl(
             n_samples_per_batch=n_samples_per_batch,

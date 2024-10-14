@@ -34,7 +34,7 @@ def main(args: argparse.Namespace) -> None:
         n_batches=n_batches,
         sparsity=args.sparsity,
         on_the_fly=args.on_the_fly,
-        validation=args.validation,
+        validation=args.valid,
         device=args.device,
     )
 
@@ -83,10 +83,10 @@ def cli_main() -> None:
         "--size", choices=["test", "small", "large", "custom"], default="small"
     )
 
-    parser = add_data_params(parser, required=False)
+    parser = add_data_params(parser, required=False, n_features=512)
     parser.add_argument("--n_rounds", type=int, default=128)
     parser.add_argument("--n_bins", type=int, default=256)
-    parser.add_argument("--on-the-fly", choices=[0, 1], default=1)
+    parser.add_argument("--on-the-fly", choices=[0, 1], default=1, type=int)
     parser.add_argument("--valid", action="store_true")
 
 
@@ -94,8 +94,9 @@ def cli_main() -> None:
     parser.add_argument(
         "--predict_type", choices=["value", "contrib", "interaction"], required=False
     )
+    parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=3, type=int)
 
     args = parser.parse_args()
 
-    with xgb.config_context(verbosity=3, use_rmm=True):
+    with xgb.config_context(verbosity=args.verbosity, use_rmm=True):
         main(args)

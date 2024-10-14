@@ -184,10 +184,10 @@ class BenchIter(xgb.DataIter):
             super().__init__()
 
     def next(self, input_data: Callable) -> bool:
-        print("Next:", self._it, flush=True)
         if self._it == self._impl.n_batches:
             return False
 
+        print("Next:", self._it, flush=True)
         gc.collect()
         X, y = self._impl.get(self._it)
 
