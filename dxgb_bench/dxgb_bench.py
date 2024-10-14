@@ -11,7 +11,7 @@ from xgboost import DataIter, QuantileDMatrix
 
 from .dataiter import BenchIter, LoadIterImpl, get_file_paths, load_all, load_batches
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer
+from .utils import Timer, add_data_params
 
 
 def datagen(
@@ -89,11 +89,7 @@ def cli_main() -> None:
     dft_out = os.path.join(os.curdir, "data")
 
     # Datagen parser
-    dg_parser.add_argument("--n_samples", type=int, required=True)
-    dg_parser.add_argument("--n_features", type=int, required=True)
-    dg_parser.add_argument("--assparse", action="store_true")
-    dg_parser.add_argument("--sparsity", type=float, default=0.0)
-    dg_parser.add_argument("--n_batches", type=int, default=1)
+    dg_parser = add_data_params(dg_parser, True)
     dg_parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
     dg_parser.add_argument("--saveto", type=str, default=dft_out)
 

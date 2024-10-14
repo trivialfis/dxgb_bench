@@ -10,7 +10,7 @@ from .external_mem import (
     extmem_qdm_train,
     extmem_spdm_train,
 )
-from .utils import Timer
+from .utils import Timer, add_data_params
 
 
 def main(args: argparse.Namespace) -> None:
@@ -19,12 +19,13 @@ def main(args: argparse.Namespace) -> None:
     if args.size == "test":
         n = 2**19 * n_batches
     elif args.size == "small":
-        n = 2**23
-    elif args.size == "custom":
-        assert args.n_samples_per_batch > 0
-        n = args.n_samples_per_batch * n_batches
-    else:
+        n = 2**23 * n_batches
+    elif args.size == "large":
         n = (2**23 + 2**22) * n_batches
+    else:
+        assert args.size == "custom"
+        assert args.n_samples > 0
+        n = args.n_samples
 
     n_features = args.n_features
     opts = Opts(
@@ -81,14 +82,13 @@ def cli_main() -> None:
     parser.add_argument(
         "--size", choices=["test", "small", "large", "custom"], default="small"
     )
-    parser.add_argument("--n_samples_per_batch", type=int, required=False)
-    parser.add_argument("--n_features", type=int, required=False, default=512)
+
+    parser = add_data_params(parser, required=False)
     parser.add_argument("--n_rounds", type=int, default=128)
-    parser.add_argument("--n_batches", type=int, default=54)
     parser.add_argument("--n_bins", type=int, default=256)
     parser.add_argument("--on-the-fly", choices=[0, 1], default=1)
     parser.add_argument("--valid", action="store_true")
-    parser.add_argument("--sparsity", type=float, default=0.0)
+
 
     parser.add_argument("--model", type=str, required=False)
     parser.add_argument(

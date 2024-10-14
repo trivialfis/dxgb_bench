@@ -1,4 +1,7 @@
 # Copyright (c) 2020-2024, Jiaming Yuan.  All rights reserved.
+from __future__ import annotations
+
+import argparse
 import gc
 import math
 import os
@@ -192,3 +195,21 @@ class Progress(xgb.callback.TrainingCallback):
 def div_roundup(a: int, b: int) -> int:
     """Round up for division."""
     return math.ceil(a / b)
+
+
+def add_data_params(
+    parser: argparse.ArgumentParser,
+    required: bool,
+    n_features: int | None = None,
+) -> argparse.ArgumentParser:
+    parser.add_argument("--n_samples", type=int, required=required)
+    if n_features is not None:
+        parser.add_argument(
+            "--n_features", type=int, required=required, default=n_features
+        )
+    else:
+        parser.add_argument("--n_features", type=int, required=required)
+    parser.add_argument("--n_batches", type=int, default=1)
+    parser.add_argument("--assparse", action="store_true")
+    parser.add_argument("--sparsity", type=float, default=0.0)
+    return parser
