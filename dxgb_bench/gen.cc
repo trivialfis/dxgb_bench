@@ -1,23 +1,21 @@
 #include "gen.hpp"
-#include <algorithm> // for max
-#include <iostream>
-#include <random>    // for default_random_engine
-#include <thread>    // for thread
+
+#include <cassert> // for assert
+#include <cmath>   // for ceil
+#include <random>  // for default_random_engine
+#include <thread>  // for thread
 
 extern "C" {
 __attribute__((visibility("default"))) int
 MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity,
                     int64_t seed, float *out, float *y) {
-  std::cout << "m:" << m << ", n:" << n << ", sparsity:" << sparsity
-            << " estimated size:" << (m * n * 4.0) / (1024.0 * 1024.0 * 1024.0)
-            << std::endl;
+  double est = (m * n * 4.0) / (1024.0 * 1024.0 * 1024.0);
   if (is_cuda) {
     return cuda_impl::MakeDenseRegression(m, n, sparsity, seed, out, y);
   }
 
   auto n_threads = std::thread::hardware_concurrency();
-  auto n_samples_per_threads =
-      std::max(static_cast<double>(m) / n_threads, 1.0);
+  auto n_samples_per_threads = std::ceil(static_cast<double>(m) / n_threads);
 
   std::vector<std::thread> workers;
 
@@ -29,6 +27,10 @@ MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity,
         n_samples = m - prev;
       }
       auto begin = n_samples_per_threads * i;
+      if (begin >= m) {
+        return;
+      }
+      assert(n_samples < m);
       std::default_random_engine rng;
       rng.seed(seed);
       rng.discard(begin);
