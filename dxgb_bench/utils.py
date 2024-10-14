@@ -1,12 +1,12 @@
 # Copyright (c) 2020-2024, Jiaming Yuan.  All rights reserved.
+import gc
 import math
 import os
 import shutil
-import gc
 import sys
 import time
 import warnings
-from typing import Any, Dict, TypeAlias, Union, Callable
+from typing import Any, Callable, Dict, TypeAlias, Union
 
 import numpy as np
 
@@ -132,7 +132,6 @@ class Timer:
         return self
 
     def __exit__(self, t: None, value: None, traceback: None) -> None:
-        print(traceback, type(traceback))
         if self.range_id is not None:
             nvtx.end_range(self.range_id)
         end = time.time()

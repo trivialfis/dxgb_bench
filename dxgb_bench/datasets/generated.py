@@ -113,9 +113,9 @@ def psize(X: np.ndarray) -> None:
     n_bytes = X.itemsize * X.size
     if n_bytes < 1024:
         size = f"{n_bytes} B"
-    elif n_bytes < 1024 ** 2:
+    elif n_bytes < 1024**2:
         size = f"{n_bytes / 1024} KB"
-    elif n_bytes < 1024 ** 3:
+    elif n_bytes < 1024**3:
         size = f"{n_bytes / 1024 ** 2} MB"
     else:
         size = f"{n_bytes / 1024 ** 3} GB"

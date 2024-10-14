@@ -27,7 +27,13 @@ def datagen(
         os.mkdir(out)
 
     with Timer("datagen", "gen"):
+        assert n_samples >= n_batches
+        n_samples_per_batch = n_samples // n_batches
         for i in range(n_batches):
+            if i == n_batches - 1:
+                prev = n_samples_per_batch * (n_batches - 1)
+                n_samples_per_batch = n_samples - prev
+            assert n_samples_per_batch >= 1
             if not assparse:  # default
                 X, y = make_dense_regression(
                     device=device,
@@ -53,8 +59,8 @@ def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
     assert os.path.exists(loadfrom)
 
     if task == "qdm":
+        X, y = load_all(loadfrom, device)
         with Timer("Qdm", "Qdm"):
-            X, y = load_all(loadfrom, device)
             Xy = QuantileDMatrix(X, y)
     else:
         assert task == "qdm-iter"
@@ -116,13 +122,13 @@ def cli_main() -> None:
 
     if args.command == "datagen":
         datagen(
-            args.n_samples,
-            args.n_features,
-            args.n_batches,
-            args.assparse,
-            args.sparsity,
-            args.device,
-            out=args.output,
+            n_samples=args.n_samples,
+            n_features=args.n_features,
+            n_batches=args.n_batches,
+            assparse=args.assparse,
+            sparsity=args.sparsity,
+            device=args.device,
+            out=args.saveto,
         )
     else:
         assert args.command == "bench"
