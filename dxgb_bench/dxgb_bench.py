@@ -47,6 +47,21 @@ def datagen(
     print(Timer.global_timer())
 
 
+def load_Xy(loadfrom: str, i: int)-> tuple[np.ndarray | sparse.csr_matrix, np.ndarray]:
+    Xp = os.path.join(loadfrom, f"X-{i}.npy")
+    if not os.path.exists(Xp):
+        Xp = os.path.join(loadfrom, f"X-{i}.npz")
+    yp = os.path.join(loadfrom, f"y-{i}.npy")
+    if Xp.endswith("npz"):
+        X = sparse.load_npz(Xp)
+        is_sparse = True
+    else:
+        X = np.load(Xp)
+        is_sparse = False
+    y = np.load(yp)
+    return X, y
+
+
 def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
     assert os.path.exists(loadfrom)
 
@@ -63,22 +78,12 @@ def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
     assert paths
 
     if task == "qdm":
-        is_sparse = False
         Xs, ys = [], []
         for i in range(len(X_files)):
-            Xp = os.path.join(loadfrom, f"X-{i}.npy")
-            yp = os.path.join(loadfrom, f"y-{i}.npy")
-
-            if Xp.endswith("npz"):
-                X = sparse.load_npz(Xp)
-                is_sparse = True
-            else:
-                X = np.load(Xp)
-                is_sparse = False
-            y = np.load(yp)
+            X, y = load_Xy(loadfrom, i)
             Xs.append(X)
             ys.append(y)
-        if is_sparse:
+        if isinstance(Xs[0], sparse.csr_matrix):
             X = sparse.vstack(Xs)
         else:
             X = np.vstack(Xs)
