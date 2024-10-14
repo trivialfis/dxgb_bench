@@ -8,9 +8,9 @@ from typing import Callable, TypeAlias
 
 import numpy as np
 import xgboost as xgb
-from xgboost.compat import concat
 from scipy import sparse
 from typing_extensions import override
+from xgboost.compat import concat
 
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer
