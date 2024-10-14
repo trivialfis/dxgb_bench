@@ -1,4 +1,4 @@
-import argparse
+# Copyright (c) 2020-2024, Jiaming Yuan.  All rights reserved.
 import math
 import os
 import shutil
@@ -96,7 +96,7 @@ def read_csv(
 pbar = None
 
 
-def show_progress(block_num, block_size, total_size):
+def show_progress(block_num: int, block_size: int, total_size: int) -> None:
     global pbar
     if pbar is None:
         pbar = tqdm.tqdm(total=total_size / 1024, unit="kB")
@@ -109,7 +109,9 @@ def show_progress(block_num, block_size, total_size):
         pbar = None
 
 
-global_timer: Dict[str, Dict[str, float]] = {}
+GlobalTimer: TypeAlias = Dict[str, Dict[str, float]]
+
+global_timer: GlobalTimer = {}
 
 
 class Timer:
@@ -126,7 +128,8 @@ class Timer:
         fprint(self.name, self.proc_name, "started: ", time.ctime())
         return self
 
-    def __exit__(self, type, value, traceback):
+    def __exit__(self, t: None, value: None, traceback: None) -> None:
+        print(traceback, type(traceback))
         if self.range_id is not None:
             nvtx.end_range(self.range_id)
         end = time.time()
@@ -136,7 +139,7 @@ class Timer:
         fprint(self.name, self.proc_name, "ended in: ", end - self.start, "seconds.")
 
     @staticmethod
-    def global_timer() -> Dict[str, Dict[str, float]]:
+    def global_timer() -> GlobalTimer:
         return global_timer
 
 
