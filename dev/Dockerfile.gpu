@@ -1,0 +1,57 @@
+# syntax=docker/dockerfile:experimental
+FROM rapidsai/ci-conda:cuda12.5.1-ubuntu22.04-py3.12
+
+ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]
+
+RUN set -x \
+    # basic dependencies
+    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
+    apt-get update && apt-get upgrade -y && \
+    apt-get install gosu -y
+
+RUN \
+    # mamba installation dependencies
+    apt-get install unzip bzip2 curl -y
+
+RUN mkdir ws
+
+COPY dxgb_bench ws/dxgb_bench
+
+RUN --mount=type=cache,target=/opt/mambaforge/pkgs mamba env update -n base -f ws/dxgb_bench/dev/xgboost_dev.yml -v && mamba clean --all --yes
+
+RUN \
+    git clone --recursive  https://github.com/dmlc/xgboost.git && \
+    cd xgboost && \
+    git checkout 347bb1475e0b75f8c479991a539948f3875008d5 && \
+    cd -
+
+RUN \
+    patch -p1 < ws/dxgb_bench/dev/unique.patch
+
+RUN \
+    mkdir build && \
+    cd build && \
+    cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DUSE_CUDA=ON \
+    -DUSE_NCCL=ON \
+    -DUSE_DLOPEN_NCCL=ON \
+    -DUSE_OPENMP=ON \
+    -DUSE_NVTX=ON \
+    -DPLUGIN_FEDERATED=ON \
+    -DPLUGIN_RMM=ON \
+    -DCMAKE_CXX_FLAGS="-Wall -rdynamic" -DENABLE_ALL_WARNINGS=ON && \
+    time ninja && \
+    cd ../xgboost/python-package && \
+    pip install . --no-deps --no-build-isolation && \
+    cd ../../ && \
+    rm -rf build
+
+RUN \
+    cd /ws/ && \
+    mkdir build && \
+    cd build && \
+    cmake ../dxgb_bench/dxgb_bench -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDXGB_USE_CUDA=ON -GNinja && \
+    ninja && \
+    cd ../dxgb_bench && \
+    pip install -e . --no-deps --no-build-isolation

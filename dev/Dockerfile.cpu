@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:experimental
+FROM mambaorg/micromamba:2.0.2-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+COPY --chown=$MAMBA_USER:$MAMBA_USER dxgb_bench /tmp/dxgb_bench
+
+RUN --mount=type=cache,target=/opt/mambaforge/pkgs micromamba install -y -n base -f dxgb_bench/dev/xgboost_cpu_dev.yml -v
+ARG MAMBA_DOCKERFILE_ACTIVATE=1
+
+RUN \
+    git clone --recursive  https://github.com/dmlc/xgboost.git && \
+    cd xgboost && \
+    git checkout 347bb1475e0b75f8c479991a539948f3875008d5 && \
+    cd -
+
+RUN \
+    mkdir build && \
+    cd build && \
+    cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DUSE_OPENMP=ON \
+    -DPLUGIN_FEDERATED=ON \
+    -DCMAKE_CXX_FLAGS="-Wall -rdynamic" -DENABLE_ALL_WARNINGS=ON && \
+    time ninja && \
+    cd ../xgboost/python-package && \
+    pip install . --no-deps --no-build-isolation && \
+    cd ../../ && \
+    rm -rf build
+
+RUN \
+    cd /tmp/ && \
+    mkdir build && \
+    cd build && \
+    cmake ../dxgb_bench/dxgb_bench -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDXGB_USE_CUDA=OFF -GNinja && \
+    ninja && \
+    cd ../dxgb_bench && \
+    pip install -e . --no-deps --no-build-isolation

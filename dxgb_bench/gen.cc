@@ -9,9 +9,12 @@ extern "C" {
 __attribute__((visibility("default"))) int
 MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity,
                     int64_t seed, float *out, float *y) {
-  double est = (m * n * 4.0) / (1024.0 * 1024.0 * 1024.0);
   if (is_cuda) {
+#if defined(DXGB_USE_CUDA)
     return cuda_impl::MakeDenseRegression(m, n, sparsity, seed, out, y);
+#else
+    return -1;
+#endif
   }
 
   auto n_threads = std::thread::hardware_concurrency();
@@ -37,7 +40,7 @@ MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity,
       std::normal_distribution<float> dist{0.1f, 1.5f};
       std::uniform_real_distribution<float> miss{0.0f, 1.0f};
       for (std::size_t j = begin; j < begin + n_samples; ++j) {
-        for (std::size_t k = 0; k < n; ++k) {
+        for (std::int64_t k = 0; k < n; ++k) {
           auto idx = j * n + k;
           if (miss(rng) < sparsity) {
             out[idx] = std::numeric_limits<float>::quiet_NaN();
@@ -51,7 +54,7 @@ MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity,
       for (std::size_t j = begin; j < begin + n_samples; ++j) {
         auto err = dist(rng);
         y[j] = err;
-        for (std::size_t k = 0; k < n; ++k) {
+        for (std::int64_t k = 0; k < n; ++k) {
           auto idx = j * n + k;
           if (!std::isnan(out[idx])) {
             y[j] += out[idx];
