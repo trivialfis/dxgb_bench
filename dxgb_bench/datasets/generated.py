@@ -45,7 +45,7 @@ def make_reg_c(
             y.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
         )
 
-    _lib.MakeDenseRegression(
+    status = _lib.MakeDenseRegression(
         ctypes.c_bool(is_cuda),
         ctypes.c_int64(n_samples_per_batch),
         ctypes.c_int64(n_features),
@@ -54,6 +54,8 @@ def make_reg_c(
         X_ptr,
         y_ptr,
     )
+    if status != 0:
+        raise ValueError("Native implementation failed.")
     return X, y
 
 

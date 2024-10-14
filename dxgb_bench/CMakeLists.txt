@@ -1,15 +1,21 @@
 cmake_minimum_required(VERSION 3.18 FATAL_ERROR)
-project(dxgbbench LANGUAGES CXX CUDA VERSION 0.0.0)
+project(dxgbbench LANGUAGES CXX VERSION 0.0.0)
+
+option(DXGB_USE_CUDA "Enable CUDA implementation" ON)
 
 add_library(dxgbbench SHARED
   ${CMAKE_SOURCE_DIR}/gen.cc
-  ${CMAKE_SOURCE_DIR}/gen.cu
 )
 
-target_compile_options(dxgbbench PRIVATE
-  $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
-  $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
-  $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+if (DXGB_USE_CUDA)
+  enable_language(CUDA)
+  target_sources(dxgbbench ${CMAKE_SOURCE_DIR}/gen.cu)
+  target_compile_options(dxgbbench PRIVATE
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
+    $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
+    $<$<COMPILE_LANGUAGE:CUDA>:--default-stream per-thread>)
+  target_compile_definitions(dxgbbench PRIVATE -DDXGB_USE_CUDA=1)
+endif ()
 
 function(set_output_directory target dir)
   set_target_properties(${target} PROPERTIES

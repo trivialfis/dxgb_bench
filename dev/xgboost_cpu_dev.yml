@@ -1,0 +1,28 @@
+name: xgboost_dev
+channels:
+- conda-forge
+dependencies:
+- c-compiler
+- cxx-compiler
+- cmake>=3.26.4,<3.29
+- ninja
+- sysroot_linux-64==2.28
+- gcc_linux-64=13.*
+- gtest>=1.13.0
+- protobuf
+- git
+# python local
+- python==3.12
+- pip
+- hatchling
+- hypothesis
+- pytest
+- numpy
+- pandas
+- scipy
+- scikit-learn
+- tqdm
+- typing_extensions
+# python dask
+- dask
+- distributed
