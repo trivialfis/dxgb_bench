@@ -8,6 +8,7 @@ from typing import Callable, TypeAlias
 
 import numpy as np
 import xgboost as xgb
+from xgboost.compat import concat
 from scipy import sparse
 from typing_extensions import override
 
@@ -79,11 +80,8 @@ def load_all(loadfrom: str, device: str) -> XyPair:
     """Load all batches and concatenate them into a single blob.."""
     Xs, ys = load_batches(loadfrom, device)
     with Timer("load-all", "concat"):
-        if isinstance(Xs[0], sparse.csr_matrix):
-            X = sparse.vstack(Xs)
-        else:
-            X = np.vstack(Xs)
-        y = np.vstack(ys)
+        X = concat(Xs)
+        y = concat(ys)
     return X, y
 
 
@@ -167,10 +165,11 @@ def train_test_split(
     return X_train, X_test, y_train, y_test
 
 
+TEST_SIZE = 0.2
+
+
 class BenchIter(xgb.DataIter):
     """A custom iterator for profiling."""
-
-    TEST_SIZE = 0.2
 
     def __init__(self, it: IterImpl, split: bool, is_ext: bool, is_eval: bool) -> None:
         self._it = 0
@@ -193,7 +192,7 @@ class BenchIter(xgb.DataIter):
 
         if self._split:
             X_train, X_valid, y_train, y_valid = train_test_split(
-                X, y, test_size=self.TEST_SIZE, random_state=42
+                X, y, test_size=TEST_SIZE, random_state=42
             )
             if self._is_eval:
                 input_data(data=X_valid, label=y_valid)

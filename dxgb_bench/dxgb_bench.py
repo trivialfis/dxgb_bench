@@ -9,7 +9,15 @@ import xgboost as xgb
 from scipy import sparse
 from xgboost import DataIter, QuantileDMatrix
 
-from .dataiter import BenchIter, LoadIterImpl, get_file_paths, load_all, load_batches
+from .dataiter import (
+    TEST_SIZE,
+    BenchIter,
+    LoadIterImpl,
+    get_file_paths,
+    load_all,
+    load_batches,
+    train_test_split,
+)
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer, add_data_params
 
@@ -55,29 +63,53 @@ def datagen(
     print(Timer.global_timer())
 
 
-def bench(task: str, loadfrom: str, n_rounds: int, device: str) -> None:
+def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> None:
     assert os.path.exists(loadfrom)
 
     if task == "qdm":
         X, y = load_all(loadfrom, device)
-        with Timer("Qdm", "Qdm"):
-            Xy = QuantileDMatrix(X, y)
+        if valid:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=TEST_SIZE, random_state=2024
+            )
+            with Timer("Qdm", "Train"):
+                Xy = QuantileDMatrix(X_train, y_train)
+            with Timer("Qdm", "Valid"):
+                Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
+            watches = [(Xy, "Train"), (Xy_valid, "Valid")]
+        else:
+            with Timer("Qdm", "Train"):
+                Xy = QuantileDMatrix(X, y)
+                Xy_valid = None
+            watches = [(Xy, "Train")]
     else:
         assert task == "qdm-iter"
         X_files, y_files = get_file_paths(loadfrom)
         paths = list(zip(X_files, y_files))
         it_impl = LoadIterImpl(paths, device=device)
-        it = BenchIter(it_impl, split=False, is_ext=False, is_eval=False)
-        with Timer("Qdm", "Qdm"):
-            Xy = QuantileDMatrix(it)
+        it_train = BenchIter(it_impl, split=valid, is_ext=False, is_eval=False)
+        with Timer("Qdm", "Train"):
+            Xy = QuantileDMatrix(it_train)
+            watches = [(Xy, "Train")]
+
+        if valid:
+            it_valid = BenchIter(it_impl, split=valid, is_ext=False, is_eval=True)
+            with Timer("Qdm", "valid"):
+                Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
+                watches.append((Xy_valid, "Valid"))
 
     with Timer("Qdm", "train"):
         booster = xgb.train(
-            {"tree_method": "hist", "device": device}, Xy, num_boost_round=n_rounds
+            {"tree_method": "hist", "device": device},
+            Xy,
+            num_boost_round=n_rounds,
+            evals=watches,
+            verbose_eval=True,
         )
 
     assert booster.num_boosted_rounds() == n_rounds
     print(f"Trained for {n_rounds} iterations.")
+    print(Timer.global_timer())
 
 
 def cli_main() -> None:
@@ -114,6 +146,7 @@ def cli_main() -> None:
         required=True,
     )
     bh_parser.add_argument("--n_rounds", type=int, default=128)
+    bh_parser.add_argument("--valid", action="store_true")
 
     args = parser.parse_args()
 
@@ -129,7 +162,7 @@ def cli_main() -> None:
         )
     else:
         assert args.command == "bench"
-        bench(args.task, args.loadfrom, args.n_rounds, args.device)
+        bench(args.task, args.loadfrom, args.n_rounds, args.valid, args.device)
 
 
 if __name__ == "__main__":
