@@ -13,7 +13,14 @@ import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
 from xgboost.callback import TrainingCheckPoint
 
-from .dataiter import BenchIter, IterImpl, LoadIterImpl, SynIterImpl, get_file_paths
+from .dataiter import (
+    TEST_SIZE,
+    BenchIter,
+    IterImpl,
+    LoadIterImpl,
+    SynIterImpl,
+    get_file_paths,
+)
 from .datasets.generated import make_dense_regression
 from .utils import Progress, Timer
 
@@ -26,7 +33,7 @@ def setup_rmm() -> None:
         mr = rmm.mr.get_current_device_resource()
     else:
         mr = rmm.mr.CudaAsyncMemoryResource()
-        mr = rmm.mr.PoolMemoryResource(mr)
+        mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
         mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
         rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
@@ -44,28 +51,49 @@ class Opts:
 
 
 def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
-    with Timer("MakeIter", "Make"):
-        if not opts.on_the_fly:
-            X_files, y_files = get_file_paths(loadfrom)
-            files: list[tuple[str, str]] = list(zip(X_files, y_files))
-            it_impl: IterImpl = LoadIterImpl(files, device=opts.device)
-        else:
-            it_impl = SynIterImpl(
-                n_samples_per_batch=opts.n_samples_per_batch,
-                n_features=opts.n_features,
-                n_batches=opts.n_batches,
-                sparsity=opts.sparsity,
-                assparse=False,
-                device=opts.device,
-            )
+    if not opts.on_the_fly:
+        X_files, y_files = get_file_paths(loadfrom)
+        files: list[tuple[str, str]] = list(zip(X_files, y_files))
+        it_impl: IterImpl = LoadIterImpl(files, device=opts.device)
+        assert opts.validation is False, "Not implemented."
+        return (
+            BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False),
+            None,
+        )
 
-    it_train = BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False)
-
-    if opts.validation:
-        it_valid = BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=True)
-        return it_train, it_valid
-    else:
+    if not opts.validation:
+        it_impl = SynIterImpl(
+            n_samples_per_batch=opts.n_samples_per_batch,
+            n_features=opts.n_features,
+            n_batches=opts.n_batches,
+            sparsity=opts.sparsity,
+            assparse=False,
+            device=opts.device,
+        )
+        it_train = BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False)
         return it_train, None
+
+    n_train_samples = int(opts.n_samples_per_batch * (1.0 - TEST_SIZE))
+    n_valid_samples = opts.n_samples_per_batch - n_train_samples
+    it_train_impl = SynIterImpl(
+        n_samples_per_batch=n_train_samples,
+        n_features=opts.n_features,
+        n_batches=opts.n_batches,
+        sparsity=opts.sparsity,
+        assparse=False,
+        device=opts.device,
+    )
+    it_valid_impl = SynIterImpl(
+        n_samples_per_batch=n_valid_samples,
+        n_features=opts.n_features,
+        n_batches=opts.n_batches,
+        sparsity=opts.sparsity,
+        assparse=False,
+        device=opts.device,
+    )
+    it_train = BenchIter(it_train_impl, split=False, is_ext=True, is_eval=False)
+    it_valid = BenchIter(it_valid_impl, split=False, is_ext=True, is_eval=True)
+    return it_train, it_valid
 
 
 def extmem_spdm_train(
@@ -119,8 +147,9 @@ def extmem_qdm_train(
     watches = [(Xy_train, "Train")]
 
     if it_valid is not None:
-        Xy_valid = xgb.ExtMemQuantileDMatrix(it_valid, ref=Xy_train)
-        watches.append((Xy_valid, "Valid"))
+        with Timer("ExtQdm", "DMatrix-Train"):
+            Xy_valid = xgb.ExtMemQuantileDMatrix(it_valid, ref=Xy_train)
+            watches.append((Xy_valid, "Valid"))
 
     with Timer("ExtQdm", "train"):
         booster = xgb.train(

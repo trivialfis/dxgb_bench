@@ -14,3 +14,5 @@ case $rt in
 esac
 
 docker build . -t dxgb-$rt
+
+rm Dockerfile
