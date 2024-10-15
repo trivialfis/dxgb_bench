@@ -147,7 +147,7 @@ def extmem_qdm_train(
     watches = [(Xy_train, "Train")]
 
     if it_valid is not None:
-        with Timer("ExtQdm", "DMatrix-Train"):
+        with Timer("ExtQdm", "DMatrix-Valid"):
             Xy_valid = xgb.ExtMemQuantileDMatrix(it_valid, ref=Xy_train)
             watches.append((Xy_valid, "Valid"))
 
