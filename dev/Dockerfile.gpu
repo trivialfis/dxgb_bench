@@ -16,15 +16,17 @@ RUN \
 
 RUN mkdir ws
 
-COPY dxgb_bench ws/dxgb_bench
+COPY dxgb_bench/dev/xgboost_dev.yml ws/xgboost_dev.yml
 
-RUN --mount=type=cache,target=/opt/mambaforge/pkgs mamba env update -n base -f ws/dxgb_bench/dev/xgboost_dev.yml -v && mamba clean --all --yes
+RUN --mount=type=cache,target=/opt/mambaforge/pkgs mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes
 
 RUN \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
     cd xgboost && \
     git checkout 347bb1475e0b75f8c479991a539948f3875008d5 && \
     cd -
+
+COPY dxgb_bench ws/dxgb_bench
 
 RUN \
     patch -p1 < ws/dxgb_bench/dev/unique.patch
@@ -51,7 +53,7 @@ RUN \
     cd /ws/ && \
     mkdir build && \
     cd build && \
-    cmake ../dxgb_bench/dxgb_bench -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDXGB_USE_CUDA=ON -GNinja && \
+    cmake ../dxgb_bench/dxgb_bench -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDXGB_USE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=all -GNinja && \
     ninja && \
     cd ../dxgb_bench && \
     pip install -e . --no-deps --no-build-isolation
