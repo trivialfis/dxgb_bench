@@ -202,7 +202,7 @@ def add_data_params(
     required: bool,
     n_features: int | None = None,
 ) -> argparse.ArgumentParser:
-    parser.add_argument("--n_samples", type=int, required=required)
+    parser.add_argument("--n_samples_per_batch", type=int, required=required)
     if n_features is not None:
         parser.add_argument(
             "--n_features", type=int, required=required, default=n_features

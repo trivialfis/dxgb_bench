@@ -24,8 +24,8 @@ def main(args: argparse.Namespace) -> None:
         n = (2**23 + 2**22) * n_batches
     else:
         assert args.size == "custom"
-        assert args.n_samples > 0
-        n = args.n_samples
+        assert args.n_samples_per_batch > 0
+        n = args.n_samples_per_batch * n_batches
 
     n_features = args.n_features
     opts = Opts(

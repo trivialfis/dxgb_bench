@@ -23,7 +23,7 @@ from .utils import Timer, add_data_params
 
 
 def datagen(
-    n_samples: int,
+    n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
     assparse: bool,
@@ -35,17 +35,12 @@ def datagen(
         os.mkdir(out)
 
     with Timer("datagen", "gen"):
-        assert n_samples >= n_batches
-        n_samples_per_batch = n_samples // n_batches
         for i in range(n_batches):
-            if i == n_batches - 1:
-                prev = n_samples_per_batch * (n_batches - 1)
-                n_samples_per_batch = n_samples - prev
             assert n_samples_per_batch >= 1
             if not assparse:  # default
                 X, y = make_dense_regression(
                     device=device,
-                    n_samples=n_samples,
+                    n_samples=n_samples_per_batch,
                     n_features=n_features,
                     sparsity=sparsity,
                     random_state=i,
@@ -55,7 +50,9 @@ def datagen(
             else:
                 assert n_batches == 1, "not implemented"
                 X, y = make_sparse_regression(
-                    n_samples=n_samples, n_features=n_features, sparsity=sparsity
+                    n_samples=n_samples_per_batch,
+                    n_features=n_features,
+                    sparsity=sparsity,
                 )
                 sparse.save_npz(os.path.join(out, f"X-{i}.npz"), X)
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
@@ -152,7 +149,7 @@ def cli_main() -> None:
 
     if args.command == "datagen":
         datagen(
-            n_samples=args.n_samples,
+            n_samples_per_batch=args.n_samples_per_batch,
             n_features=args.n_features,
             n_batches=args.n_batches,
             assparse=args.assparse,
