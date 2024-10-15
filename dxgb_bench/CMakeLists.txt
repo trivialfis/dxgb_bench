@@ -9,7 +9,7 @@ add_library(dxgbbench SHARED
 
 if (DXGB_USE_CUDA)
   enable_language(CUDA)
-  target_sources(dxgbbench ${CMAKE_SOURCE_DIR}/gen.cu)
+  target_sources(dxgbbench PRIVATE ${CMAKE_SOURCE_DIR}/gen.cu)
   target_compile_options(dxgbbench PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>
