@@ -13,7 +13,14 @@ import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
 from xgboost.callback import TrainingCheckPoint
 
-from .dataiter import BenchIter, IterImpl, LoadIterImpl, SynIterImpl, get_file_paths, TEST_SIZE
+from .dataiter import (
+    TEST_SIZE,
+    BenchIter,
+    IterImpl,
+    LoadIterImpl,
+    SynIterImpl,
+    get_file_paths,
+)
 from .datasets.generated import make_dense_regression
 from .utils import Progress, Timer
 
@@ -49,7 +56,10 @@ def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
         files: list[tuple[str, str]] = list(zip(X_files, y_files))
         it_impl: IterImpl = LoadIterImpl(files, device=opts.device)
         assert opts.validation is False, "Not implemented."
-        return BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False), None
+        return (
+            BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False),
+            None,
+        )
 
     if not opts.validation:
         it_impl = SynIterImpl(
