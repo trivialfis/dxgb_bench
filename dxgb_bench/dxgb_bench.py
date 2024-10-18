@@ -48,7 +48,10 @@ def datagen(
                 np.save(os.path.join(out, f"X-{i}.npy"), X)
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
             else:
-                assert n_batches == 1, "not implemented"
+                if n_batches != 1:
+                    raise NotImplementedError(
+                        "Data iterator with sparse data is not yet implemented."
+                    )
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
@@ -143,7 +146,9 @@ def cli_main() -> None:
         required=True,
     )
     bh_parser.add_argument("--n_rounds", type=int, default=128)
-    bh_parser.add_argument("--valid", action="store_true")
+    bh_parser.add_argument(
+        "--valid", action="store_true", help="Split for the validation dataset."
+    )
 
     args = parser.parse_args()
 
