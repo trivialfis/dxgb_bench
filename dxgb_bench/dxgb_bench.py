@@ -35,6 +35,7 @@ def datagen(
         os.mkdir(out)
 
     with Timer("datagen", "gen"):
+        size = 0
         for i in range(n_batches):
             assert n_samples_per_batch >= 1
             if not assparse:  # default
@@ -43,7 +44,7 @@ def datagen(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
                     sparsity=sparsity,
-                    random_state=i,
+                    random_state=size,
                 )
                 np.save(os.path.join(out, f"X-{i}.npy"), X)
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
@@ -52,10 +53,11 @@ def datagen(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
                     sparsity=sparsity,
-                    random_state=n_samples_per_batch * (i + 1),
+                    random_state=size,
                 )
                 sparse.save_npz(os.path.join(out, f"X-{i}.npz"), X)
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
+            size += X.size
 
     print(Timer.global_timer())
 

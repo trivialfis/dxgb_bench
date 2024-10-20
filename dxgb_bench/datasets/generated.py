@@ -148,7 +148,7 @@ def make_dense_regression(
             is_cuda=device == "cuda",
             n_samples_per_batch=n_samples,
             n_features=n_features,
-            seed=random_state * n_samples * (n_features + 1),
+            seed=random_state,
             sparsity=sparsity,
         )
         psize(X)

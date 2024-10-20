@@ -56,6 +56,8 @@ def get_file_paths(loadfrom: str) -> tuple[list[str], list[str]]:
                 X_files.append(path)
             else:
                 y_files.append(path)
+    X_files = sorted(X_files)
+    y_files = sorted(y_files)
     return X_files, y_files
 
 
@@ -126,9 +128,14 @@ class SynIterImpl(IterImpl):
         self.assparse = assparse
         self.device = device
 
+        self.sizes: list[int] = []
+
     @property
     def n_batches(self) -> int:
         return self._n_batches
+
+    def _seed(self, i: int) -> int:
+        return sum(self.sizes[:i])
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
@@ -138,7 +145,7 @@ class SynIterImpl(IterImpl):
                 n_samples=self.n_samples_per_batch,
                 n_features=self.n_features,
                 sparsity=self.sparsity,
-                random_state=self.n_samples_per_batch * (i + 1),
+                random_state=self._seed(i),
             )
         else:
             X, y = make_dense_regression(
@@ -146,8 +153,10 @@ class SynIterImpl(IterImpl):
                 n_samples=self.n_samples_per_batch,
                 n_features=self.n_features,
                 sparsity=self.sparsity,
-                random_state=i,
+                random_state=self._seed(i),
             )
+        if len(self.sizes) != self._n_batches:
+            self.sizes.append(X.size)
         return X, y
 
 
