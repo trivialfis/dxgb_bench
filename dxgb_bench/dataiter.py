@@ -56,6 +56,7 @@ def get_file_paths(loadfrom: str) -> tuple[list[str], list[str]]:
                 X_files.append(path)
             else:
                 y_files.append(path)
+
     def key(name: str) -> int:
         i = name.split("-")[1].split(".")[0]
         return int(i)
