@@ -133,103 +133,19 @@ def make_dense_regression(
     *,
     sparsity: float,
     random_state: int,
-    _force_py: int = False,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Make dense synthetic data for regression. Result is stored in arrays even if the
     data is sparse.
 
     """
 
-    try:
-        if _force_py:
-            raise ValueError("Force using the Python version for testing.")
-
-        X, y = make_reg_c(
-            is_cuda=device == "cuda",
-            n_samples_per_batch=n_samples,
-            n_features=n_features,
-            seed=random_state,
-            sparsity=sparsity,
-        )
-        psize(X)
-        return X, y
-    except Exception as e:
-        print(f"Failed to generate using the C extension. {e}")
-
-    n_cpus = os.cpu_count()
-    assert n_cpus is not None
-    n_threads = min(n_cpus, n_samples)
-    start = 0
-
-    def make_regression(
-        n_samples_per_batch: int, seed: int
-    ) -> Tuple[np.ndarray, np.ndarray]:
-        # A custom version of make_regression since sklearn doesn't support np
-        # generator.
-        rng = np.random.default_rng(seed)
-        X = rng.normal(
-            loc=0.0, scale=1.5, size=(n_samples_per_batch, n_features)
-        ).astype(np.float32)
-        err = rng.normal(0.0, scale=0.2, size=(n_samples_per_batch,)).astype(np.float32)
-        y = X.sum(axis=1) + err
-        mask = rng.binomial(1, sparsity, X.shape).astype(np.bool_)
-        X[mask] = np.nan
-        return X, y
-
-    futures = []
-    n_samples_per_batch = n_samples // n_threads
-    with ThreadPoolExecutor(max_workers=n_threads) as executor:
-        for i in range(n_threads):
-            n_samples_cur = n_samples_per_batch
-            if i == n_threads - 1:
-                n_samples_cur = n_samples - start
-            fut = executor.submit(
-                make_regression, n_samples_cur, start + random_state * n_samples
-            )
-            start += n_samples_cur
-            futures.append(fut)
-
-    X_arr, y_arr = [], []
-    for fut in futures:
-        X, y = fut.result()
-        X_arr.append(X)
-        y_arr.append(y)
-
-    def parallel_concat(
-        X_arr: list[np.ndarray], y_arr: list[np.ndarray]
-    ) -> tuple[np.ndarray, np.ndarray]:
-        with ThreadPoolExecutor(max_workers=n_threads) as executor_1:
-            while True:
-                X_arr_1 = []
-                y_arr_1 = []
-                X_futures = []
-
-                for i in range(0, len(X_arr), 2):
-                    if i + 1 < len(X_arr):
-                        X_fut = executor_1.submit(concat, X_arr[i : i + 2])
-                        y_fut = executor_1.submit(concat, y_arr[i : i + 2])
-                    else:
-                        X_fut = executor_1.submit(lambda x: x, X_arr[i])
-                        y_fut = executor_1.submit(lambda x: x, y_arr[i])
-                    X_futures.append((X_fut, y_fut))
-
-                for X_fut, y_fut in X_futures:
-                    X_arr_1.append(X_fut.result())
-                    y_arr_1.append(y_fut.result())
-
-                X_arr = X_arr_1
-                y_arr = y_arr_1
-
-                if len(X_arr) == 1 and len(y_arr) == 1:
-                    break
-        assert len(X_arr) == 1 and len(y_arr) == 1
-        return X_arr[0], y_arr[0]
-
-    X, y = parallel_concat(X_arr, y_arr)
-    if device == "cuda":
-        import cupy as cp
-
-        return cp.array(X), cp.array(y)
+    X, y = make_reg_c(
+        is_cuda=device == "cuda",
+        n_samples_per_batch=n_samples,
+        n_features=n_features,
+        seed=random_state,
+        sparsity=sparsity,
+    )
     psize(X)
     return X, y
 

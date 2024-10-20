@@ -33,15 +33,13 @@ def test_sparse_regressioin() -> None:
     assert 13000 < X.nnz < 13100
 
 
-@pytest.mark.parametrize("force_py", [True, False])
-def test_dense_regression(force_py: bool) -> None:
+def test_dense_regression() -> None:
     X, y = make_dense_regression(
         n_samples=3,
         n_features=2,
         sparsity=0.6,
         device="cpu",
         random_state=1,
-        _force_py=force_py,
     )
     assert isinstance(X, np.ndarray)
     assert isinstance(y, np.ndarray)
@@ -54,7 +52,6 @@ def test_dense_regression(force_py: bool) -> None:
         sparsity=0.6,
         device="cpu",
         random_state=1,
-        _force_py=force_py,
     )
     assert X.shape[0] == 2047 and X.shape[1] == 16
     assert y.shape[0] == X.shape[0]
