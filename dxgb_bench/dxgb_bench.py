@@ -99,7 +99,7 @@ def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> 
 
     with Timer("Qdm", "train"):
         booster = xgb.train(
-            {"tree_method": "hist", "device": device},
+            {"tree_method": "hist", "device": device, "max_depth": 6},
             Xy,
             num_boost_round=n_rounds,
             evals=watches,
