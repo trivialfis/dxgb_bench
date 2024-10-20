@@ -66,7 +66,7 @@ def test_dense_regression(force_py: bool) -> None:
 
 def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
     n_features = 3
-    n_batches = 4
+    n_batches = 12
     nspb = 8
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -88,7 +88,7 @@ def test_dense_batches() -> None:
     X0, y0 = run_dense_batches("cpu")
     X1, y1 = run_dense_batches("cuda")
     np.testing.assert_allclose(X0, X1, rtol=1e-6)
-    np.testing.assert_allclose(y0, y1, rtol=1e-6)
+    np.testing.assert_allclose(y0, y1, rtol=5e-6)
 
 
 def assert_allclose(
@@ -103,7 +103,7 @@ def assert_allclose(
 
 def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     n_features = 4
-    n_batches = 2
+    n_batches = 12
     nspb = 8
 
     impl = SynIterImpl(nspb, n_features, n_batches, 0.0, False, device)

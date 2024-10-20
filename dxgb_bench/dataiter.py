@@ -56,8 +56,12 @@ def get_file_paths(loadfrom: str) -> tuple[list[str], list[str]]:
                 X_files.append(path)
             else:
                 y_files.append(path)
-    X_files = sorted(X_files)
-    y_files = sorted(y_files)
+    def key(name: str) -> int:
+        i = name.split("-")[1].split(".")[0]
+        return int(i)
+
+    X_files = sorted(X_files, key=key)
+    y_files = sorted(y_files, key=key)
     return X_files, y_files
 
 
