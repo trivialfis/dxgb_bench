@@ -264,7 +264,7 @@ class Generated(DataSet):
             return
 
         X, y = make_sparse_regression(
-            args.n_samples, args.n_features, sparsity=args.sparsity
+            args.n_samples, args.n_features, sparsity=args.sparsity, random_state=0
         )
 
         with open(self.X_path, "wb") as fd:
