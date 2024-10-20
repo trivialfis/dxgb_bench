@@ -138,7 +138,7 @@ class SynIterImpl(IterImpl):
                 n_samples=self.n_samples_per_batch,
                 n_features=self.n_features,
                 sparsity=self.sparsity,
-                random_state=self.n_samples_per_batch * (i + 1)
+                random_state=self.n_samples_per_batch * (i + 1),
             )
         else:
             X, y = make_dense_regression(

@@ -18,6 +18,7 @@ from .dataset import DataSet
 def make_reg_c(
     is_cuda: bool, n_samples_per_batch: int, n_features: int, seed: int, sparsity: float
 ) -> Tuple[np.ndarray, np.ndarray]:
+    """Use the C++/CUDA implementation of dense data gen."""
     path = os.path.join(
         os.path.normpath(os.path.abspath(os.path.dirname(__file__))),
         os.pardir,
@@ -147,7 +148,7 @@ def make_dense_regression(
             is_cuda=device == "cuda",
             n_samples_per_batch=n_samples,
             n_features=n_features,
-            seed=random_state * n_samples,
+            seed=random_state * n_samples * (n_features + 1),
             sparsity=sparsity,
         )
         psize(X)

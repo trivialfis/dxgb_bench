@@ -52,7 +52,7 @@ def datagen(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
                     sparsity=sparsity,
-                    random_state=n_samples_per_batch * (i + 1)
+                    random_state=n_samples_per_batch * (i + 1),
                 )
                 sparse.save_npz(os.path.join(out, f"X-{i}.npz"), X)
                 np.save(os.path.join(out, f"y-{i}.npy"), y)
