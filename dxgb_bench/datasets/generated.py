@@ -60,9 +60,9 @@ def make_reg_c(
 
 
 def make_sparse_regression(
-    n_samples: int, n_features: int, *, sparsity: float
+    n_samples: int, n_features: int, *, sparsity: float, random_state: int
 ) -> Tuple[sparse.csr_matrix, np.ndarray]:
-    """Make dense synthetic data for regression. Result is stored in CSR even if the
+    """Make sparse synthetic data for regression. Result is stored in CSR even if the
     data is dense.
 
     """
@@ -72,8 +72,8 @@ def make_sparse_regression(
     n_threads = min(n_threads_maybe_none, n_samples)
     n_samples_per_batch = div_roundup(n_samples, n_threads)
 
-    def random_csr(t_id: int) -> sparse.csr_matrix:
-        rng = np.random.default_rng(1994 * t_id)
+    def random_csr(t_id: int, seed: int) -> sparse.csr_matrix:
+        rng = np.random.default_rng(seed)
         if t_id == n_threads - 1:
             nspb = n_samples - (n_samples_per_batch * (n_threads - 1))
         else:
@@ -92,7 +92,8 @@ def make_sparse_regression(
     futures = []
     with ThreadPoolExecutor(max_workers=n_threads) as executor:
         for i in range(n_threads):
-            futures.append(executor.submit(random_csr, i))
+            seed = random_state + n_samples_per_batch * (i + 1)
+            futures.append(executor.submit(random_csr, i, seed))
 
         X_results = []
         y_results = []

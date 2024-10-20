@@ -13,7 +13,7 @@ from typing_extensions import override
 from xgboost.compat import concat
 
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer
+from .utils import Timer, fprint
 
 
 class IterImpl:
@@ -73,6 +73,8 @@ def load_batches(
             X, y = load_Xy(X_files[i], y_files[i], device)
             Xs.append(X)
             ys.append(y)
+    assert len(Xs) == len(ys)
+    fprint(f"Total {len(Xs)} batches.")
     return Xs, ys
 
 
@@ -136,6 +138,7 @@ class SynIterImpl(IterImpl):
                 n_samples=self.n_samples_per_batch,
                 n_features=self.n_features,
                 sparsity=self.sparsity,
+                random_state=self.n_samples_per_batch * (i + 1)
             )
         else:
             X, y = make_dense_regression(
