@@ -64,11 +64,10 @@ def test_dense_regression(force_py: bool) -> None:
     assert nnz == 2047
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_dense_batches(device: str) -> None:
+def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
     n_features = 3
-    n_batches = 7
-    nspb = 64
+    n_batches = 4
+    nspb = 8
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
@@ -82,10 +81,27 @@ def test_dense_batches(device: str) -> None:
 
     np.testing.assert_allclose(X0, X1)
     np.testing.assert_allclose(y0, y1)
+    return X0, y0
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
-def test_dense_iter(device: str) -> None:
+def test_dense_batches() -> None:
+    X0, y0 = run_dense_batches("cpu")
+    X1, y1 = run_dense_batches("cuda")
+    np.testing.assert_allclose(X0, X1, rtol=1e-6)
+    np.testing.assert_allclose(y0, y1, rtol=1e-6)
+
+
+def assert_allclose(
+    a: np.ndarray | cp.ndarray, b: np.ndarray | cp.ndarray, rtol: float = 1e-7
+) -> None:
+    if hasattr(a, "get"):
+        a = a.get()
+    if hasattr(b, "get"):
+        b = b.get()
+    np.testing.assert_allclose(a, b, rtol=rtol)
+
+
+def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     n_features = 4
     n_batches = 2
     nspb = 8
@@ -117,13 +133,6 @@ def test_dense_iter(device: str) -> None:
         datagen(nspb, n_features, n_batches, False, 0.0, device, path)
         X3, y3 = load_all(path, "cpu")
 
-    def assert_allclose(a: np.ndarray | cp.ndarray, b: np.ndarray | cp.ndarray) -> None:
-        if hasattr(a, "get"):
-            a = a.get()
-        if hasattr(b, "get"):
-            b = b.get()
-        np.testing.assert_allclose(a, b)
-
     assert_allclose(X0, X1)
     assert_allclose(X0, X2)
     assert_allclose(X0, X3)
@@ -131,3 +140,12 @@ def test_dense_iter(device: str) -> None:
     assert_allclose(y0, y1)
     assert_allclose(y0, y2)
     assert_allclose(y0, y3)
+
+    return X0, y0
+
+
+def test_dense_iter() -> None:
+    X0, y0 = run_dense_iter("cpu")
+    X1, y1 = run_dense_iter("cuda")
+    assert_allclose(X0, X1, rtol=5e-6)
+    assert_allclose(y0, y1, rtol=5e-6)

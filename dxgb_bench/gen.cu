@@ -2,14 +2,16 @@
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/random.h>
+#include <thrust/system/omp/execution_policy.h>  // for par
 
 #include <limits>
 
 namespace cuda_impl {
-int MakeDenseRegression(int64_t m, int64_t n, double sparsity, int64_t seed, float *out, float *y) {
-  thrust::for_each_n(thrust::cuda::par_nosync, thrust::make_counting_iterator(0ul), m * n,
+template <typename Exec>
+void Impl(Exec exec, int64_t m, int64_t n, double sparsity, int64_t seed, float *out, float *y) {
+  thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m * n,
                      [=] __host__ __device__(std::size_t i) {
-                       thrust::default_random_engine rng, rng1;
+                       thrust::minstd_rand rng, rng1;
                        rng.seed(0);
                        rng.discard(i + seed);
                        rng1.seed(0);
@@ -22,9 +24,9 @@ int MakeDenseRegression(int64_t m, int64_t n, double sparsity, int64_t seed, flo
                        }
                        out[i] = dist(rng);
                      });
-  thrust::for_each_n(thrust::cuda::par, thrust::make_counting_iterator(0ul), m,
+  thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m,
                      [=] __host__ __device__(std::size_t i) {
-                       thrust::default_random_engine rng;
+                       thrust::minstd_rand rng;
                        rng.seed(0);
                        rng.discard(seed / n + i);
                        thrust::normal_distribution<float> dist{0.0f, 1.5f};
@@ -36,6 +38,15 @@ int MakeDenseRegression(int64_t m, int64_t n, double sparsity, int64_t seed, flo
                          }
                        }
                      });
+}
+
+int MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity, int64_t seed,
+                        float *out, float *y) {
+  if (is_cuda) {
+    Impl(thrust::cuda::par_nosync, m, n, sparsity, seed, out, y);
+  } else {
+    Impl(thrust::omp::par, m, n, sparsity, seed, out, y);
+  }
   return 0;
 }
 }  // namespace cuda_impl
