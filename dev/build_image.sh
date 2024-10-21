@@ -13,6 +13,6 @@ case $rt in
 	;;
 esac
 
-docker build . -t dxgb-$rt
+docker build . -t dxgb-bench-$rt
 
 rm Dockerfile
