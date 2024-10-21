@@ -33,7 +33,8 @@ def setup_rmm() -> None:
         mr = rmm.mr.get_current_device_resource()
     else:
         mr = rmm.mr.CudaAsyncMemoryResource()
-        mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
+        # mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
+        mr = rmm.mr.PoolMemoryResource(mr)
         mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
         rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
