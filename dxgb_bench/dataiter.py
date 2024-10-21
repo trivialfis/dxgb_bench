@@ -32,13 +32,14 @@ def load_Xy(
         X = sparse.load_npz(Xp)
         y = np.load(yp)
     else:
-        X = np.lib.format.open_memmap(filename=Xp, mode="r")
-        y = np.lib.format.open_memmap(filename=yp, mode="r")
         if device == "cuda":
             import cupy as cp
 
-            X = cp.asarray(X)
-            y = cp.asanyarray(y)
+            X = cp.load(X)
+            y = cp.load(y)
+        else:
+            X = np.load(file=Xp)
+            y = np.load(file=yp)
 
     return X, y
 
