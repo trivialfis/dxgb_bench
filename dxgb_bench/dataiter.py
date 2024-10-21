@@ -35,8 +35,8 @@ def load_Xy(
         if device == "cuda":
             import cupy as cp
 
-            X = cp.load(X)
-            y = cp.load(y)
+            X = cp.load(Xp)
+            y = cp.load(yp)
         else:
             X = np.load(file=Xp)
             y = np.load(file=yp)
