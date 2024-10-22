@@ -10,8 +10,6 @@ dependencies:
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
-- libcurand-dev
-- libcublas-dev
 - cuda-python
 - cuda-nvtx-dev
 - cuda-version=12.5
