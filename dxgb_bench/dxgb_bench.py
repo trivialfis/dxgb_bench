@@ -15,7 +15,6 @@ from .dataiter import (
     LoadIterImpl,
     get_file_paths,
     load_all,
-    load_batches,
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
@@ -85,14 +84,18 @@ def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> 
         assert task == "qdm-iter"
         X_files, y_files = get_file_paths(loadfrom)
         paths = list(zip(X_files, y_files))
-        it_impl = LoadIterImpl(paths, device=device)
-        it_train = BenchIter(it_impl, split=valid, is_ext=False, is_eval=False)
+        it_impl = LoadIterImpl(paths)
+        it_train = BenchIter(
+            it_impl, split=valid, is_ext=False, is_eval=False, device=device
+        )
         with Timer("Qdm", "Train"):
             Xy = QuantileDMatrix(it_train)
             watches = [(Xy, "Train")]
 
         if valid:
-            it_valid = BenchIter(it_impl, split=valid, is_ext=False, is_eval=True)
+            it_valid = BenchIter(
+                it_impl, split=valid, is_ext=False, is_eval=True, device=device
+            )
             with Timer("Qdm", "valid"):
                 Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
                 watches.append((Xy_valid, "Valid"))

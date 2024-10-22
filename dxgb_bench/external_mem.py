@@ -53,15 +53,31 @@ class Opts:
 
 def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
     if not opts.on_the_fly:
+        # Load files
         X_files, y_files = get_file_paths(loadfrom)
         files: list[tuple[str, str]] = list(zip(X_files, y_files))
-        it_impl: IterImpl = LoadIterImpl(files, device=opts.device)
-        assert opts.validation is False, "Not implemented."
-        return (
-            BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False),
-            None,
+        it_impl: IterImpl = LoadIterImpl(files)
+        train_it = BenchIter(
+            it_impl,
+            split=opts.validation,
+            is_ext=True,
+            is_eval=False,
+            device=opts.device,
         )
+        if opts.validation:
+            it_impl = LoadIterImpl(files)
+            valid_it = BenchIter(
+                it_impl,
+                split=opts.validation,
+                is_ext=True,
+                is_eval=True,
+                device=opts.device,
+            )
+        else:
+            valid_it = None
+        return train_it, valid_it
 
+    # Generate data on the fly.
     if not opts.validation:
         it_impl = SynIterImpl(
             n_samples_per_batch=opts.n_samples_per_batch,
@@ -71,9 +87,18 @@ def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
             assparse=False,
             device=opts.device,
         )
-        it_train = BenchIter(it_impl, split=opts.validation, is_ext=True, is_eval=False)
+        it_train = BenchIter(
+            it_impl,
+            split=opts.validation,
+            is_ext=True,
+            is_eval=False,
+            device=opts.device,
+        )
         return it_train, None
 
+    # Synthesize only the needed data for benchmarking purposes. We assume in the real
+    # world users have prepared the data in ETL through specialized frameworks instead
+    # of injecting complex logic in the iterator.
     n_train_samples = int(opts.n_samples_per_batch * (1.0 - TEST_SIZE))
     n_valid_samples = opts.n_samples_per_batch - n_train_samples
     it_train_impl = SynIterImpl(
@@ -92,8 +117,12 @@ def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
         assparse=False,
         device=opts.device,
     )
-    it_train = BenchIter(it_train_impl, split=False, is_ext=True, is_eval=False)
-    it_valid = BenchIter(it_valid_impl, split=False, is_ext=True, is_eval=True)
+    it_train = BenchIter(
+        it_train_impl, split=False, is_ext=True, is_eval=False, device=opts.device
+    )
+    it_valid = BenchIter(
+        it_valid_impl, split=False, is_ext=True, is_eval=True, device=opts.device
+    )
     return it_train, it_valid
 
 
@@ -185,7 +214,7 @@ def extmem_qdm_inference(
 
     if not on_the_fly:
         X_files, y_files = get_file_paths(loadfrom)
-        it_impl: IterImpl = LoadIterImpl(list(zip(X_files, y_files)), device=device)
+        it_impl: IterImpl = LoadIterImpl(list(zip(X_files, y_files)))
     else:
         it_impl = SynIterImpl(
             n_samples_per_batch=n_samples_per_batch,
@@ -195,7 +224,7 @@ def extmem_qdm_inference(
             assparse=assparse,
             device=device,
         )
-    it = BenchIter(it_impl, split=False, is_ext=True, is_eval=False)
+    it = BenchIter(it_impl, split=False, is_ext=True, is_eval=False, device=device)
     with Timer("inference", "Qdm"):
         Xy = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins)
 

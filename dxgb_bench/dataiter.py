@@ -4,7 +4,7 @@ from __future__ import annotations
 import gc
 import os
 from abc import abstractmethod, abstractproperty
-from typing import Callable, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
 import numpy as np
 import xgboost as xgb
@@ -14,6 +14,11 @@ from xgboost.compat import concat
 
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer, fprint
+
+if TYPE_CHECKING:
+    from cupy import ndarray as cpnd
+else:
+    cpnd = Any
 
 
 class IterImpl:
@@ -25,21 +30,14 @@ class IterImpl:
 
 
 def load_Xy(
-    Xp: str, yp: str, device: str
+    Xp: str, yp: str, use_mmap: bool
 ) -> tuple[np.ndarray | sparse.csr_matrix, np.ndarray]:
     if Xp.endswith("npz"):
-        assert device == "cpu", "not implemented"
         X = sparse.load_npz(Xp)
         y = np.load(yp)
     else:
-        if device == "cuda":
-            import cupy as cp
-
-            X = cp.load(Xp)
-            y = cp.load(yp)
-        else:
-            X = np.load(file=Xp)
-            y = np.load(file=yp)
+        X = np.load(file=Xp, mmap_mode="r" if use_mmap else None)
+        y = np.load(file=yp, mmap_mode="r" if use_mmap else None)
 
     return X, y
 
@@ -78,7 +76,13 @@ def load_batches(
 
         Xs, ys = [], []
         for i in range(len(X_files)):
-            X, y = load_Xy(X_files[i], y_files[i], device)
+            # Don't use mmap since we need all the data loaded anyway.
+            X, y = load_Xy(X_files[i], y_files[i], False)
+            if device == "cuda":
+                import cupy as cp
+
+                X = cp.array(X)
+                y = cp.array(y)
             Xs.append(X)
             ys.append(y)
     assert len(Xs) == len(ys)
@@ -98,15 +102,15 @@ def load_all(loadfrom: str, device: str) -> XyPair:
 class LoadIterImpl(IterImpl):
     """Iterator for loading files."""
 
-    def __init__(self, files: list[tuple[str, str]], device: str) -> None:
+    def __init__(self, files: list[tuple[str, str]]) -> None:
         assert files
         self.files = files
-        self.device = device
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
         X_path, y_path = self.files[i]
-        X, y = load_Xy(X_path, y_path, self.device)
+        # Use mmap since we might only need a portion of data thanks to validation.
+        X, y = load_Xy(X_path, y_path, True)
         assert X.shape[0] == y.shape[0]
         return X, y
 
@@ -166,6 +170,9 @@ class SynIterImpl(IterImpl):
         return X, y
 
 
+TEST_SIZE = 0.2
+
+
 def train_test_split(
     X: np.ndarray, y: np.ndarray, test_size: float, random_state: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
@@ -183,17 +190,53 @@ def train_test_split(
     return X_train, X_test, y_train, y_test
 
 
-TEST_SIZE = 0.2
+def get_train(
+    X: np.ndarray, y: np.ndarray, test_size: float
+) -> tuple[np.ndarray, np.ndarray]:
+    # Only used for profiling, not suitable for real world validation.
+    n_samples = X.shape[0]
+    n_test = int(n_samples * test_size)
+    n_train = n_samples - n_test
+
+    X_train = X[:n_train, ...]
+
+    y_train = y[:n_train]
+    return X_train, y_train
+
+
+# With the help of mmap, we can read only a portion of data
+def get_valid(
+    X: np.ndarray, y: np.ndarray, test_size: float
+) -> tuple[np.ndarray, np.ndarray]:
+    # Only used for profiling, not suitable for real world validation.
+    n_samples = X.shape[0]
+    n_test = int(n_samples * test_size)
+    n_train = n_samples - n_test
+    X_test = X[n_train:, ...]
+    y_test = y[n_train:]
+    return X_test, y_test
+
+
+def to_cupy(array: cpnd | np.ndarray) -> cpnd:
+    import cupy as cp
+
+    if not isinstance(array, cp.ndarray):
+        return cp.array(array)
+
+    return array
 
 
 class BenchIter(xgb.DataIter):
     """A custom iterator for profiling."""
 
-    def __init__(self, it: IterImpl, split: bool, is_ext: bool, is_eval: bool) -> None:
+    def __init__(
+        self, it: IterImpl, split: bool, is_ext: bool, is_eval: bool, device: str
+    ) -> None:
         self._it = 0
         self._impl = it
         self._split = split
         self._is_eval = is_eval
+        self._device = device
 
         if is_ext:
             super().__init__(cache_prefix="cache", on_host=True)
@@ -209,14 +252,21 @@ class BenchIter(xgb.DataIter):
         X, y = self._impl.get(self._it)
 
         if self._split:
-            X_train, X_valid, y_train, y_valid = train_test_split(
-                X, y, test_size=TEST_SIZE, random_state=42
-            )
             if self._is_eval:
+                with Timer("BenchIter", "GetValid"):
+                    X_valid, y_valid = get_valid(X, y, test_size=TEST_SIZE)
+                    if self._device == "cuda":
+                        X_valid, y_valid = to_cupy(X_valid), to_cupy(y_valid)
                 input_data(data=X_valid, label=y_valid)
             else:
+                with Timer("BenchIter", "GetTrain"):
+                    X_train, y_train = get_train(X, y, test_size=TEST_SIZE)
+                    if self._device == "cuda":
+                        X_train, y_train = to_cupy(X_train), to_cupy(y_train)
                 input_data(data=X_train, label=y_train)
         else:
+            if self._device == "cuda":
+                X, y = to_cupy(X), to_cupy(y)
             input_data(data=X, label=y)
 
         self._it += 1
