@@ -70,13 +70,13 @@ def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> 
             X_train, X_test, y_train, y_test = train_test_split(
                 X, y, test_size=TEST_SIZE, random_state=2024
             )
-            with Timer("Qdm", "Train"):
+            with Timer("Qdm", "Train-DMatrix"):
                 Xy = QuantileDMatrix(X_train, y_train)
-            with Timer("Qdm", "Valid"):
+            with Timer("Qdm", "Valid-DMatrix"):
                 Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
             watches = [(Xy, "Train"), (Xy_valid, "Valid")]
         else:
-            with Timer("Qdm", "Train"):
+            with Timer("Qdm", "Train-DMatrix"):
                 Xy = QuantileDMatrix(X, y)
                 Xy_valid = None
             watches = [(Xy, "Train")]
@@ -88,7 +88,7 @@ def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> 
         it_train = BenchIter(
             it_impl, split=valid, is_ext=False, is_eval=False, device=device
         )
-        with Timer("Qdm", "Train"):
+        with Timer("Qdm", "Train-DMatrix"):
             Xy = QuantileDMatrix(it_train)
             watches = [(Xy, "Train")]
 
@@ -96,7 +96,7 @@ def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> 
             it_valid = BenchIter(
                 it_impl, split=valid, is_ext=False, is_eval=True, device=device
             )
-            with Timer("Qdm", "valid"):
+            with Timer("Qdm", "Valid-DMatrix"):
                 Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
                 watches.append((Xy_valid, "Valid"))
 
