@@ -1,17 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import gc
-import os
 from dataclasses import dataclass
-from typing import Callable, List, Protocol, Tuple
 
 import cupy as cp
-import numpy as np
 import rmm
 import xgboost as xgb
 from rmm.allocators.cupy import rmm_cupy_allocator
-from xgboost.callback import TrainingCheckPoint
 
 from .dataiter import (
     TEST_SIZE,
@@ -21,8 +16,7 @@ from .dataiter import (
     SynIterImpl,
     get_file_paths,
 )
-from .datasets.generated import make_dense_regression
-from .utils import Progress, Timer
+from .utils import Timer
 
 
 def setup_rmm() -> None:
