@@ -26,9 +26,13 @@ def setup_rmm() -> None:
         rmm.reinitialize(pool_allocator=True, initial_pool_size=0)
         mr = rmm.mr.get_current_device_resource()
     else:
-        mr = rmm.mr.CudaAsyncMemoryResource()
-        # mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
-        mr = rmm.mr.PoolMemoryResource(mr)
+        mr = rmm.mr.CudaAsyncMemoryResource(
+            initial_pool_size=int(96 * 0.8 * 1024**3),
+            release_threshold=int(96 * 0.95 * 1024**3),
+            enable_ipc=False,
+        )
+        mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
+        # mr = rmm.mr.PoolMemoryResource(mr)
         mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
         rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
@@ -167,7 +171,9 @@ def extmem_qdm_train(
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
-        Xy_train = xgb.ExtMemQuantileDMatrix(it_train, max_bin=n_bins)
+        Xy_train = xgb.ExtMemQuantileDMatrix(
+            it_train, max_bin=n_bins, max_quantile_batches=32
+        )
 
     watches = [(Xy_train, "Train")]
 
