@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/opt/mambaforge/pkgs mamba env update -n base -f w
 RUN \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
     cd xgboost && \
-    git checkout 1b06da165f06003875bf2999f379299f4145bcca && \
+    git checkout c06994b2fbad93ff7377549b4ae9d27e16b45188 && \
     cd -
 
 COPY dxgb_bench ws/dxgb_bench
