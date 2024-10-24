@@ -94,6 +94,9 @@ def load_all(loadfrom: str, device: str) -> XyPair:
     """Load all batches and concatenate them into a single blob.."""
     Xs, ys = load_batches(loadfrom, device)
     with Timer("load-all", "concat"):
+        if len(Xs) == 1:
+            return Xs[0], ys[0]
+
         X = concat(Xs)
         y = concat(ys)
     return X, y
