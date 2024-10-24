@@ -111,6 +111,7 @@ def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
         assparse=False,
         device=opts.device,
     )
+    # Specify split as False as we have already created different iterators
     it_train = BenchIter(
         it_train_impl, split=False, is_ext=True, is_eval=False, device=opts.device
     )

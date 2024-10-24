@@ -139,8 +139,12 @@ class Timer:
             nvtx.end_range(self.range_id)
         end = time.time()
         if self.name not in global_timer.keys():
-            global_timer[self.name] = {}
-        global_timer[self.name][self.proc_name] = end - self.start
+            s = time.time()
+            global_timer[self.name] = {self.proc_name: s - s}
+        if self.proc_name not in global_timer[self.name]:
+            s = time.time()
+            global_timer[self.name][self.proc_name] = s - s
+        global_timer[self.name][self.proc_name] += end - self.start
         fprint(self.name, self.proc_name, "ended in: ", end - self.start, "seconds.")
 
     @staticmethod

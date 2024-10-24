@@ -180,17 +180,18 @@ def train_test_split(
     X: np.ndarray, y: np.ndarray, test_size: float, random_state: int
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     # Only used for profiling, not suitable for real world validation.
-    n_samples = X.shape[0]
-    n_test = int(n_samples * test_size)
-    n_train = n_samples - n_test
+    with Timer("train_test_split", "train_test_split"):
+        n_samples = X.shape[0]
+        n_test = int(n_samples * test_size)
+        n_train = n_samples - n_test
 
-    X_train = X[:n_train, ...]
-    X_test = X[n_train:, ...]
+        X_train = X[:n_train, ...]
+        X_test = X[n_train:, ...]
 
-    y_train = y[:n_train]
-    y_test = y[n_train:]
+        y_train = y[:n_train]
+        y_test = y[n_train:]
 
-    return X_train, X_test, y_train, y_test
+        return X_train, X_test, y_train, y_test
 
 
 def get_train(
