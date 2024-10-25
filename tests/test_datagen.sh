@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
 
-dxgb-bench datagen --n_samples_per_batch=512 --n_batches=8 --n_features=256 --saveto=./_testing_data
+DATADIRS="./_tdata0,./_tdata1"
 
-dxgb-bench bench --device=cpu --task=qdm --valid --loadfrom=./_testing_data
-dxgb-bench bench --device=cuda --task=qdm --valid --loadfrom=./_testing_data
+dxgb-bench datagen --n_samples_per_batch=512 --n_batches=8 --n_features=256 --saveto=${DATADIRS}
 
-dxgb-ext-bench --task=ext-qdm --device=cpu --valid --loadfrom=./_testing_data
-dxgb-ext-bench --task=ext-qdm --device=cpu --valid --loadfrom=./_testing_data
+dxgb-bench bench --device=cpu --task=qdm --valid --loadfrom=${DATADIRS}
+dxgb-bench bench --device=cuda --task=qdm --valid --loadfrom=${DATADIRS}
 
-rm -rf ./_testing_data
+dxgb-ext-bench --task=ext-qdm --device=cpu --valid --loadfrom=${DATADIRS}
+dxgb-ext-bench --task=ext-qdm --device=cpu --valid --loadfrom=${DATADIRS}
+
+rm -rf ./_tdata0
+rm -rf ./_tdata1

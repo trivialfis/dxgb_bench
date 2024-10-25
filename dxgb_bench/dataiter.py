@@ -3,9 +3,11 @@ from __future__ import annotations
 
 import gc
 import os
+import re
 from abc import abstractmethod, abstractproperty
 from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
 
+import kvikio
 import numpy as np
 import xgboost as xgb
 from scipy import sparse
@@ -29,15 +31,28 @@ class IterImpl:
     def n_batches(self) -> int: ...
 
 
+def get_pinfo(Xp: str) -> tuple[str, int, int, int]:
+    name = os.path.basename(Xp)
+    mat = re.search(fname_pattern, name)
+    assert mat is not None
+    x, rows_str, cols_str, batch_str = mat.groups()
+    n_samples, n_features, batch_idx = int(rows_str), int(cols_str), int(batch_str)
+    return x, n_samples, n_features, batch_idx
+
+
 def load_Xy(
-    Xp: str, yp: str, use_mmap: bool
+    Xp: str, yp: str, device: str
 ) -> tuple[np.ndarray | sparse.csr_matrix, np.ndarray]:
     if Xp.endswith("npz"):
         X = sparse.load_npz(Xp)
         y = np.load(yp)
     else:
-        X = np.load(file=Xp, mmap_mode="r" if use_mmap else None)
-        y = np.load(file=yp, mmap_mode="r" if use_mmap else None)
+        _, n_samples, n_features, batch_idx = get_pinfo(Xp)
+        X, y = _alloc(n_samples, n_features, device)
+        with kvikio.CuFile(Xp, "r") as fd:
+            fd.read(X)
+        with kvikio.CuFile(yp, "r") as f:
+            f.read(y)
 
     return X, y
 
@@ -52,12 +67,16 @@ def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
     for root, subdirs, files in os.walk(dirname):
         for f in files:
             path = os.path.join(root, f)
-            if f.startswith("X-"):
+            if f.startswith("X"):
                 X_files.append(path)
             else:
                 y_files.append(path)
 
+    assert len(X_files) == len(y_files)
     return X_files, y_files
+
+
+fname_pattern = "(\w)_(\d+)_(\d+)-(\d+).npa"
 
 
 def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
@@ -70,7 +89,9 @@ def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
 
     def key(name: str) -> int:
         name = os.path.basename(name)
-        i = name.split("-")[1].split(".")[0]
+        mat = re.search(fname_pattern, name)
+        assert mat is not None, name
+        i = mat.group(4)
         return int(i)
 
     X_files = sorted(X_files, key=key)
@@ -92,7 +113,7 @@ def load_batches(
         Xs, ys = [], []
         for i in range(len(X_files)):
             # Don't use mmap since we need all the data loaded anyway.
-            X, y = load_Xy(X_files[i], y_files[i], False)
+            X, y = load_Xy(X_files[i], y_files[i], device)
             if device == "cuda":
                 import cupy as cp
 
@@ -117,19 +138,64 @@ def load_all(loadfrom: list[str], device: str) -> XyPair:
     return X, y
 
 
+def _alloc(
+    n_samples: int, n_features: int, device: str
+) -> tuple[np.ndarray, np.ndarray]:
+    if device == "cpu":
+        X = np.empty(shape=(n_samples, n_features), dtype=np.float32)
+        y = np.empty(shape=n_samples, dtype=np.float32)
+    else:
+        import cupy as cp
+
+        X = cp.empty(shape=(n_samples, n_features), dtype=np.float32)
+        y = cp.empty(shape=n_samples, dtype=np.float32)
+    return X, y
+
+
 class LoadIterImpl(IterImpl):
     """Iterator for loading files."""
 
-    def __init__(self, files: list[tuple[str, str]]) -> None:
+    def __init__(
+        self, files: list[tuple[str, str]], split: bool, is_valid: bool, device: str
+    ) -> None:
         assert files
         self.files = files
+        self.split = split
+        self.is_valid = is_valid
+        self.device = device
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
         X_path, y_path = self.files[i]
-        print(f"X_{i}: {X_path}")
-        X, y = load_Xy(X_path, y_path, True)
-        assert X.shape[0] == y.shape[0]
+        name = os.path.basename(X_path)
+        mat = re.search(fname_pattern, name)
+        assert mat is not None
+        _, rows_str, cols_str, batch_str = mat.groups()
+        n_samples, n_features, batch_idx = int(rows_str), int(cols_str), int(batch_str)
+        assert batch_idx == i
+
+        if self.split:
+            n_valid = int(n_samples * TEST_SIZE)
+            n_train = n_samples - n_valid
+            if self.is_valid:
+                X, y = _alloc(n_valid, n_features, self.device)
+
+                offset_bytes = n_train * n_features * X.itemsize
+                with kvikio.CuFile(X_path, "r") as f:
+                    f.read(X, file_offset=offset_bytes)
+
+                offset_bytes = n_train * y.itemsize
+                with kvikio.CuFile(y_path, "r") as f:
+                    f.read(y, file_offset=offset_bytes)
+            else:
+                X, y = _alloc(n_train, n_features, self.device)
+                with kvikio.CuFile(X_path, "r") as f:
+                    f.read(X)
+                with kvikio.CuFile(y_path, "r") as f:
+                    f.read(y)
+        else:
+            X, y = load_Xy(X_path, y_path, self.device)
+
         return X, y
 
     @property
@@ -209,52 +275,13 @@ def train_test_split(
         return X_train, X_test, y_train, y_test
 
 
-def get_train(
-    X: np.ndarray, y: np.ndarray, test_size: float
-) -> tuple[np.ndarray, np.ndarray]:
-    # Only used for profiling, not suitable for real world validation.
-    n_samples = X.shape[0]
-    n_test = int(n_samples * test_size)
-    n_train = n_samples - n_test
-
-    X_train = X[:n_train, ...]
-
-    y_train = y[:n_train]
-    return X_train, y_train
-
-
-# With the help of mmap, we can read only a portion of data
-def get_valid(
-    X: np.ndarray, y: np.ndarray, test_size: float
-) -> tuple[np.ndarray, np.ndarray]:
-    # Only used for profiling, not suitable for real world validation.
-    n_samples = X.shape[0]
-    n_test = int(n_samples * test_size)
-    n_train = n_samples - n_test
-    X_test = X[n_train:, ...]
-    y_test = y[n_train:]
-    return X_test, y_test
-
-
-def to_cupy(array: cpnd | np.ndarray) -> cpnd:
-    import cupy as cp
-
-    if not isinstance(array, cp.ndarray):
-        return cp.array(array)
-
-    return array
-
-
 class BenchIter(xgb.DataIter):
     """A custom iterator for profiling."""
 
-    def __init__(
-        self, it: IterImpl, split: bool, is_ext: bool, is_eval: bool, device: str
-    ) -> None:
+    def __init__(self, it: IterImpl, is_ext: bool, is_valid: bool, device: str) -> None:
         self._it = 0
         self._impl = it
-        self._split = split
-        self._is_eval = is_eval
+        self._is_eval = is_valid
         self._device = device
 
         if is_ext:
@@ -268,25 +295,9 @@ class BenchIter(xgb.DataIter):
 
         print("Next:", self._it, flush=True)
         gc.collect()
-        X, y = self._impl.get(self._it)
-
-        if self._split:
-            if self._is_eval:
-                with Timer("BenchIter", "GetValid"):
-                    X_valid, y_valid = get_valid(X, y, test_size=TEST_SIZE)
-                    if self._device == "cuda":
-                        X_valid, y_valid = to_cupy(X_valid), to_cupy(y_valid)
-                input_data(data=X_valid, label=y_valid)
-            else:
-                with Timer("BenchIter", "GetTrain"):
-                    X_train, y_train = get_train(X, y, test_size=TEST_SIZE)
-                    if self._device == "cuda":
-                        X_train, y_train = to_cupy(X_train), to_cupy(y_train)
-                input_data(data=X_train, label=y_train)
-        else:
-            if self._device == "cuda":
-                X, y = to_cupy(X), to_cupy(y)
-            input_data(data=X, label=y)
+        with Timer("BenchIter", "GetValid" if self._is_eval else "GetTrain"):
+            X, y = self._impl.get(self._it)
+        input_data(data=X, label=y)
 
         self._it += 1
         return True

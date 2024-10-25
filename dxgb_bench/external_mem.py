@@ -54,24 +54,31 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         # Load files
         X_files, y_files = get_file_paths(loadfrom)
         files: list[tuple[str, str]] = list(zip(X_files, y_files))
-        it_impl: IterImpl = LoadIterImpl(files)
-        train_it = BenchIter(
-            it_impl,
-            split=opts.validation,
-            is_ext=True,
-            is_eval=False,
-            device=opts.device,
-        )
         if opts.validation:
-            it_impl = LoadIterImpl(files)
+            it_impl: IterImpl = LoadIterImpl(
+                files, True, is_valid=False, device=opts.device
+            )
+            train_it = BenchIter(
+                it_impl,
+                is_ext=True,
+                is_valid=False,
+                device=opts.device,
+            )
+            it_impl = LoadIterImpl(files, True, is_valid=True, device=opts.device)
             valid_it = BenchIter(
                 it_impl,
-                split=opts.validation,
                 is_ext=True,
-                is_eval=True,
+                is_valid=True,
                 device=opts.device,
             )
         else:
+            it_impl = LoadIterImpl(files, False, is_valid=False, device=opts.device)
+            train_it = BenchIter(
+                it_impl,
+                is_ext=True,
+                is_valid=False,
+                device=opts.device,
+            )
             valid_it = None
         return train_it, valid_it
 
@@ -87,9 +94,8 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         )
         it_train = BenchIter(
             it_impl,
-            split=opts.validation,
             is_ext=True,
-            is_eval=False,
+            is_valid=False,
             device=opts.device,
         )
         return it_train, None
@@ -115,13 +121,8 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         assparse=False,
         device=opts.device,
     )
-    # Specify split as False as we have already created different iterators
-    it_train = BenchIter(
-        it_train_impl, split=False, is_ext=True, is_eval=False, device=opts.device
-    )
-    it_valid = BenchIter(
-        it_valid_impl, split=False, is_ext=True, is_eval=True, device=opts.device
-    )
+    it_train = BenchIter(it_train_impl, is_ext=True, is_valid=False, device=opts.device)
+    it_valid = BenchIter(it_valid_impl, is_ext=True, is_valid=True, device=opts.device)
     return it_train, it_valid
 
 
@@ -215,7 +216,9 @@ def extmem_qdm_inference(
 
     if not on_the_fly:
         X_files, y_files = get_file_paths(loadfrom)
-        it_impl: IterImpl = LoadIterImpl(list(zip(X_files, y_files)))
+        it_impl: IterImpl = LoadIterImpl(
+            list(zip(X_files, y_files)), split=False, is_valid=False, device=device
+        )
     else:
         it_impl = SynIterImpl(
             n_samples_per_batch=n_samples_per_batch,
@@ -225,7 +228,7 @@ def extmem_qdm_inference(
             assparse=assparse,
             device=device,
         )
-    it = BenchIter(it_impl, split=False, is_ext=True, is_eval=False, device=device)
+    it = BenchIter(it_impl, is_ext=True, is_valid=False, device=device)
     with Timer("inference", "Qdm"):
         Xy = xgb.ExtMemQuantileDMatrix(it, max_bin=n_bins)
 

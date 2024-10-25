@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import os
 
+import kvikio
 import numpy as np
 import xgboost as xgb
 from scipy import sparse
@@ -47,8 +48,12 @@ def datagen(
                     sparsity=sparsity,
                     random_state=size,
                 )
-                np.save(os.path.join(out, f"X-{i}.npy"), X)
-                np.save(os.path.join(out, f"y-{i}.npy"), y)
+                path = os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npa")
+                with kvikio.CuFile(path, "w") as fd:
+                    fd.write(X)
+                path = os.path.join(out, f"y_{y.shape[0]}_1-{i}.npa")
+                with kvikio.CuFile(path, "w") as fd:
+                    fd.write(y)
             else:
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
@@ -56,8 +61,10 @@ def datagen(
                     sparsity=sparsity,
                     random_state=size,
                 )
-                sparse.save_npz(os.path.join(out, f"X-{i}.npz"), X)
-                np.save(os.path.join(out, f"y-{i}.npy"), y)
+                sparse.save_npz(
+                    os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npy"), X
+                )
+                np.save(os.path.join(out, f"y_{y.shape[0]}_1-{i}.npy"), y)
             size += X.size
 
     print(Timer.global_timer())
@@ -89,18 +96,21 @@ def bench(
         assert task == "qdm-iter"
         X_files, y_files = get_file_paths(loadfrom)
         paths = list(zip(X_files, y_files))
-        it_impl = LoadIterImpl(paths)
-        it_train = BenchIter(
-            it_impl, split=valid, is_ext=False, is_eval=False, device=device
-        )
+        if valid:
+            it_impl = LoadIterImpl(paths, split=True, is_valid=False, device=device)
+            it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
+
+            it_impl = LoadIterImpl(paths, split=True, is_valid=True, device=device)
+            it_valid = BenchIter(it_impl, is_ext=False, is_valid=True, device=device)
+        else:
+            it_impl = LoadIterImpl(paths, split=False, is_valid=False, device=device)
+            it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
+            it_valid = None
+
         with Timer("Qdm", "Train-DMatrix"):
             Xy = QuantileDMatrix(it_train)
             watches = [(Xy, "Train")]
-
         if valid:
-            it_valid = BenchIter(
-                it_impl, split=valid, is_ext=False, is_eval=True, device=device
-            )
             with Timer("Qdm", "Valid-DMatrix"):
                 Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
                 watches.append((Xy_valid, "Valid"))
