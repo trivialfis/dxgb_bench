@@ -167,11 +167,7 @@ class LoadIterImpl(IterImpl):
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
         X_path, y_path = self.files[i]
-        name = os.path.basename(X_path)
-        mat = re.search(fname_pattern, name)
-        assert mat is not None
-        _, rows_str, cols_str, batch_str = mat.groups()
-        n_samples, n_features, batch_idx = int(rows_str), int(cols_str), int(batch_str)
+        _, n_samples, n_features, batch_idx = get_pinfo(X_path)
         assert batch_idx == i
 
         if self.split:
