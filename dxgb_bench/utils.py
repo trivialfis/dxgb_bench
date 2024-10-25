@@ -217,3 +217,11 @@ def add_data_params(
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
     return parser
+
+
+def split_path(path: str) -> list[str]:
+    if path.find(",") != -1:
+        path_ls = path.split(",")
+    else:
+        path_ls = [path]
+    return path_ls

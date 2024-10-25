@@ -45,10 +45,11 @@ def load_Xy(
 XyPair: TypeAlias = tuple[np.ndarray | sparse.csr_matrix, np.ndarray]
 
 
-def get_file_paths(loadfrom: str) -> tuple[list[str], list[str]]:
+def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
     X_files: list[str] = []
     y_files: list[str] = []
-    for root, subdirs, files in os.walk(loadfrom):
+    assert os.path.exists(dirname), dirname
+    for root, subdirs, files in os.walk(dirname):
         for f in files:
             path = os.path.join(root, f)
             if f.startswith("X-"):
@@ -56,20 +57,34 @@ def get_file_paths(loadfrom: str) -> tuple[list[str], list[str]]:
             else:
                 y_files.append(path)
 
+    return X_files, y_files
+
+
+def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
+    X_files: list[str] = []
+    y_files: list[str] = []
+    for d in loadfrom:
+        X_fd, y_fd = get_file_paths_local(d)
+        X_files.extend(X_fd)
+        y_files.extend(y_fd)
+
     def key(name: str) -> int:
+        name = os.path.basename(name)
         i = name.split("-")[1].split(".")[0]
         return int(i)
 
     X_files = sorted(X_files, key=key)
     y_files = sorted(y_files, key=key)
+
     return X_files, y_files
 
 
 def load_batches(
-    loadfrom: str, device: str
+    loadfrom: list[str], device: str
 ) -> tuple[list[np.ndarray] | list[sparse.csr_matrix], list[np.ndarray]]:
     """Load all batches."""
     X_files, y_files = get_file_paths(loadfrom)
+
     with Timer("load-batches", "load"):
         paths = list(zip(X_files, y_files))
         assert paths
@@ -90,7 +105,7 @@ def load_batches(
     return Xs, ys
 
 
-def load_all(loadfrom: str, device: str) -> XyPair:
+def load_all(loadfrom: list[str], device: str) -> XyPair:
     """Load all batches and concatenate them into a single blob.."""
     Xs, ys = load_batches(loadfrom, device)
     with Timer("load-all", "concat"):
@@ -112,7 +127,7 @@ class LoadIterImpl(IterImpl):
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
         X_path, y_path = self.files[i]
-        # Use mmap since we might only need a portion of data thanks to validation.
+        print(f"X_{i}: {X_path}")
         X, y = load_Xy(X_path, y_path, True)
         assert X.shape[0] == y.shape[0]
         return X, y

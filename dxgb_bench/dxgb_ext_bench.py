@@ -10,7 +10,7 @@ from .external_mem import (
     extmem_qdm_train,
     extmem_spdm_train,
 )
-from .utils import Timer, add_data_params
+from .utils import Timer, add_data_params, split_path
 
 
 def main(args: argparse.Namespace) -> None:
@@ -38,27 +38,27 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
     )
     if not args.fly:
-        assert os.path.exists(args.loadfrom)
+        loadfrom = split_path(args.loadfrom)
 
     if args.task == "ext-sp":
         extmem_spdm_train(
             opts,
             n_bins=args.n_bins,
             n_rounds=args.n_rounds,
-            loadfrom=args.loadfrom,
+            loadfrom=loadfrom,
         )
     elif args.task == "ext-qdm":
         extmem_qdm_train(
             opts,
             n_bins=args.n_bins,
             n_rounds=args.n_rounds,
-            loadfrom=args.loadfrom,
+            loadfrom=loadfrom,
         )
     else:
         assert args.predict_type is not None
         assert args.model is not None
         extmem_qdm_inference(
-            loadfrom=args.loadfrom,
+            loadfrom=loadfrom,
             n_bins=args.n_bins,
             n_samples_per_batch=n // n_batches,
             n_features=n_features,

@@ -27,8 +27,8 @@ def setup_rmm() -> None:
         mr = rmm.mr.get_current_device_resource()
     else:
         mr = rmm.mr.CudaAsyncMemoryResource(
-            initial_pool_size=int(96 * 0.8 * 1024**3),
-            release_threshold=int(96 * 0.95 * 1024**3),
+            initial_pool_size=int(16 * 0.8 * 1024**3),
+            release_threshold=int(16 * 0.95 * 1024**3),
             enable_ipc=False,
         )
         mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
@@ -49,7 +49,7 @@ class Opts:
     device: str
 
 
-def make_iter(opts: Opts, loadfrom: str) -> tuple[BenchIter, BenchIter | None]:
+def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
     if not opts.on_the_fly:
         # Load files
         X_files, y_files = get_file_paths(loadfrom)
@@ -129,7 +129,7 @@ def extmem_spdm_train(
     opts: Opts,
     n_bins: int,
     n_rounds: int,
-    loadfrom: str,
+    loadfrom: list[str],
 ) -> xgb.Booster:
     if opts.device == "cuda":
         setup_rmm()
@@ -164,7 +164,7 @@ def extmem_qdm_train(
     opts: Opts,
     n_bins: int,
     n_rounds: int,
-    loadfrom: str,
+    loadfrom: list[str],
 ) -> xgb.Booster:
     if opts.device == "cuda":
         setup_rmm()
@@ -199,7 +199,7 @@ def extmem_qdm_train(
 
 
 def extmem_qdm_inference(
-    loadfrom: str,
+    loadfrom: list[str],
     n_bins: int,
     n_samples_per_batch: int,
     n_features: int,

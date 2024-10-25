@@ -18,7 +18,7 @@ from .dataiter import (
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer, add_data_params
+from .utils import Timer, add_data_params, split_path
 
 
 def datagen(
@@ -28,15 +28,17 @@ def datagen(
     assparse: bool,
     sparsity: float,
     device: str,
-    out: str,
+    outdirs: list[str],
 ) -> None:
-    if not os.path.exists(out):
-        os.mkdir(out)
+    for d in outdirs:
+        if not os.path.exists(d):
+            os.mkdir(d)
 
     with Timer("datagen", "gen"):
         size = 0
         for i in range(n_batches):
             assert n_samples_per_batch >= 1
+            out = outdirs[i % len(outdirs)]
             if not assparse:  # default
                 X, y = make_dense_regression(
                     device=device,
@@ -61,8 +63,11 @@ def datagen(
     print(Timer.global_timer())
 
 
-def bench(task: str, loadfrom: str, n_rounds: int, valid: bool, device: str) -> None:
-    assert os.path.exists(loadfrom)
+def bench(
+    task: str, loadfrom: list[str], n_rounds: int, valid: bool, device: str
+) -> None:
+    for d in loadfrom:
+        assert os.path.exists(d)
 
     if task == "qdm":
         X, y = load_all(loadfrom, device)
@@ -125,7 +130,12 @@ def cli_main() -> None:
     # Datagen parser
     dg_parser = add_data_params(dg_parser, True)
     dg_parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
-    dg_parser.add_argument("--saveto", type=str, default=dft_out)
+    dg_parser.add_argument(
+        "--saveto",
+        type=str,
+        default=dft_out,
+        help="comma separated list of output directories",
+    )
 
     # Benchmark parser
     bh_parser.add_argument(
@@ -155,6 +165,7 @@ def cli_main() -> None:
     args = parser.parse_args()
 
     if args.command == "datagen":
+        saveto = split_path(args.saveto)
         datagen(
             n_samples_per_batch=args.n_samples_per_batch,
             n_features=args.n_features,
@@ -162,11 +173,12 @@ def cli_main() -> None:
             assparse=args.assparse,
             sparsity=args.sparsity,
             device=args.device,
-            out=args.saveto,
+            outdirs=saveto,
         )
     else:
         assert args.command == "bench"
-        bench(args.task, args.loadfrom, args.n_rounds, args.valid, args.device)
+        loadfrom = split_path(args.loadfrom)
+        bench(args.task, loadfrom, args.n_rounds, args.valid, args.device)
 
 
 if __name__ == "__main__":
