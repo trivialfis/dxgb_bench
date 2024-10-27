@@ -16,16 +16,10 @@ from .utils import Timer, add_data_params, split_path
 def main(args: argparse.Namespace) -> None:
     n_batches = args.n_batches
 
-    if args.size == "test":
-        n = 2**19 * n_batches
-    elif args.size == "small":
-        n = 2**23 * n_batches
-    elif args.size == "large":
-        n = (2**23 + 2**22) * n_batches
-    else:
-        assert args.size == "custom"
-        assert args.n_samples_per_batch > 0
+    if args.fly:
         n = args.n_samples_per_batch * n_batches
+    else:
+        n = 0
 
     n_features = args.n_features
     opts = Opts(
@@ -36,9 +30,9 @@ def main(args: argparse.Namespace) -> None:
         on_the_fly=args.fly,
         validation=args.valid,
         device=args.device,
+        mr=args.mr,
     )
-    if not args.fly:
-        loadfrom = split_path(args.loadfrom)
+    loadfrom = split_path(args.loadfrom)
 
     if args.task == "ext-sp":
         extmem_spdm_train(
@@ -80,17 +74,12 @@ def cli_main() -> None:
     parser.add_argument(
         "--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True
     )
+    parser.add_argument(
+        "--mr", choices=["arena", "binning", "pool"], default="arena"
+    )
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--loadfrom", type=str, default=dft_out)
 
-    parser.add_argument(
-        "--size",
-        choices=["test", "small", "large", "custom"],
-        default="small",
-        help="""
-Predefined sizes for easier tests, use `custom` for custom data shape.
-        """,
-    )
     parser = add_data_params(parser, required=False, n_features=512)
 
     parser.add_argument("--n_rounds", type=int, default=128)

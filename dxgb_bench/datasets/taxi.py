@@ -14,7 +14,7 @@ from .dataset import DataSet
 
 try:
     import dask_cudf
-except ImportError:
+except (ImportError, AttributeError):
     dask_cudf = None
 
 

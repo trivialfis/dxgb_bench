@@ -16,25 +16,39 @@ from .dataiter import (
     SynIterImpl,
     get_file_paths,
 )
-from .utils import Timer
+from .utils import Timer, fprint
+from cuda import cudart
 
 
-def setup_rmm() -> None:
-    print("Use `CudaAsyncMemoryResource`.", flush=True)
-    use_rmm_pool = False
-    if use_rmm_pool:
-        rmm.reinitialize(pool_allocator=True, initial_pool_size=0)
-        mr = rmm.mr.get_current_device_resource()
-    else:
-        mr = rmm.mr.CudaAsyncMemoryResource(
-            initial_pool_size=int(16 * 0.8 * 1024**3),
-            release_threshold=int(16 * 0.95 * 1024**3),
-            enable_ipc=False,
-        )
-        mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
-        # mr = rmm.mr.PoolMemoryResource(mr)
-        mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
-        rmm.mr.set_current_device_resource(mr)
+def setup_rmm(mr_name: str) -> None:
+    status, free, total = cudart.cudaMemGetInfo()
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
+
+    match mr_name:
+        case "arena":
+            fprint("Use `ArenaMemoryResource`.")
+            mr = rmm.mr.CudaMemoryResource()
+            mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
+        case "binning":
+            fprint("Use `BinningMemoryResource`.")
+            mr = rmm.mr.CudaAsyncMemoryResource(
+                initial_pool_size=int(total * 0.8),
+                release_threshold=int(total * 0.95),
+                enable_ipc=False,
+            )
+            mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
+        case "pool":
+            fprint("Use `PoolMemoryResource`.")
+            mr = rmm.mr.CudaMemoryResource()
+            mr = rmm.mr.PoolMemoryResource(
+                mr,
+                initial_pool_size=int(total * 0.8),
+                release_threshold=int(total * 0.95),
+            )
+
+    mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
+    rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
 
@@ -47,6 +61,7 @@ class Opts:
     on_the_fly: bool
     validation: bool
     device: str
+    mr: str
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -133,7 +148,7 @@ def extmem_spdm_train(
     loadfrom: list[str],
 ) -> xgb.Booster:
     if opts.device == "cuda":
-        setup_rmm()
+        setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
@@ -168,7 +183,7 @@ def extmem_qdm_train(
     loadfrom: list[str],
 ) -> xgb.Booster:
     if opts.device == "cuda":
-        setup_rmm()
+        setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
@@ -212,7 +227,7 @@ def extmem_qdm_inference(
     args: argparse.Namespace,
 ) -> None:
     if device == "cuda":
-        setup_rmm()
+        setup_rmm(args.mr)
 
     if not on_the_fly:
         X_files, y_files = get_file_paths(loadfrom)

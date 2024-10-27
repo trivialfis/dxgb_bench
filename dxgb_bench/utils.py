@@ -43,7 +43,7 @@ try:
         dd.Series,
     ]
 
-except ImportError:
+except (ImportError, AttributeError):
     da = None
     dd = None
     cudf = None
