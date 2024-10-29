@@ -1,3 +1,4 @@
+# Copyright (c) 2024, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import argparse
@@ -9,7 +10,6 @@ from typing import Optional, Tuple
 
 import numpy as np
 from scipy import sparse
-from xgboost.compat import concat
 
 from ..utils import DType, div_roundup, fprint
 from .dataset import DataSet

@@ -44,6 +44,7 @@ int MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity, int
                         float *out, float *y) {
   if (is_cuda) {
     Impl(thrust::cuda::par_nosync, m, n, sparsity, seed, out, y);
+    cub::SyncStream(cudaStreamPerThread);
   } else {
     Impl(thrust::omp::par, m, n, sparsity, seed, out, y);
   }

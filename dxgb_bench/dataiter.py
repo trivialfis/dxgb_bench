@@ -58,9 +58,11 @@ def load_Xy(
         _, n_samples, n_features, batch_idx, shard = get_pinfo(Xp)
         X, y = _alloc(n_samples, n_features, device)
         with kvikio.CuFile(Xp, "r") as fd:
-            fd.read(X)
+            n_bytes = fd.read(X)
+            assert n_bytes == X.nbytes
         with kvikio.CuFile(yp, "r") as f:
-            f.read(y)
+            n_bytes = f.read(y)
+            assert n_bytes == y.nbytes
 
     return X, y
 
@@ -129,11 +131,6 @@ def load_batches(
             assert xbidx == ybidx
             assert xsidx == ysidx
             X, y = load_Xy(X_files[i], y_files[i], device)
-            if device == "cuda":
-                import cupy as cp
-
-                X = cp.array(X)
-                y = cp.array(y)
             Xs.append(X)
             ys.append(y)
     assert len(Xs) == len(ys)

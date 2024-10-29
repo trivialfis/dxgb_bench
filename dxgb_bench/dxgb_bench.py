@@ -26,6 +26,7 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
     n_dirs = len(saveto)
     n_samples_per_batch = max(X.shape[0] // n_dirs, 1)
     prev = 0
+
     for b in range(n_dirs):
         output = saveto[b]
         end = min(X.shape[0], prev + n_samples_per_batch)
@@ -35,10 +36,12 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
 
         path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
         with kvikio.CuFile(path, "w") as fd:
-            fd.write(X)
+            n_bytes = fd.write(X)
+            assert n_bytes == X.nbytes
         path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.npa")
         with kvikio.CuFile(path, "w") as fd:
-            fd.write(y)
+            n_bytes = fd.write(y)
+            assert n_bytes == y.nbytes
 
         prev += end - prev
 
@@ -69,6 +72,11 @@ def datagen(
                     sparsity=sparsity,
                     random_state=size,
                 )
+
+                if device == "cuda":
+                    import cupy as cp
+                    assert isinstance(X, cp.ndarray)
+
                 save_Xy(X, y, i, outdirs)
             else:
                 X, y = make_sparse_regression(
