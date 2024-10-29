@@ -8,7 +8,7 @@ import kvikio
 import numpy as np
 import xgboost as xgb
 from scipy import sparse
-from xgboost import DataIter, QuantileDMatrix
+from xgboost import QuantileDMatrix
 
 from .dataiter import (
     TEST_SIZE,
@@ -20,6 +20,30 @@ from .dataiter import (
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer, add_data_params, split_path
+
+
+def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
+    n_dirs = len(saveto)
+    n_samples_per_batch = max(X.shape[0] // n_dirs, 1)
+    prev = 0
+
+    for b in range(n_dirs):
+        output = saveto[b]
+        end = min(X.shape[0], prev + n_samples_per_batch)
+        assert end - prev > 0, "Empty partition is not supported yet."
+        X_d = X[prev:end]
+        y_d = y[prev:end]
+
+        path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
+        with kvikio.CuFile(path, "w") as fd:
+            n_bytes = fd.write(X)
+            assert n_bytes == X.nbytes
+        path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.npa")
+        with kvikio.CuFile(path, "w") as fd:
+            n_bytes = fd.write(y)
+            assert n_bytes == y.nbytes
+
+        prev += end - prev
 
 
 def datagen(
@@ -48,12 +72,13 @@ def datagen(
                     sparsity=sparsity,
                     random_state=size,
                 )
-                path = os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npa")
-                with kvikio.CuFile(path, "w") as fd:
-                    fd.write(X)
-                path = os.path.join(out, f"y_{y.shape[0]}_1-{i}.npa")
-                with kvikio.CuFile(path, "w") as fd:
-                    fd.write(y)
+
+                if device == "cuda":
+                    import cupy as cp
+
+                    assert isinstance(X, cp.ndarray)
+
+                save_Xy(X, y, i, outdirs)
             else:
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
@@ -144,7 +169,7 @@ def cli_main() -> None:
         "--saveto",
         type=str,
         default=dft_out,
-        help="comma separated list of output directories",
+        help="Comma separated list of output directories. Poor man's raid0.",
     )
 
     # Benchmark parser

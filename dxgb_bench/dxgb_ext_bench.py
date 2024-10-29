@@ -74,9 +74,7 @@ def cli_main() -> None:
     parser.add_argument(
         "--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True
     )
-    parser.add_argument(
-        "--mr", choices=["arena", "binning", "pool"], default="arena"
-    )
+    parser.add_argument("--mr", choices=["arena", "binning", "pool"], default="arena")
     parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
     parser.add_argument("--loadfrom", type=str, default=dft_out)
 

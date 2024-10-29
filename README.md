@@ -7,8 +7,7 @@ To build a CPU image:
 
 Synthetic data
 --------------
-There are two implementations for the dense data generator, one in C++/CUDA, another one
-in Python. To use the one in C++, we need to build it using CMake first. One can use the
+To use the data gen written C++, we need to build it using CMake first. One can use the
 `dxgb-bench` to generate the data, or generate them on the fly with the external memory
 version of XGBoost.
 

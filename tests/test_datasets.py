@@ -1,3 +1,4 @@
+# Copyright (c) 2024, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import os
@@ -9,7 +10,13 @@ import pytest
 from scipy import sparse
 from xgboost.compat import concat
 
-from dxgb_bench.dataiter import BenchIter, SynIterImpl, load_all
+from dxgb_bench.dataiter import (
+    LoadIterImpl,
+    SynIterImpl,
+    get_file_paths,
+    get_valid_sizes,
+    load_all,
+)
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
 
@@ -68,13 +75,13 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
-        datagen(nspb, n_features, n_batches, False, 0.0, device, path)
-        X0, y0 = load_all(path, "cpu")
+        datagen(nspb, n_features, n_batches, False, 0.0, device, [path])
+        X0, y0 = load_all([path], "cpu")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
-        datagen(nspb * n_batches, n_features, 1, False, 0.0, device, path)
-        X1, y1 = load_all(path, "cpu")
+        datagen(nspb * n_batches, n_features, 1, False, 0.0, device, [path])
+        X1, y1 = load_all([path], "cpu")
 
     np.testing.assert_allclose(X0, X1)
     np.testing.assert_allclose(y0, y1)
@@ -127,8 +134,8 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
-        datagen(nspb, n_features, n_batches, False, 0.0, device, path)
-        X3, y3 = load_all(path, "cpu")
+        datagen(nspb, n_features, n_batches, False, 0.0, device, [path])
+        X3, y3 = load_all([path], "cpu")
 
     assert_allclose(X0, X1)
     assert_allclose(X0, X2)
@@ -146,3 +153,36 @@ def test_dense_iter() -> None:
     X1, y1 = run_dense_iter("cuda")
     assert_allclose(X0, X1, rtol=5e-6)
     assert_allclose(y0, y1, rtol=5e-6)
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_cv(device: str) -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        path0 = os.path.join(tmpdir, "data0")
+        path1 = os.path.join(tmpdir, "data1")
+
+        # Within batch read
+        n_features = 2
+        n_batches = 4
+        nspb = 8
+
+        datagen(nspb, n_features, n_batches, False, 0.0, device, [path0, path1])
+        n_train, n_valid = get_valid_sizes(n_samples=nspb * n_batches)
+        assert n_valid == 6
+
+        files = get_file_paths([path0, path1])
+        impl = LoadIterImpl(list(zip(files[0], files[1])), True, False, device)
+        assert len(impl.X_shards) == n_batches
+
+        X, y = load_all([path0, path1], device)
+
+        prev = 0
+        for i in range(impl.n_batches):
+            X_i, y_i = impl.get(i)
+            if isinstance(X_i, cp.ndarray):
+                assert_allclose = cp.testing.assert_allclose
+            else:
+                assert_allclose = np.testing.assert_allclose
+            assert_allclose(X[prev + 1 : prev + nspb], X_i)
+            assert_allclose(y[prev + 1 : prev + nspb], y_i)
+            prev += nspb
