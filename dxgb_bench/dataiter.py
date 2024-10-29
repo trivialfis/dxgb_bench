@@ -122,7 +122,7 @@ def load_batches(
 
         Xs, ys = [], []
         for i in range(len(X_files)):
-            # Don't use mmap since we need all the data loaded anyway.
+            # Assuming the paths are sorted.
             xn, xr, _, xbidx, xsidx = get_pinfo(X_files[i])
             yn, yr, _, ybidx, ysidx = get_pinfo(y_files[i])
             assert xr == yr
@@ -193,6 +193,20 @@ def _alloc(
     return X, y
 
 
+def finish_futures(
+    futures: list[tuple[kvikio.IOFuture, kvikio.IOFuture]],
+) -> None:
+    for X_fut, y_fut in futures:
+        X_fut.get()
+        y_fut.get()
+
+def close_fds(fds: list[tuple[kvikio.CuFile, kvikio.CuFile]]) -> None:
+    for X_fd, y_fd in fds:
+        X_fd.close()
+        y_fd.close()
+
+
+
 class LoadIterImpl(IterImpl):
     """Iterator for loading files."""
 
@@ -235,8 +249,7 @@ class LoadIterImpl(IterImpl):
         self.is_valid = is_valid
         self.device = device
 
-    def get_with_valid(self, i: int) -> tuple[np.ndarray, np.ndarray]:
-        """Function to read the data for training and validation."""
+    def get_shard_indptr(self, i: int) -> npt.NDArray[np.int64]:
         X_shards_i = self.X_shards[i]
         y_shards_i = self.y_shards[i]
 
@@ -245,13 +258,21 @@ class LoadIterImpl(IterImpl):
             _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
             shard_sizes.append(n_samples_i)
             assert bidx == i
-
-        n_samples = sum(shard_sizes)
         indptr = np.cumsum(shard_sizes)
+        return indptr
+
+    def get_with_valid(self, i: int) -> tuple[np.ndarray, np.ndarray]:
+        """Function to read the data for training and validation."""
+        X_shards_i = self.X_shards[i]
+        y_shards_i = self.y_shards[i]
+
+        indptr = self.get_shard_indptr(i)
+        n_samples = indptr[-1]
 
         n_train, n_valid = get_valid_sizes(n_samples)
         # Span of the validation set.
         beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(indptr, 0)
+        _, _, n_features, _, _ = get_pinfo(X_shards_i[0])
 
         if self.is_valid:
             X, y = _alloc(n_valid, n_features, self.device)
@@ -311,18 +332,6 @@ class LoadIterImpl(IterImpl):
                 futures.append((X_fut, y_fut))
                 return out_end - prev
             return 0
-
-        def finish_futures(
-            futures: list[tuple[kvikio.IOFuture, kvikio.IOFuture]],
-        ) -> None:
-            for X_fut, y_fut in futures:
-                X_fut.get()
-                y_fut.get()
-
-        def close_fds(fds: list[tuple[kvikio.CuFile, kvikio.CuFile]]) -> None:
-            for X_fd, y_fd in fds:
-                X_fd.close()
-                y_fd.close()
 
         # Read each shard
         if self.is_valid:
@@ -413,7 +422,32 @@ class LoadIterImpl(IterImpl):
         if self.split:
             X, y = self.get_with_valid(i)
         else:
-            X, y = load_Xy(X_path, y_path, self.device)
+            indptr = self.get_shard_indptr(i)
+            n_samples = indptr[-1]
+            _, n_samples_i, n_features, bidx, sidx = get_pinfo(X_path[0])
+            X, y = _alloc(n_samples, n_features, self.device)
+            futures = []
+            fds = []
+
+            prev = 0
+            for Xs, ys in zip(X_path, y_path):
+                _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+
+                out_end = prev + n_samples_i
+
+                X_fd = kvikio.CuFile(Xs, "r")
+                X_fut = X_fd.pread(X[prev:out_end], X[prev:out_end].nbytes)
+
+                y_fd = kvikio.CuFile(ys, "r")
+                y_fut = y_fd.pread(y[prev:out_end], y[prev:out_end].nbytes)
+
+                prev += n_samples_i
+
+                futures.append((X_fut, y_fut))
+                fds.append((X_fd, y_fd))
+
+            finish_futures(futures)
+            close_fds(fds)
 
         return X, y
 
