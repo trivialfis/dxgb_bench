@@ -85,7 +85,7 @@ def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
 
 
 # X|y-rows-columns-batch-shard.npa
-fname_pattern = r"[X|y]_(\d+)_(\d+)-(\d+)-(\d+).npa"
+fname_pattern = r"([X|y])_(\d+)_(\d+)-(\d+)-(\d+).npa"
 
 
 def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
@@ -115,6 +115,7 @@ def load_batches(
 ) -> tuple[list[np.ndarray] | list[sparse.csr_matrix], list[np.ndarray]]:
     """Load all batches."""
     X_files, y_files = get_file_paths(loadfrom)
+    print("X_files:", X_files)
 
     with Timer("load-batches", "load"):
         paths = list(zip(X_files, y_files))
@@ -123,6 +124,11 @@ def load_batches(
         Xs, ys = [], []
         for i in range(len(X_files)):
             # Don't use mmap since we need all the data loaded anyway.
+            xn, xr, _, xbidx, xsidx = get_pinfo(X_files[i])
+            yn, yr, _, ybidx, ysidx = get_pinfo(y_files[i])
+            assert xr == yr
+            assert xbidx == ybidx
+            assert xsidx == ysidx
             X, y = load_Xy(X_files[i], y_files[i], device)
             if device == "cuda":
                 import cupy as cp
@@ -168,8 +174,6 @@ def find_shard_ids(
     beg_idx: int = bisect_right(indptr, begin) - 1
     end_idx: int = bisect_right(indptr, end) - 1
 
-    print(beg_idx, end_idx, indptr, begin)
-
     beg_in_shard = begin - indptr[beg_idx]
     end_in_shard = end - indptr[end_idx]
 
@@ -204,7 +208,7 @@ class LoadIterImpl(IterImpl):
             name, n_samples, n_features, batch_idx, shard_idx = get_pinfo(fname[0])
             X_shards[batch_idx].append(fname[0])
             y_shards[batch_idx].append(fname[1])
-            assert fname[1].startswith("y")
+            assert os.path.basename(fname[1]).startswith("y"), fname[1]
 
         def key(name: str) -> int:
             name = os.path.basename(name)
@@ -213,18 +217,18 @@ class LoadIterImpl(IterImpl):
             shard = mat.group(5)
             return int(shard)
 
-        X_shards_list = []
+        X_shards_sorted = {}
         for batch_idx, shards in X_shards.items():
             shards = sorted(shards, key=key)
-            X_shards_list.append(shards)
+            X_shards_sorted[batch_idx] = shards
 
-        y_shards_list = []
+        y_shards_sorted = {}
         for batch_idx, shards in y_shards.items():
             shards = sorted(shards, key=key)
-            y_shards_list.append(shards)
+            y_shards_sorted[batch_idx] = shards
 
-        self.X_shards = X_shards_list
-        self.y_shards = y_shards_list
+        self.X_shards = X_shards_sorted
+        self.y_shards = y_shards_sorted
 
         assert len(self.X_shards) == len(self.y_shards)
 
@@ -264,16 +268,19 @@ class LoadIterImpl(IterImpl):
             X: npt.NDArray[np.float32],
             y: npt.NDArray[np.float32],
         ) -> tuple[kvikio.IOFuture, kvikio.CuFile, kvikio.IOFuture, kvikio.CuFile]:
-            fd_x = kvikio.CuFile(Xs, "r")
-            offset_bytes = begin * n_features * X.itemsize
-            X_fut = fd_x.pread(
+            print("Xs:", Xs, "ys:", ys)
+            X_fd = kvikio.CuFile(Xs, "r")
+            offset_bytes = int(begin * n_features * X.itemsize)
+            print("offset_bytes:", offset_bytes, "begin:", begin, "prev:", prev, "out_end:", out_end, "bytes:", X[prev:out_end].nbytes)
+            X_fut = X_fd.pread(
                 X[prev:out_end], X[prev:out_end].nbytes, file_offset=offset_bytes
             )
 
-            fd_y = kvikio.CuFile(ys, "r")
-            offset_bytes = begin * y.itemsize
-            y_fut = fd_y.pread(
-                X[prev:out_end], y[prev:out_end].nbytes, file_offset=offset_bytes
+
+            y_fd = kvikio.CuFile(ys, "r")
+            offset_bytes = int(begin * y.itemsize)
+            y_fut = y_fd.pread(
+                y[prev:out_end], y[prev:out_end].nbytes, file_offset=offset_bytes
             )
             return X_fut, X_fd, y_fut, y_fd
 
@@ -294,8 +301,9 @@ class LoadIterImpl(IterImpl):
                 y_fd.close()
 
         # Read each shard
+        print("self.is_valid:", self.is_valid)
         if self.is_valid:
-            for sidx in range(beg_idx, end_idx):
+            for sidx in range(beg_idx, end_idx + 1):
                 Xs = X_shards_i[sidx]
                 ys = y_shards_i[sidx]
                 _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
@@ -321,36 +329,41 @@ class LoadIterImpl(IterImpl):
             close_fds(fds)
             return X, y
 
-        for sidx in range(beg_idx, end_idx):
+        print("beg_idx:", beg_idx, "end_idx:", end_idx, beg_in_shard, end_in_shard)
+        for sidx in range(len(X_shards_i)):
+            print("sidx:", sidx)
             Xs = X_shards_i[sidx]
             ys = y_shards_i[sidx]
             _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
 
-            if sidx >= beg_idx or sidx <= end_idx:
+            if sidx >= beg_idx and sidx <= end_idx:
                 # May or may not read the full shard
                 if beg_idx == end_idx:
                     # need to split up the shard and read it twice
                     # Read first half
                     begin, end = 0, beg_in_shard
                     out_end = prev + end - begin
-                    X_fut, X_fd, y_fut, y_fd = read_xy_shard(
-                        begin, Xs, ys, prev, out_end, X, y
-                    )
+                    diff = out_end - prev
+                    if diff > 0:
+                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                            begin, Xs, ys, prev, out_end, X, y
+                        )
 
-                    fds.append((X_fd, y_fd))
-                    futures.append((X_fut, y_fut))
-                    prev += out_end - prev
-
+                        fds.append((X_fd, y_fd))
+                        futures.append((X_fut, y_fut))
+                        prev += out_end - prev
                     # Read second half
                     begin, end = end_in_shard, n_samples_i
                     out_end = prev + end - begin
-                    X_fut, X_fd, y_fut, y_fd = read_xy_shard(
-                        begin, Xs, ys, prev, out_end, X, y
-                    )
+                    diff = out_end - prev
+                    if diff > 0:
+                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                            begin, Xs, ys, prev, out_end, X, y
+                        )
 
-                    fds.append((X_fd, y_fd))
-                    futures.append((X_fut, y_fut))
-                    prev += out_end - prev
+                        fds.append((X_fd, y_fd))
+                        futures.append((X_fut, y_fut))
+                        prev += out_end - prev
                     continue
                 # The validation data spans across more than one shards.
                 if sidx > beg_idx and sidx < end_idx:
@@ -379,6 +392,7 @@ class LoadIterImpl(IterImpl):
                     prev += out_end - prev
                     continue
                 if sidx == end_idx:
+                    print("sidx == end_idx")
                     assert sidx > beg_idx
                     # Read second half
                     begin, end = end_in_shard, n_samples_i
@@ -393,6 +407,7 @@ class LoadIterImpl(IterImpl):
                     continue
             else:
                 # Read full shard
+                print("Read full shard")
                 begin, end = 0, n_samples_i
                 out_end = prev + end - begin
                 X_fut, X_fd, y_fut, y_fd = read_xy_shard(
