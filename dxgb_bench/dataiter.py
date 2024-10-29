@@ -284,6 +284,34 @@ class LoadIterImpl(IterImpl):
         fds = []
         futures = []
 
+        def read_fst_part(Xs: str, ys: str, beg_in_shard: int) -> int:
+            begin, end = 0, beg_in_shard
+            out_end = prev + end - begin
+            diff = out_end - prev
+            if diff > 0:
+                X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                    begin, Xs, ys, prev, out_end, X, y
+                )
+
+                fds.append((X_fd, y_fd))
+                futures.append((X_fut, y_fut))
+                return out_end - prev
+            return 0
+
+        def read_snd_part(Xs: str, ys: str, end_in_shard: int) -> int:
+            begin, end = end_in_shard, n_samples_i
+            out_end = prev + end - begin
+            diff = out_end - prev
+            if diff > 0:
+                X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                    begin, Xs, ys, prev, out_end, X, y
+                )
+
+                fds.append((X_fd, y_fd))
+                futures.append((X_fut, y_fut))
+                return out_end - prev
+            return 0
+
         def finish_futures(
             futures: list[tuple[kvikio.IOFuture, kvikio.IOFuture]],
         ) -> None:
@@ -334,29 +362,9 @@ class LoadIterImpl(IterImpl):
                 if beg_idx == end_idx:
                     # need to split up the shard and read it twice
                     # Read first half
-                    begin, end = 0, beg_in_shard
-                    out_end = prev + end - begin
-                    diff = out_end - prev
-                    if diff > 0:
-                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
-                            begin, Xs, ys, prev, out_end, X, y
-                        )
-
-                        fds.append((X_fd, y_fd))
-                        futures.append((X_fut, y_fut))
-                        prev += out_end - prev
+                    prev += read_fst_part(Xs, ys, beg_in_shard)
                     # Read second half
-                    begin, end = end_in_shard, n_samples_i
-                    out_end = prev + end - begin
-                    diff = out_end - prev
-                    if diff > 0:
-                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
-                            begin, Xs, ys, prev, out_end, X, y
-                        )
-
-                        fds.append((X_fd, y_fd))
-                        futures.append((X_fut, y_fut))
-                        prev += out_end - prev
+                    prev += read_snd_part(Xs, ys, end_in_shard)
                     continue
                 # The validation data spans across more than one shards.
                 if sidx > beg_idx and sidx < end_idx:
@@ -374,28 +382,12 @@ class LoadIterImpl(IterImpl):
                 if sidx == beg_idx:
                     assert sidx <= end_idx
                     # Read first half
-                    begin, end = 0, beg_in_shard
-                    out_end = prev + end - begin
-                    X_fut, X_fd, y_fut, y_fd = read_xy_shard(
-                        begin, Xs, ys, prev, out_end, X, y
-                    )
-
-                    fds.append((X_fd, y_fd))
-                    futures.append((X_fut, y_fut))
-                    prev += out_end - prev
+                    prev += read_fst_part(Xs, ys, beg_in_shard)
                     continue
                 if sidx == end_idx:
                     assert sidx > beg_idx
                     # Read second half
-                    begin, end = end_in_shard, n_samples_i
-                    out_end = prev + end - begin
-                    X_fut, X_fd, y_fut, y_fd = read_xy_shard(
-                        begin, Xs, ys, prev, out_end, X, y
-                    )
-
-                    fds.append((X_fd, y_fd))
-                    futures.append((X_fut, y_fut))
-                    prev += out_end - prev
+                    prev += read_snd_part(Xs, ys, end_in_shard)
                     continue
             else:
                 # Read full shard
