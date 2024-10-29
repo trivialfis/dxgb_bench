@@ -75,6 +75,7 @@ def datagen(
 
                 if device == "cuda":
                     import cupy as cp
+
                     assert isinstance(X, cp.ndarray)
 
                 save_Xy(X, y, i, outdirs)

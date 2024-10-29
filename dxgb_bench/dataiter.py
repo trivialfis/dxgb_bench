@@ -197,11 +197,11 @@ def finish_futures(
         X_fut.get()
         y_fut.get()
 
+
 def close_fds(fds: list[tuple[kvikio.CuFile, kvikio.CuFile]]) -> None:
     for X_fd, y_fd in fds:
         X_fd.close()
         y_fd.close()
-
 
 
 class LoadIterImpl(IterImpl):
