@@ -160,7 +160,7 @@ def cli_main() -> None:
         "--saveto",
         type=str,
         default=dft_out,
-        help="comma separated list of output directories",
+        help="Comma separated list of output directories. Poor man's raid0.",
     )
 
     # Benchmark parser

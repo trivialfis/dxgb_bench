@@ -245,37 +245,23 @@ class LoadIterImpl(IterImpl):
         n_samples = sum(shard_sizes)
         indptr = np.cumsum(shard_sizes)
 
-        n_valid = int(n_samples * TEST_SIZE)
-        n_train = n_samples - n_valid
+        n_train, n_valid = get_valid_sizes(n_samples)
+        beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(indptr, 0)
 
         if self.is_valid:
             X, y = _alloc(n_valid, n_features, self.device)
-            beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(
-                indptr, 0, True
-            )
         else:
             X, y = _alloc(n_train, n_features, self.device)
-            beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(
-                indptr, 0, False
-            )
 
-        prev = 0
-        fds = []
-        futures = []
-        for bidx in range(beg_idx, end_idx):
-            Xs = X_shards_i[bidx]
-            _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
-            if bidx == beg_idx:
-                begin = 0
-            else:
-                begin = beg_in_shard
-
-            if bidx == end_idx - 1:
-                end = end_in_shard
-            else:
-                end = n_samples_i
-
-            out_end = prev + end - begin
+        def read_xy_shard(
+            begin: int,
+            Xs: str,
+            ys: str,
+            prev: int,
+            out_end: int,
+            X: npt.NDArray[np.float32],
+            y: npt.NDArray[np.float32],
+        ) -> tuple[kvikio.IOFuture, kvikio.CuFile, kvikio.IOFuture, kvikio.CuFile]:
             fd_x = kvikio.CuFile(Xs, "r")
             offset_bytes = begin * n_features * X.itemsize
             X_fut = fd_x.pread(
@@ -287,9 +273,98 @@ class LoadIterImpl(IterImpl):
             y_fut = fd_y.pread(
                 X[prev:out_end], y[prev:out_end].nbytes, file_offset=offset_bytes
             )
+            return X_fut, X_fd, y_fut, y_fd
 
-            fds.append((fd_x, fd_y))
-            futures.append((X_fut, y_fut))
+        prev = 0
+        fds = []
+        futures = []
+
+        # Read each shard
+        if self.is_valid:
+            for sidx in range(beg_idx, end_idx):
+                Xs = X_shards_i[sidx]
+                ys = y_shards_i[sidx]
+                _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+                if bidx == beg_idx:
+                    begin = 0
+                else:
+                    begin = beg_in_shard
+
+                if bidx == end_idx - 1:
+                    end = end_in_shard
+                else:
+                    end = n_samples_i
+
+                out_end = prev + end - begin
+                X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                    begin, Xs, ys, prev, out_end, X, y
+                )
+
+                fds.append((X_fd, y_fd))
+                futures.append((X_fut, y_fut))
+                prev += out_end - prev
+        else:
+            for sidx in range(beg_idx, end_idx):
+                Xs = X_shards_i[sidx]
+                ys = y_shards_i[sidx]
+                _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+
+                if sidx >= beg_idx or sidx <= end_idx:
+                    # May or may not read the full shard
+                    if beg_idx == end_idx:
+                        # need to split up the shard and read it twice
+                        # Read first half
+                        begin, end = 0, beg_in_shard
+                        out_end = prev + end - begin
+                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                            begin, Xs, ys, prev, out_end, X, y
+                        )
+
+                        fds.append((X_fd, y_fd))
+                        futures.append((X_fut, y_fut))
+                        prev += out_end - prev
+
+                        # Read second half
+                        begin, end = end_in_shard, n_samples_i
+                        out_end = prev + end - begin
+                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                            begin, Xs, ys, prev, out_end, X, y
+                        )
+
+                        fds.append((X_fd, y_fd))
+                        futures.append((X_fut, y_fut))
+                        prev += out_end - prev
+                        continue
+                    # The validation data spans across more than one shards.
+                    if sidx > beg_idx and sidx < end_idx:
+                        # read full shard
+                        begin, end = 0, n_samples_i
+                        out_end = prev + end - begin
+                        X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                            begin, Xs, ys, prev, out_end, X, y
+                        )
+
+                        fds.append((X_fd, y_fd))
+                        futures.append((X_fut, y_fut))
+                        prev += out_end - prev
+                    if sidx == beg_idx:
+                        assert sidx <= end_idx
+                        continue
+                    if sidx == end_idx:
+                        assert sidx > beg_idx
+                        continue
+                else:
+                    # Read full shard
+                    begin, end = 0, n_samples_i
+                    out_end = prev + end - begin
+                    X_fut, X_fd, y_fut, y_fd = read_xy_shard(
+                        begin, Xs, ys, prev, out_end, X, y
+                    )
+
+                    fds.append((X_fd, y_fd))
+                    futures.append((X_fut, y_fut))
+                    prev += out_end - prev
+            pass
 
         for X_fut, y_fut in futures:
             X_fut.get()
