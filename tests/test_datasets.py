@@ -8,7 +8,14 @@ import numpy as np
 from scipy import sparse
 from xgboost.compat import concat
 
-from dxgb_bench.dataiter import BenchIter, LoadIterImpl, SynIterImpl, load_all, get_file_paths, get_valid_sizes
+from dxgb_bench.dataiter import (
+    BenchIter,
+    LoadIterImpl,
+    SynIterImpl,
+    load_all,
+    get_file_paths,
+    get_valid_sizes,
+)
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
 

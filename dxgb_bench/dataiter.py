@@ -115,7 +115,6 @@ def load_batches(
 ) -> tuple[list[np.ndarray] | list[sparse.csr_matrix], list[np.ndarray]]:
     """Load all batches."""
     X_files, y_files = get_file_paths(loadfrom)
-    print("X_files:", X_files)
 
     with Timer("load-batches", "load"):
         paths = list(zip(X_files, y_files))
@@ -268,14 +267,11 @@ class LoadIterImpl(IterImpl):
             X: npt.NDArray[np.float32],
             y: npt.NDArray[np.float32],
         ) -> tuple[kvikio.IOFuture, kvikio.CuFile, kvikio.IOFuture, kvikio.CuFile]:
-            print("Xs:", Xs, "ys:", ys)
             X_fd = kvikio.CuFile(Xs, "r")
             offset_bytes = int(begin * n_features * X.itemsize)
-            print("offset_bytes:", offset_bytes, "begin:", begin, "prev:", prev, "out_end:", out_end, "bytes:", X[prev:out_end].nbytes)
             X_fut = X_fd.pread(
                 X[prev:out_end], X[prev:out_end].nbytes, file_offset=offset_bytes
             )
-
 
             y_fd = kvikio.CuFile(ys, "r")
             offset_bytes = int(begin * y.itemsize)
@@ -289,7 +285,7 @@ class LoadIterImpl(IterImpl):
         futures = []
 
         def finish_futures(
-            futures: list[tuple[kvikio.IOFuture, kvikio.IOFuture]]
+            futures: list[tuple[kvikio.IOFuture, kvikio.IOFuture]],
         ) -> None:
             for X_fut, y_fut in futures:
                 X_fut.get()
@@ -301,7 +297,6 @@ class LoadIterImpl(IterImpl):
                 y_fd.close()
 
         # Read each shard
-        print("self.is_valid:", self.is_valid)
         if self.is_valid:
             for sidx in range(beg_idx, end_idx + 1):
                 Xs = X_shards_i[sidx]
@@ -329,9 +324,7 @@ class LoadIterImpl(IterImpl):
             close_fds(fds)
             return X, y
 
-        print("beg_idx:", beg_idx, "end_idx:", end_idx, beg_in_shard, end_in_shard)
         for sidx in range(len(X_shards_i)):
-            print("sidx:", sidx)
             Xs = X_shards_i[sidx]
             ys = y_shards_i[sidx]
             _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
@@ -392,7 +385,6 @@ class LoadIterImpl(IterImpl):
                     prev += out_end - prev
                     continue
                 if sidx == end_idx:
-                    print("sidx == end_idx")
                     assert sidx > beg_idx
                     # Read second half
                     begin, end = end_in_shard, n_samples_i
@@ -407,7 +399,6 @@ class LoadIterImpl(IterImpl):
                     continue
             else:
                 # Read full shard
-                print("Read full shard")
                 begin, end = 0, n_samples_i
                 out_end = prev + end - begin
                 X_fut, X_fd, y_fut, y_fd = read_xy_shard(
