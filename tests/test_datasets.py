@@ -5,7 +5,6 @@ import tempfile
 
 import cupy as cp
 import numpy as np
-import pytest
 from scipy import sparse
 from xgboost.compat import concat
 

@@ -6,6 +6,7 @@ from dataclasses import dataclass
 import cupy as cp
 import rmm
 import xgboost as xgb
+from cuda import cudart
 from rmm.allocators.cupy import rmm_cupy_allocator
 
 from .dataiter import (
@@ -17,7 +18,6 @@ from .dataiter import (
     get_file_paths,
 )
 from .utils import Timer, fprint
-from cuda import cudart
 
 
 def setup_rmm(mr_name: str) -> None:

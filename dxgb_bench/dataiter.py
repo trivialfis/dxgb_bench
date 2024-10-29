@@ -5,11 +5,13 @@ import gc
 import os
 import re
 from abc import abstractmethod, abstractproperty
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeAlias
+from collections import defaultdict
+from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
 import kvikio
 import numpy as np
 import xgboost as xgb
+from numpy import typing as npt
 from scipy import sparse
 from typing_extensions import override
 from xgboost.compat import concat
@@ -31,13 +33,18 @@ class IterImpl:
     def n_batches(self) -> int: ...
 
 
-def get_pinfo(Xp: str) -> tuple[str, int, int, int]:
+def get_pinfo(Xp: str) -> tuple[str, int, int, int, int]:
     name = os.path.basename(Xp)
     mat = re.search(fname_pattern, name)
     assert mat is not None
-    x, rows_str, cols_str, batch_str = mat.groups()
-    n_samples, n_features, batch_idx = int(rows_str), int(cols_str), int(batch_str)
-    return x, n_samples, n_features, batch_idx
+    x, rows_str, cols_str, batch_str, shard_str = mat.groups()
+    n_samples, n_features, batch_idx, shard_idx = (
+        int(rows_str),
+        int(cols_str),
+        int(batch_str),
+        int(shard_str),
+    )
+    return x, n_samples, n_features, batch_idx, shard_idx
 
 
 def load_Xy(
@@ -47,7 +54,7 @@ def load_Xy(
         X = sparse.load_npz(Xp)
         y = np.load(yp)
     else:
-        _, n_samples, n_features, batch_idx = get_pinfo(Xp)
+        _, n_samples, n_features, batch_idx, shard = get_pinfo(Xp)
         X, y = _alloc(n_samples, n_features, device)
         with kvikio.CuFile(Xp, "r") as fd:
             fd.read(X)
@@ -76,7 +83,8 @@ def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
     return X_files, y_files
 
 
-fname_pattern = "(\w)_(\d+)_(\d+)-(\d+).npa"
+# X|y-rows-columns-batch-shard.npa
+fname_pattern = "[X|y]_(\d+)_(\d+)-(\d+)-(\d+).npa"
 
 
 def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
@@ -87,12 +95,13 @@ def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
         X_files.extend(X_fd)
         y_files.extend(y_fd)
 
-    def key(name: str) -> int:
+    def key(name: str) -> tuple[int, int]:
         name = os.path.basename(name)
         mat = re.search(fname_pattern, name)
         assert mat is not None, name
-        i = mat.group(4)
-        return int(i)
+        batch = mat.group(4)
+        shard = mat.group(5)
+        return int(batch), int(shard)
 
     X_files = sorted(X_files, key=key)
     y_files = sorted(y_files, key=key)
@@ -138,6 +147,32 @@ def load_all(loadfrom: list[str], device: str) -> XyPair:
     return X, y
 
 
+def get_valid_sizes(n_samples: int) -> tuple[int, int]:
+    n_valid = int(n_samples * TEST_SIZE)
+    n_train = n_samples - n_valid
+    return n_train, n_valid
+
+
+def find_shard_ids(
+    indptr: npt.NDArray[np.int64], fold: int, is_valid: bool
+) -> tuple[int, int, int, int]:
+    n_samples = indptr[-1]
+    n_train, n_valid = get_valid_sizes(n_samples)
+    if is_valid:
+        begin = n_train * fold
+        end = begin + n_valid
+    else:
+        begin = n_valid * fold
+        end = begin + n_train
+
+    assert end < n_samples
+    beg_idx: int = np.searchsorted(indptr, begin)
+    end_idx: int = np.searchsorted(indptr, end)
+    beg_in_shard = begin - indptr[beg_idx]
+    end_in_shard = end - indptr[end_idx]
+    return beg_idx, beg_in_shard, end_idx, end_in_shard
+
+
 def _alloc(
     n_samples: int, n_features: int, device: str
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -159,36 +194,116 @@ class LoadIterImpl(IterImpl):
         self, files: list[tuple[str, str]], split: bool, is_valid: bool, device: str
     ) -> None:
         assert files
-        self.files = files
+
+        X_shards = defaultdict(list)
+        y_shards = defaultdict(list)
+        for fname in files:
+            name, n_samples, n_features, batch_idx, shard_idx = get_pinfo(fname[0])
+            X_shards[batch_idx].append(fname[0])
+            y_shards[batch_idx].append(fname[1])
+            assert fname[1].startswith("y")
+
+        def key(name: str) -> int:
+            name = os.path.basename(name)
+            mat = re.search(fname_pattern, name)
+            assert mat is not None, name
+            shard = mat.group(5)
+            return int(shard)
+
+        X_shards_list = []
+        for batch_idx, shards in X_shards.items():
+            shards = sorted(shards, key=key)
+            X_shards_list.append(shards)
+
+        y_shards_list = []
+        for batch_idx, shards in y_shards.items():
+            shards = sorted(shards, key=key)
+            y_shards_list.append(shards)
+
+        self.X_shards = X_shards_list
+        self.y_shards = y_shards_list
+
+        assert len(self.X_shards) == len(self.y_shards)
+
         self.split = split
         self.is_valid = is_valid
         self.device = device
 
+    def get_with_valid(self, i: int) -> tuple[np.ndarray, np.ndarray]:
+        X_shards_i = self.X_shards[i]
+        y_shards_i = self.y_shards[i]
+
+        shard_sizes = [0]
+        for Xs, ys in zip(X_shards_i, y_shards_i):
+            _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+            shard_sizes.append(n_samples_i)
+            assert bidx == i
+
+        n_samples = sum(shard_sizes)
+        indptr = np.cumsum(shard_sizes)
+
+        n_valid = int(n_samples * TEST_SIZE)
+        n_train = n_samples - n_valid
+
+        if self.is_valid:
+            X, y = _alloc(n_valid, n_features, self.device)
+            beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(
+                indptr, 0, True
+            )
+        else:
+            X, y = _alloc(n_train, n_features, self.device)
+            beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(
+                indptr, 0, False
+            )
+
+        prev = 0
+        fds = []
+        futures = []
+        for bidx in range(beg_idx, end_idx):
+            Xs = X_shards_i[bidx]
+            _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+            if bidx == beg_idx:
+                begin = 0
+            else:
+                begin = beg_in_shard
+
+            if bidx == end_idx - 1:
+                end = end_in_shard
+            else:
+                end = n_samples_i
+
+            out_end = prev + end - begin
+            fd_x = kvikio.CuFile(Xs, "r")
+            offset_bytes = begin * n_features * X.itemsize
+            X_fut = fd_x.pread(
+                X[prev:out_end], X[prev:out_end].nbytes, file_offset=offset_bytes
+            )
+
+            fd_y = kvikio.CuFile(ys, "r")
+            offset_bytes = begin * y.itemsize
+            y_fut = fd_y.pread(
+                X[prev:out_end], y[prev:out_end].nbytes, file_offset=offset_bytes
+            )
+
+            fds.append((fd_x, fd_y))
+            futures.append((X_fut, y_fut))
+
+        for X_fut, y_fut in futures:
+            X_fut.get()
+            y_fut.get()
+
+        for X_fd, y_fd in fds:
+            X_fd.close()
+            y_fd.close()
+
+        return X, y
+
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
-        X_path, y_path = self.files[i]
-        _, n_samples, n_features, batch_idx = get_pinfo(X_path)
-        assert batch_idx == i
+        X_path, y_path = self.X_shards[i], self.y_shards[i]
 
         if self.split:
-            n_valid = int(n_samples * TEST_SIZE)
-            n_train = n_samples - n_valid
-            if self.is_valid:
-                X, y = _alloc(n_valid, n_features, self.device)
-
-                offset_bytes = n_train * n_features * X.itemsize
-                with kvikio.CuFile(X_path, "r") as f:
-                    f.read(X, file_offset=offset_bytes)
-
-                offset_bytes = n_train * y.itemsize
-                with kvikio.CuFile(y_path, "r") as f:
-                    f.read(y, file_offset=offset_bytes)
-            else:
-                X, y = _alloc(n_train, n_features, self.device)
-                with kvikio.CuFile(X_path, "r") as f:
-                    f.read(X)
-                with kvikio.CuFile(y_path, "r") as f:
-                    f.read(y)
+            X, y = self.get_with_valid(i)
         else:
             X, y = load_Xy(X_path, y_path, self.device)
 
@@ -196,7 +311,7 @@ class LoadIterImpl(IterImpl):
 
     @property
     def n_batches(self) -> int:
-        return len(self.files)
+        return len(self.X_shards)
 
 
 class SynIterImpl(IterImpl):

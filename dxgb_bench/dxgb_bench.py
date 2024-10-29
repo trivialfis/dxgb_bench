@@ -8,7 +8,7 @@ import kvikio
 import numpy as np
 import xgboost as xgb
 from scipy import sparse
-from xgboost import DataIter, QuantileDMatrix
+from xgboost import QuantileDMatrix
 
 from .dataiter import (
     TEST_SIZE,
@@ -20,6 +20,27 @@ from .dataiter import (
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer, add_data_params, split_path
+
+
+def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
+    n_dirs = len(saveto)
+    n_samples_per_batch = max(X.shape[0] // n_dirs, 1)
+    prev = 0
+    for b in range(n_dirs):
+        output = saveto[b]
+        end = min(X.shape[0], prev + n_samples_per_batch)
+        assert end - prev > 0, "Empty partition is not supported yet."
+        X_d = X[prev:end]
+        y_d = y[prev:end]
+
+        path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
+        with kvikio.CuFile(path, "w") as fd:
+            fd.write(X)
+        path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.npa")
+        with kvikio.CuFile(path, "w") as fd:
+            fd.write(y)
+
+        prev += end - prev
 
 
 def datagen(
@@ -48,12 +69,7 @@ def datagen(
                     sparsity=sparsity,
                     random_state=size,
                 )
-                path = os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npa")
-                with kvikio.CuFile(path, "w") as fd:
-                    fd.write(X)
-                path = os.path.join(out, f"y_{y.shape[0]}_1-{i}.npa")
-                with kvikio.CuFile(path, "w") as fd:
-                    fd.write(y)
+                save_Xy(X, y, i, outdirs)
             else:
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
