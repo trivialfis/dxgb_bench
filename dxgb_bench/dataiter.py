@@ -5,6 +5,7 @@ import gc
 import os
 import re
 from abc import abstractmethod, abstractproperty
+from bisect import bisect_right
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
@@ -84,7 +85,7 @@ def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
 
 
 # X|y-rows-columns-batch-shard.npa
-fname_pattern = "[X|y]_(\d+)_(\d+)-(\d+)-(\d+).npa"
+fname_pattern = r"[X|y]_(\d+)_(\d+)-(\d+)-(\d+).npa"
 
 
 def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:
@@ -154,22 +155,24 @@ def get_valid_sizes(n_samples: int) -> tuple[int, int]:
 
 
 def find_shard_ids(
-    indptr: npt.NDArray[np.int64], fold: int, is_valid: bool
+    indptr: npt.NDArray[np.int64], fold: int
 ) -> tuple[int, int, int, int]:
     n_samples = indptr[-1]
     n_train, n_valid = get_valid_sizes(n_samples)
-    if is_valid:
-        begin = n_train * fold
-        end = begin + n_valid
-    else:
-        begin = n_valid * fold
-        end = begin + n_train
+
+    begin = n_valid * fold
+    end = begin + n_valid
 
     assert end < n_samples
-    beg_idx: int = np.searchsorted(indptr, begin)
-    end_idx: int = np.searchsorted(indptr, end)
+
+    beg_idx: int = bisect_right(indptr, begin) - 1
+    end_idx: int = bisect_right(indptr, end) - 1
+
+    print(beg_idx, end_idx, indptr, begin)
+
     beg_in_shard = begin - indptr[beg_idx]
     end_in_shard = end - indptr[end_idx]
+
     return beg_idx, beg_in_shard, end_idx, end_in_shard
 
 
