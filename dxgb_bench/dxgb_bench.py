@@ -35,13 +35,15 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
         y_d = y[prev:end]
 
         path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
-        with kvikio.CuFile(path, "w") as fd:
-            n_bytes = fd.write(X_d)
-            assert n_bytes == X_d.nbytes
+        np.save(path, X_d)
+        # with kvikio.CuFile(path, "w") as fd:
+        #     n_bytes = fd.write(X_d)
+        #     assert n_bytes == X_d.nbytes
         path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.npa")
-        with kvikio.CuFile(path, "w") as fd:
-            n_bytes = fd.write(y_d)
-            assert n_bytes == y_d.nbytes
+        np.save(path, y_d)
+        # with kvikio.CuFile(path, "w") as fd:
+        #     n_bytes = fd.write(y_d)
+        #     assert n_bytes == y_d.nbytes
 
         prev += end - prev
 

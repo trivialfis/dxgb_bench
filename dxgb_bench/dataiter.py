@@ -56,13 +56,15 @@ def load_Xy(
         y = np.load(yp)
     else:
         _, n_samples, n_features, batch_idx, shard = get_pinfo(Xp)
-        X, y = _alloc(n_samples, n_features, device)
-        with kvikio.CuFile(Xp, "r") as fd:
-            n_bytes = fd.read(X)
-            assert n_bytes == X.nbytes
-        with kvikio.CuFile(yp, "r") as f:
-            n_bytes = f.read(y)
-            assert n_bytes == y.nbytes
+        # X, y = _alloc(n_samples, n_features, device)
+        X = np.load(Xp)
+        y = np.load(yp)
+        # with kvikio.CuFile(Xp, "r") as fd:
+        #     n_bytes = fd.read(X)
+        #     assert n_bytes == X.nbytes
+        # with kvikio.CuFile(yp, "r") as f:
+        #     n_bytes = f.read(y)
+        #     assert n_bytes == y.nbytes
 
     return X, y
 
