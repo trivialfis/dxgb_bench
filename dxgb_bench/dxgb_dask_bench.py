@@ -71,7 +71,7 @@ def main(args: argparse.Namespace) -> None:
             assert args.workers is None or args.workers <= total_gpus
             return LocalCUDACluster(*user_args, **kwargs)
 
-    def run_benchmark(client: Optional[Client]) -> None:
+    def run_benchmark(client: Client) -> None:
         d, task = data_factory(args.data, args)
         (X, y, w) = d.load(args)
         extra_args = d.extra_args()
@@ -93,28 +93,25 @@ def main(args: argparse.Namespace) -> None:
 
         timer = Timer.global_timer()
         dataset_results = list(eval_results.values())
-        if args.eval:
+        if args.valid:
             assert len(dataset_results) == 1
 
             for k, v in dataset_results[0].items():
                 timer[k] = v[-1]
 
-    if args.backend.find("dask") == -1:
-        run_benchmark(None)
-    else:
-        with TemporaryDirectory(args.temporary_directory):
-            # race condition for creating directory.
-            # dask.config.set({'temporary_directory': args.temporary_directory})
-            if args.scheduler is not None:
-                with Client(scheduler_file=args.scheduler) as client:
+    with TemporaryDirectory(args.temporary_directory):
+        # race condition for creating directory.
+        # dask.config.set({'temporary_directory': args.temporary_directory})
+        if args.scheduler is not None:
+            with Client(scheduler_file=args.scheduler) as client:
+                run_benchmark(client)
+        else:
+            with cluster_type(
+                n_workers=args.workers, threads_per_worker=args.cpus
+            ) as cluster:
+                print("dashboard link:", cluster.dashboard_link)
+                with Client(cluster) as client:
                     run_benchmark(client)
-            else:
-                with cluster_type(
-                    n_workers=args.workers, threads_per_worker=args.cpus
-                ) as cluster:
-                    print("dashboard link:", cluster.dashboard_link)
-                    with Client(cluster) as client:
-                        run_benchmark(client)
 
     if not os.path.exists(args.output_directory):
         os.mkdir(args.output_directory)
@@ -147,9 +144,6 @@ def main(args: argparse.Namespace) -> None:
             continue
         with open(path, "w") as fd:
             timer = Timer.global_timer()
-            timer["packages"] = packages_version()
-            timer["args"] = args.__dict__
-            timer["devices"] = devices
             json.dump(timer, fd, indent=2)
             break
 
@@ -177,7 +171,7 @@ def cli_main() -> None:
         default="benchmark_outputs",
     )
     parser.add_argument(
-        "--eval",
+        "--valid",
         type=int,
         choices=[0, 1],
         help="Whether XGBoost should run evaluation at each iteration.",
@@ -217,10 +211,6 @@ def cli_main() -> None:
         type=str,
         help="Type of generated dataset.",
         choices=["reg", "cls", "aft", "rank"],
-    )
-    # tree parameters
-    parser.add_argument(
-        "--backend", type=str, help="Data loading backend.", default="dask_cudf"
     )
     parser.add_argument("--max-depth", type=int, default=16)
     parser.add_argument(
