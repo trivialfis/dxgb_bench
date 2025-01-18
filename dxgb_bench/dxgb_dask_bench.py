@@ -16,9 +16,9 @@ import xgboost
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 
-from . import algorihm
 from .datasets import factory as data_factory
-from .utils import TemporaryDirectory, Timer, fprint
+from .dsk import algorithm
+from .utils import TEST_SIZE, TemporaryDirectory, Timer, fprint
 
 try:
     import cudf
@@ -72,36 +72,35 @@ def main(args: argparse.Namespace) -> None:
             return LocalCUDACluster(*user_args, **kwargs)
 
     def run_benchmark(client: Client) -> None:
-        d, task = data_factory(args.data, args)
-        (X, y, w) = d.load(args)
-        extra_args = d.extra_args()
+        from .dsk import make_dense_regression
 
-        if args.backend.find("dask") != -1:
-            with Timer(args.backend, "dask-wait"):
-                X = X.persist()
-                y = y.persist()
-                wait(X)
-                wait(y)
+        X, y = make_dense_regression(
+            args.device, args.n_samples, args.n_features, random_state=1994
+        )
+
+        if args.valid:
+            from dask_ml.model_selection import train_test_split
+
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, random_state=1994, test_size=TEST_SIZE
+            )
+            with Timer("dask", "wait"):
+                X_train, y_train, X_test, y_test = client.persist(
+                    [X_train, y_train, X_test, y_test]
+                )
+                wait([X_train, y_train, X_test, y_test])
         else:
-            cupy.cuda.runtime.deviceSynchronize()
+            X_train, X_test, y_train, y_test = X, None, y, None
+            with Timer("dask", "wait"):
+                X_train, y_train = client.persist([X_train, y_train])
+                wait([X_train, y_train])
 
-        algo = algorihm.factory(args.algo, task, client, args, extra_args)
-        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
-        print("Evaluation results:", eval_results)
+        algo = algorithm.factory(args.tree_method, "reg:squarederror", client, args)
+        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y)
         if args.model_out is not None:
             algo.booster.save_model(args.model_out)
 
-        timer = Timer.global_timer()
-        dataset_results = list(eval_results.values())
-        if args.valid:
-            assert len(dataset_results) == 1
-
-            for k, v in dataset_results[0].items():
-                timer[k] = v[-1]
-
     with TemporaryDirectory(args.temporary_directory):
-        # race condition for creating directory.
-        # dask.config.set({'temporary_directory': args.temporary_directory})
         if args.scheduler is not None:
             with Client(scheduler_file=args.scheduler) as client:
                 run_benchmark(client)
@@ -116,7 +115,7 @@ def main(args: argparse.Namespace) -> None:
     if not os.path.exists(args.output_directory):
         os.mkdir(args.output_directory)
 
-    if args.device == "GPU":
+    if args.device == "cuda":
         pynvml.nvmlInit()
         devices: List[str] = []
         n_devices = pynvml.nvmlDeviceGetCount()
@@ -128,16 +127,7 @@ def main(args: argparse.Namespace) -> None:
     # Don't override the previous result.
     i = 0
     while True:
-        f = (
-            args.algo
-            + "-rounds:"
-            + str(args.rounds)
-            + "-data:"
-            + args.data
-            + "-"
-            + str(i)
-            + ".json"
-        )
+        f = args.tree_method + "-rounds:" + str(args.rounds) + "-" + str(i) + ".json"
         path = os.path.join(args.output_directory, f)
         if os.path.exists(path):
             i += 1
@@ -170,20 +160,20 @@ def cli_main() -> None:
         help="Directory storing benchmark results.",
         default="benchmark_outputs",
     )
-    parser.add_argument(
-        "--valid",
-        type=int,
-        choices=[0, 1],
-        help="Whether XGBoost should run evaluation at each iteration.",
-        default=0,
-    )
+    parser.add_argument("--valid", action="store_true")
     parser.add_argument(
         "--scheduler",
         type=str,
         help="Scheduler address.  Use local cluster by default.",
         default=None,
     )
-    parser.add_argument("--device", type=str, help="CPU or GPU", default="GPU")
+    parser.add_argument(
+        "--device",
+        type=str,
+        choices=["cuda", "cpu"],
+        help="cpu or cuda",
+        default="cuda",
+    )
     parser.add_argument("--workers", type=int, help="Number of Workers", default=None)
     parser.add_argument(
         "--cpus",
@@ -192,13 +182,12 @@ def cli_main() -> None:
         default=psutil.cpu_count(logical=False),
     )
     parser.add_argument(
-        "--algo", type=str, help="Used algorithm", default="xgboost-gpu-hist"
+        "--tree_method", type=str, help="Used algorithm", default="hist"
     )
     parser.add_argument(
         "--rounds", type=int, default=1000, help="Number of boosting rounds."
     )
     # data
-    parser.add_argument("--data", type=str, help="Name of dataset.", required=True)
     parser.add_argument(
         "--n_samples", type=int, help="Number of samples for generated dataset."
     )
@@ -206,13 +195,7 @@ def cli_main() -> None:
         "--n_features", type=int, help="Number of features for generated dataset."
     )
     parser.add_argument("--sparsity", type=float, help="Sparsity of generated dataset.")
-    parser.add_argument(
-        "--task",
-        type=str,
-        help="Type of generated dataset.",
-        choices=["reg", "cls", "aft", "rank"],
-    )
-    parser.add_argument("--max-depth", type=int, default=16)
+    parser.add_argument("--max-depth", type=int, default=6)
     parser.add_argument(
         "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
     )

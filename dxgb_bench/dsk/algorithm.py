@@ -8,20 +8,20 @@ from distributed import Client
 from typing_extensions import TypeAlias
 from xgboost import dask as dxgb
 
-from .utils import DC, ID, Progress, Timer
+from ..utils import DC, ID, Progress, Timer, fprint
 
 EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
 
 
 class XgbDaskBase:
     def __init__(
-        self, parameters: dict, rounds: int, client: Client, eval: bool
+        self, parameters: dict, rounds: int, client: Client, should_eval: bool
     ) -> None:
         self.parameters = parameters
         self.client = client
         self.num_boost_round = rounds
         self.name: str = "base"
-        self.should_eval = eval
+        self.should_eval = should_eval
 
     def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> dict:
         with Timer(self.name, "DMatrix"):
@@ -121,7 +121,6 @@ def factory(
     task: str,
     client: Client,
     args: argparse.Namespace,
-    extra_args: Dict[str, Any],
 ) -> XgbDaskBase:
     parameters = {
         "max_depth": args.max_depth,
@@ -130,30 +129,18 @@ def factory(
         "subsample": args.subsample,
         "colsample_bynode": args.colsample_bynode,
     }
-    parameters.update(extra_args)
 
-    if args.backend.find("dask") == -1:
-        parameters["nthread"] = args.cpus
-
-    print("parameters:", parameters, flush=True)
-    should_eval = args.eval == 1
+    fprint("parameters:", parameters)
+    should_eval = args.valid == 1
 
     assert client is not None
-    if name == "xgboost-gpu-hist":
+    if name == "hist" and args.device == "cuda":
         return XgbDaskGpuHist(parameters, args.rounds, client, should_eval)
-    elif name == "xgboost-gpu-approx":
+    elif name == "approx" and args.device == "cuda":
         return XgbDaskGpuApprox(parameters, args.rounds, client, should_eval)
-    elif name == "xgboost-cpu-hist":
+    elif name == "hist" and args.device == "cpu":
         return XgbDaskCpuHist(parameters, args.rounds, client, should_eval)
-    elif name == "xgboost-cpu-approx":
+    elif name == "approx" and args.device == "cpu":
         return XgbDaskCpuApprox(parameters, args.rounds, client, should_eval)
 
-    raise ValueError(
-        "Unknown algorithm: ",
-        name,
-        " expecting one of the: {",
-        "xgboost-gpu-hist",
-        "xgboost-cpu-approx",
-        "xgboost-cpu-hist",
-        "}",
-    )
+    raise ValueError(f"Unknown tree method: {name}")

@@ -15,3 +15,4 @@ build/
 *.so
 rmm_log*
 .gdb_history
+_tdata*

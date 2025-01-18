@@ -225,3 +225,6 @@ def split_path(path: str) -> list[str]:
     else:
         path_ls = [path]
     return path_ls
+
+
+TEST_SIZE = 0.2
