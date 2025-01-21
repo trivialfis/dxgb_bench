@@ -13,12 +13,21 @@ import pandas
 import psutil
 import pynvml
 import xgboost
+from dask import dataframe as dd
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 
 from .datasets import factory as data_factory
-from .dsk import algorithm
-from .utils import TEST_SIZE, TemporaryDirectory, Timer, fprint, add_device_param, add_hyper_param
+from .dsk import algorithm, make_dense_regression
+from .utils import (
+    DFT_OUT,
+    TEST_SIZE,
+    TemporaryDirectory,
+    Timer,
+    add_device_param,
+    add_hyper_param,
+    fprint,
+)
 
 try:
     import cudf
@@ -56,26 +65,65 @@ def print_version() -> None:
     fprint()
 
 
+def cluster_type(
+    args: argparse.Namespace, *user_args: Any, **kwargs: Any
+) -> LocalCluster:
+    if args.device == "CPU":
+        return LocalCluster(*user_args, **kwargs)
+    else:
+        total_gpus = dask_cuda.utils.get_n_gpus()
+        assert args.workers is None or args.workers <= total_gpus
+        return LocalCUDACluster(*user_args, **kwargs)
+
+
+def datagen(args: argparse.Namespace) -> None:
+    saveto = os.path.expanduser(args.saveto)
+    X_path = os.path.join(saveto, "X")
+    y_path = os.path.join(saveto, "y")
+
+    if os.path.exists(X_path) or os.path.exists(y_path):
+        raise ValueError("Please remove the old data first.")
+
+    def doit(client: Client) -> None:
+        X, y = make_dense_regression(
+            args.device, args.n_samples, args.n_features, random_state=1994
+        )
+        X, y = client.persist([X, y])
+
+        X.to_parquet(X_path)
+        y.to_parquet(y_path)
+
+    if args.scheduler is not None:
+        with Client(scheduler_file=args.scheduler) as client:
+            doit(client)
+    else:
+        with cluster_type(
+            args, n_workers=args.workers, threads_per_worker=args.cpus
+        ) as cluster:
+            with Client(cluster) as client:
+                doit(client)
+
+
+def load_data(args: argparse.Namespace) -> tuple[dd.DataFrame, dd.DataFrame]:
+
+    saveto = os.path.expanduser(args.loadfrom)
+    X_path = os.path.join(saveto, "X")
+    y_path = os.path.join(saveto, "y")
+
+    X, y = dd.read_parquet(X_path), dd.read_parquet(y_path)
+    if args.device.startswith("cuda"):
+        X, y = X.to_backend("cudf"), y.to_backend("cudf")
+    return X, y
+
+
 def main(args: argparse.Namespace) -> None:
     print_version()
 
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
-    def cluster_type(*user_args: Any, **kwargs: Any) -> LocalCluster:
-        if args.device == "CPU":
-            return LocalCluster(*user_args, **kwargs)
-        else:
-            total_gpus = dask_cuda.utils.get_n_gpus()
-            assert args.workers is None or args.workers <= total_gpus
-            return LocalCUDACluster(*user_args, **kwargs)
-
     def run_benchmark(client: Client) -> None:
-        from .dsk import make_dense_regression
-
-        X, y = make_dense_regression(
-            args.device, args.n_samples, args.n_features, random_state=1994
-        )
+        X, y = load_data(args)
 
         if args.valid:
             from dask_ml.model_selection import train_test_split
@@ -105,7 +153,7 @@ def main(args: argparse.Namespace) -> None:
                 run_benchmark(client)
         else:
             with cluster_type(
-                n_workers=args.workers, threads_per_worker=args.cpus
+                args, n_workers=args.workers, threads_per_worker=args.cpus
             ) as cluster:
                 print("dashboard link:", cluster.dashboard_link)
                 with Client(cluster) as client:
@@ -146,14 +194,36 @@ def cli_main() -> None:
     dg_parser = subsparsers.add_parser("datagen")
     bh_parser = subsparsers.add_parser("bench")
 
+    def add_sched(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        parser.add_argument(
+            "--scheduler",
+            type=str,
+            help="Scheduler address.  Use local cluster by default.",
+            default=None,
+        )
+        parser.add_argument(
+            "--workers", type=int, help="Number of Workers", default=None
+        )
+        parser.add_argument(
+            "--cpus",
+            type=int,
+            help="Number of CPUs, used for setting number of threads.",
+            default=psutil.cpu_count(logical=False),
+        )
+        return parser
+
     dg_parser.add_argument(
         "--n_samples", type=int, help="Number of samples for generated dataset."
     )
     dg_parser.add_argument(
         "--n_features", type=int, help="Number of features for generated dataset."
     )
-    dg_parser.add_argument("--sparsity", type=float, help="Sparsity of generated dataset.")
+    dg_parser.add_argument(
+        "--sparsity", type=float, help="Sparsity of generated dataset."
+    )
+    dg_parser.add_argument("--saveto", type=str, default=DFT_OUT)
     dg_parser = add_device_param(dg_parser)
+    dg_parser = add_sched(dg_parser)
 
     bh_parser.add_argument(
         "--temporary-directory",
@@ -161,6 +231,7 @@ def cli_main() -> None:
         help="Temporary directory used for dask.",
         default="dask_workspace",
     )
+    bh_parser.add_argument("--loadfrom", type=str, default=DFT_OUT)
     bh_parser.add_argument(
         "--output-directory",
         type=str,
@@ -168,30 +239,22 @@ def cli_main() -> None:
         default="benchmark_outputs",
     )
     bh_parser.add_argument("--valid", action="store_true")
-    bh_parser.add_argument(
-        "--scheduler",
-        type=str,
-        help="Scheduler address.  Use local cluster by default.",
-        default=None,
-    )
+    bh_parser = add_sched(bh_parser)
     bh_parser = add_device_param(bh_parser)
-    bh_parser.add_argument("--workers", type=int, help="Number of Workers", default=None)
-    bh_parser.add_argument(
-        "--cpus",
-        type=int,
-        help="Number of CPUs, used for setting number of threads.",
-        default=psutil.cpu_count(logical=False),
-    )
     bh_parser = add_hyper_param(bh_parser)
 
     # output model
-    parser.add_argument(
+    bh_parser.add_argument(
         "--model-out",
         type=str,
         default=None,
     )
     args = parser.parse_args()
+
     try:
-        main(args)
+        if args.command == "datagen":
+            datagen(args)
+        else:
+            main(args)
     except KeyboardInterrupt:
         sys.exit(0)

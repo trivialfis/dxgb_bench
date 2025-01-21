@@ -256,3 +256,4 @@ def split_path(path: str) -> list[str]:
 
 
 TEST_SIZE = 0.2
+DFT_OUT = os.path.join(os.curdir, "data")
