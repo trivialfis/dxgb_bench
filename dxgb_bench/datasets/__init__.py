@@ -5,7 +5,6 @@ from .airline import Airline
 from .covtype import Covtype
 from .dataset import DataSet
 from .epsilon import Epsilon
-from .generated import Generated
 from .higgs import Higgs
 from .mortgage import Mortgage
 from .taxi import Taxi
@@ -33,9 +32,6 @@ def factory(name: str, args: argparse.Namespace) -> Tuple[DataSet, str]:
         return d, d.task
     elif name == "epsilon":
         d = Epsilon(args)
-        return d, d.task
-    elif name == "generated":
-        d = Generated(args)
         return d, d.task
     else:
         raise ValueError("Unknown dataset:", name)

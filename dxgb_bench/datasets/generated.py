@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+import functools
 import os
 import pickle
 from concurrent.futures import ThreadPoolExecutor
@@ -15,16 +16,23 @@ from ..utils import DType, div_roundup, fprint
 from .dataset import DataSet
 
 
-def make_reg_c(
-    is_cuda: bool, n_samples_per_batch: int, n_features: int, seed: int, sparsity: float
-) -> Tuple[np.ndarray, np.ndarray]:
-    """Use the C++/CUDA implementation of dense data gen."""
+@functools.cache
+def _load_lib() -> ctypes.CDLL:
     path = os.path.join(
         os.path.normpath(os.path.abspath(os.path.dirname(__file__))),
         os.pardir,
         "libdxgbbench.so",
     )
-    _lib = ctypes.cdll.LoadLibrary(path)
+    lib = ctypes.cdll.LoadLibrary(path)
+    return lib
+
+
+def make_reg_c(
+    is_cuda: bool, n_samples_per_batch: int, n_features: int, seed: int, sparsity: float
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Use the C++/CUDA implementation of dense data gen."""
+    _lib = _load_lib()
+
     if is_cuda:
         import cupy as cp
 
@@ -148,50 +156,3 @@ def make_dense_regression(
     )
     psize(X)
     return X, y
-
-
-class Generated(DataSet):
-    def __init__(self, args: argparse.Namespace) -> None:
-        if args.backend.find("dask") != -1:
-            raise NotImplementedError()
-        if args.task is None:
-            raise ValueError("`task` is required to generate dataset.")
-        if args.n_samples is None:
-            raise ValueError("`n_samples` is required to generate dataset.")
-        if args.n_features is None:
-            raise ValueError("`n_features` is required to generate dataset.")
-        if args.sparsity is None:
-            raise ValueError("`sparsity` is required to generate dataset.")
-
-        if args.task != "reg":
-            raise NotImplementedError()
-        self.dirpath = os.path.join(
-            args.local_directory, f"{args.n_samples}-{args.n_features}-{args.sparsity}"
-        )
-        if not os.path.exists(self.dirpath):
-            os.mkdir(self.dirpath)
-
-        self.X_path = os.path.join(self.dirpath, "X.pkl")
-        self.y_path = os.path.join(self.dirpath, "y.pkl")
-
-        self.task: str = "reg:squarederror"
-
-        if os.path.exists(self.X_path) and os.path.exists(self.y_path):
-            return
-
-        X, y = make_sparse_regression(
-            args.n_samples, args.n_features, sparsity=args.sparsity, random_state=0
-        )
-
-        with open(self.X_path, "wb") as fd:
-            pickle.dump(X, fd)
-        with open(self.y_path, "wb") as fd:
-            pickle.dump(y, fd)
-
-    def load(self, args: argparse.Namespace) -> Tuple[DType, DType, Optional[DType]]:
-        with open(self.X_path, "rb") as fd:
-            X = pickle.load(fd)
-        with open(self.y_path, "rb") as fd:
-            y = pickle.load(fd)
-
-        return X, y, None

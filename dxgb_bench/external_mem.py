@@ -24,12 +24,15 @@ def setup_rmm(mr_name: str) -> None:
     status, free, total = cudart.cudaMemGetInfo()
     if status != cudart.cudaError_t.cudaSuccess:
         raise RuntimeError(cudart.cudaGetErrorString(status))
+    print("total:", total, "free:", free)
 
     match mr_name:
         case "arena":
             fprint("Use `ArenaMemoryResource`.")
             mr = rmm.mr.CudaMemoryResource()
             mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
+            status, free, total = cudart.cudaMemGetInfo()
+            print("total:", total, "free:", free)
         case "binning":
             fprint("Use `BinningMemoryResource`.")
             mr = rmm.mr.CudaAsyncMemoryResource(

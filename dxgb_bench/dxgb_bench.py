@@ -19,7 +19,7 @@ from .dataiter import (
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer, add_data_params, split_path
+from .utils import DFT_OUT, Timer, add_data_params, add_device_param, split_path
 
 
 def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
@@ -160,27 +160,23 @@ def cli_main() -> None:
     dg_parser = subsparsers.add_parser("datagen")
     bh_parser = subsparsers.add_parser("bench")
 
-    dft_out = os.path.join(os.curdir, "data")
-
     # Datagen parser
     dg_parser = add_data_params(dg_parser, True)
-    dg_parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    dg_parser = add_device_param(dg_parser)
     dg_parser.add_argument(
         "--saveto",
         type=str,
-        default=dft_out,
+        default=DFT_OUT,
         help="Comma separated list of output directories. Poor man's raid0.",
     )
 
     # Benchmark parser
-    bh_parser.add_argument(
-        "--device", choices=["cpu", "cuda"], default="cpu", required=False
-    )
+    bh_parser = add_device_param(bh_parser)
     bh_parser.add_argument(
         "--loadfrom",
         type=str,
         required=False,
-        default=dft_out,
+        default=DFT_OUT,
         help="Load data from a directory instead of generating it.",
     )
     bh_parser.add_argument(

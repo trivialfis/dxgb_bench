@@ -219,9 +219,41 @@ def add_data_params(
     return parser
 
 
+def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--device",
+        type=str,
+        choices=["cuda", "cpu"],
+        help="cpu or cuda",
+        default="cuda",
+    )
+    return parser
+
+
+def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--tree_method", type=str, help="Used algorithm", default="hist"
+    )
+    parser.add_argument(
+        "--rounds", type=int, default=1000, help="Number of boosting rounds."
+    )
+    # data
+    parser.add_argument("--max-depth", type=int, default=6)
+    parser.add_argument(
+        "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
+    )
+    parser.add_argument("--subsample", type=float, default=None)
+    parser.add_argument("--colsample_bynode", type=float, default=None)
+    return parser
+
+
 def split_path(path: str) -> list[str]:
     if path.find(",") != -1:
         path_ls = path.split(",")
     else:
         path_ls = [path]
     return path_ls
+
+
+TEST_SIZE = 0.2
+DFT_OUT = os.path.join(os.curdir, "data")

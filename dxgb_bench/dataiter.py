@@ -18,7 +18,7 @@ from typing_extensions import override
 from xgboost.compat import concat
 
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer, fprint
+from .utils import TEST_SIZE, Timer, fprint
 
 if TYPE_CHECKING:
     from cupy import ndarray as cpnd
@@ -502,9 +502,6 @@ class SynIterImpl(IterImpl):
         if len(self.sizes) != self._n_batches:
             self.sizes.append(X.size)
         return X, y
-
-
-TEST_SIZE = 0.2
 
 
 def train_test_split(

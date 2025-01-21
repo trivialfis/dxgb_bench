@@ -13,12 +13,21 @@ import pandas
 import psutil
 import pynvml
 import xgboost
+from dask import dataframe as dd
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 
-from . import algorihm
 from .datasets import factory as data_factory
-from .utils import TemporaryDirectory, Timer, fprint
+from .dsk import algorithm, make_dense_regression
+from .utils import (
+    DFT_OUT,
+    TEST_SIZE,
+    TemporaryDirectory,
+    Timer,
+    add_device_param,
+    add_hyper_param,
+    fprint,
+)
 
 try:
     import cudf
@@ -56,70 +65,104 @@ def print_version() -> None:
     fprint()
 
 
+def cluster_type(
+    args: argparse.Namespace, *user_args: Any, **kwargs: Any
+) -> LocalCluster:
+    if args.device == "CPU":
+        return LocalCluster(*user_args, **kwargs)
+    else:
+        total_gpus = dask_cuda.utils.get_n_gpus()
+        assert args.workers is None or args.workers <= total_gpus
+        return LocalCUDACluster(*user_args, **kwargs)
+
+
+def datagen(args: argparse.Namespace) -> None:
+    saveto = os.path.expanduser(args.saveto)
+    X_path = os.path.join(saveto, "X")
+    y_path = os.path.join(saveto, "y")
+
+    if os.path.exists(X_path) or os.path.exists(y_path):
+        raise ValueError("Please remove the old data first.")
+
+    def doit(client: Client) -> None:
+        X, y = make_dense_regression(
+            args.device, args.n_samples, args.n_features, random_state=1994
+        )
+        X, y = client.persist([X, y])
+
+        X.to_parquet(X_path)
+        y.to_parquet(y_path)
+
+    if args.scheduler is not None:
+        with Client(scheduler_file=args.scheduler) as client:
+            doit(client)
+    else:
+        with cluster_type(
+            args, n_workers=args.workers, threads_per_worker=args.cpus
+        ) as cluster:
+            with Client(cluster) as client:
+                doit(client)
+
+
+def load_data(args: argparse.Namespace) -> tuple[dd.DataFrame, dd.DataFrame]:
+
+    saveto = os.path.expanduser(args.loadfrom)
+    X_path = os.path.join(saveto, "X")
+    y_path = os.path.join(saveto, "y")
+
+    X, y = dd.read_parquet(X_path), dd.read_parquet(y_path)
+    if args.device.startswith("cuda"):
+        X, y = X.to_backend("cudf"), y.to_backend("cudf")
+    return X, y
+
+
 def main(args: argparse.Namespace) -> None:
     print_version()
-    args.local_directory = os.path.expanduser(args.local_directory)
 
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
 
-    def cluster_type(*user_args: Any, **kwargs: Any) -> LocalCluster:
-        if args.device == "CPU":
-            return LocalCluster(*user_args, **kwargs)
+    def run_benchmark(client: Client) -> None:
+        X, y = load_data(args)
+
+        if args.valid:
+            from dask_ml.model_selection import train_test_split
+
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, random_state=1994, test_size=TEST_SIZE
+            )
+            with Timer("dask", "wait"):
+                X_train, y_train, X_test, y_test = client.persist(
+                    [X_train, y_train, X_test, y_test]
+                )
+                wait([X_train, y_train, X_test, y_test])
         else:
-            total_gpus = dask_cuda.utils.get_n_gpus()
-            assert args.workers is None or args.workers <= total_gpus
-            return LocalCUDACluster(*user_args, **kwargs)
+            X_train, X_test, y_train, y_test = X, None, y, None
+            with Timer("dask", "wait"):
+                X_train, y_train = client.persist([X_train, y_train])
+                wait([X_train, y_train])
 
-    def run_benchmark(client: Optional[Client]) -> None:
-        d, task = data_factory(args.data, args)
-        (X, y, w) = d.load(args)
-        extra_args = d.extra_args()
-
-        if args.backend.find("dask") != -1:
-            with Timer(args.backend, "dask-wait"):
-                X = X.persist()
-                y = y.persist()
-                wait(X)
-                wait(y)
-        else:
-            cupy.cuda.runtime.deviceSynchronize()
-
-        algo = algorihm.factory(args.algo, task, client, args, extra_args)
-        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y, w)
-        print("Evaluation results:", eval_results)
+        algo = algorithm.factory(args.tree_method, "reg:squarederror", client, args)
+        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y)
         if args.model_out is not None:
             algo.booster.save_model(args.model_out)
 
-        timer = Timer.global_timer()
-        dataset_results = list(eval_results.values())
-        if args.eval:
-            assert len(dataset_results) == 1
-
-            for k, v in dataset_results[0].items():
-                timer[k] = v[-1]
-
-    if args.backend.find("dask") == -1:
-        run_benchmark(None)
-    else:
-        with TemporaryDirectory(args.temporary_directory):
-            # race condition for creating directory.
-            # dask.config.set({'temporary_directory': args.temporary_directory})
-            if args.scheduler is not None:
-                with Client(scheduler_file=args.scheduler) as client:
+    with TemporaryDirectory(args.temporary_directory):
+        if args.scheduler is not None:
+            with Client(scheduler_file=args.scheduler) as client:
+                run_benchmark(client)
+        else:
+            with cluster_type(
+                args, n_workers=args.workers, threads_per_worker=args.cpus
+            ) as cluster:
+                print("dashboard link:", cluster.dashboard_link)
+                with Client(cluster) as client:
                     run_benchmark(client)
-            else:
-                with cluster_type(
-                    n_workers=args.workers, threads_per_worker=args.cpus
-                ) as cluster:
-                    print("dashboard link:", cluster.dashboard_link)
-                    with Client(cluster) as client:
-                        run_benchmark(client)
 
     if not os.path.exists(args.output_directory):
         os.mkdir(args.output_directory)
 
-    if args.device == "GPU":
+    if args.device == "cuda":
         pynvml.nvmlInit()
         devices: List[str] = []
         n_devices = pynvml.nvmlDeviceGetCount()
@@ -131,25 +174,13 @@ def main(args: argparse.Namespace) -> None:
     # Don't override the previous result.
     i = 0
     while True:
-        f = (
-            args.algo
-            + "-rounds:"
-            + str(args.rounds)
-            + "-data:"
-            + args.data
-            + "-"
-            + str(i)
-            + ".json"
-        )
+        f = args.tree_method + "-rounds:" + str(args.rounds) + "-" + str(i) + ".json"
         path = os.path.join(args.output_directory, f)
         if os.path.exists(path):
             i += 1
             continue
         with open(path, "w") as fd:
             timer = Timer.global_timer()
-            timer["packages"] = packages_version()
-            timer["args"] = args.__dict__
-            timer["devices"] = devices
             json.dump(timer, fd, indent=2)
             break
 
@@ -158,84 +189,72 @@ def cli_main() -> None:
     parser = argparse.ArgumentParser(
         description="Arguments for benchmarking with XGBoost dask."
     )
-    parser.add_argument(
-        "--local-directory",
-        type=str,
-        help="Local directory for storing the dataset.",
-        default="dxgb_bench_workspace",
+
+    subsparsers = parser.add_subparsers(dest="command")
+    dg_parser = subsparsers.add_parser("datagen")
+    bh_parser = subsparsers.add_parser("bench")
+
+    def add_sched(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+        parser.add_argument(
+            "--scheduler",
+            type=str,
+            help="Scheduler address.  Use local cluster by default.",
+            default=None,
+        )
+        parser.add_argument(
+            "--workers", type=int, help="Number of Workers", default=None
+        )
+        parser.add_argument(
+            "--cpus",
+            type=int,
+            help="Number of CPUs, used for setting number of threads.",
+            default=psutil.cpu_count(logical=False),
+        )
+        return parser
+
+    dg_parser.add_argument(
+        "--n_samples", type=int, help="Number of samples for generated dataset."
     )
-    parser.add_argument(
+    dg_parser.add_argument(
+        "--n_features", type=int, help="Number of features for generated dataset."
+    )
+    dg_parser.add_argument(
+        "--sparsity", type=float, help="Sparsity of generated dataset."
+    )
+    dg_parser.add_argument("--saveto", type=str, default=DFT_OUT)
+    dg_parser = add_device_param(dg_parser)
+    dg_parser = add_sched(dg_parser)
+
+    bh_parser.add_argument(
         "--temporary-directory",
         type=str,
         help="Temporary directory used for dask.",
         default="dask_workspace",
     )
-    parser.add_argument(
+    bh_parser.add_argument("--loadfrom", type=str, default=DFT_OUT)
+    bh_parser.add_argument(
         "--output-directory",
         type=str,
         help="Directory storing benchmark results.",
         default="benchmark_outputs",
     )
-    parser.add_argument(
-        "--eval",
-        type=int,
-        choices=[0, 1],
-        help="Whether XGBoost should run evaluation at each iteration.",
-        default=0,
-    )
-    parser.add_argument(
-        "--scheduler",
-        type=str,
-        help="Scheduler address.  Use local cluster by default.",
-        default=None,
-    )
-    parser.add_argument("--device", type=str, help="CPU or GPU", default="GPU")
-    parser.add_argument("--workers", type=int, help="Number of Workers", default=None)
-    parser.add_argument(
-        "--cpus",
-        type=int,
-        help="Number of CPUs, used for setting number of threads.",
-        default=psutil.cpu_count(logical=False),
-    )
-    parser.add_argument(
-        "--algo", type=str, help="Used algorithm", default="xgboost-gpu-hist"
-    )
-    parser.add_argument(
-        "--rounds", type=int, default=1000, help="Number of boosting rounds."
-    )
-    # data
-    parser.add_argument("--data", type=str, help="Name of dataset.", required=True)
-    parser.add_argument(
-        "--n_samples", type=int, help="Number of samples for generated dataset."
-    )
-    parser.add_argument(
-        "--n_features", type=int, help="Number of features for generated dataset."
-    )
-    parser.add_argument("--sparsity", type=float, help="Sparsity of generated dataset.")
-    parser.add_argument(
-        "--task",
-        type=str,
-        help="Type of generated dataset.",
-        choices=["reg", "cls", "aft", "rank"],
-    )
-    # tree parameters
-    parser.add_argument(
-        "--backend", type=str, help="Data loading backend.", default="dask_cudf"
-    )
-    parser.add_argument("--max-depth", type=int, default=16)
-    parser.add_argument(
-        "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
-    )
-    parser.add_argument("--subsample", type=float, default=None)
-    parser.add_argument("--colsample_bynode", type=float, default=None)
+    bh_parser.add_argument("--valid", action="store_true")
+    bh_parser = add_sched(bh_parser)
+    bh_parser = add_device_param(bh_parser)
+    bh_parser = add_hyper_param(bh_parser)
+
     # output model
-    parser.add_argument(
+    bh_parser.add_argument(
         "--model-out",
         type=str,
         default=None,
     )
     args = parser.parse_args()
+
     try:
-        main(args)
+        if args.command == "datagen":
+            datagen(args)
+        else:
+            main(args)
     except KeyboardInterrupt:
         sys.exit(0)
