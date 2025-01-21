@@ -19,7 +19,7 @@ from .dataiter import (
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer, add_data_params, split_path
+from .utils import Timer, add_data_params, split_path, add_device_param
 
 
 def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
@@ -164,7 +164,7 @@ def cli_main() -> None:
 
     # Datagen parser
     dg_parser = add_data_params(dg_parser, True)
-    dg_parser.add_argument("--device", choices=["cpu", "cuda"], default="cpu")
+    dg_parser = add_device_param(dg_parser)
     dg_parser.add_argument(
         "--saveto",
         type=str,
@@ -173,9 +173,7 @@ def cli_main() -> None:
     )
 
     # Benchmark parser
-    bh_parser.add_argument(
-        "--device", choices=["cpu", "cuda"], default="cpu", required=False
-    )
+    bh_parser = add_device_param(bh_parser)
     bh_parser.add_argument(
         "--loadfrom",
         type=str,

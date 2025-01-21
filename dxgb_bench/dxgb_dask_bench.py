@@ -18,7 +18,7 @@ from dask_cuda import LocalCUDACluster
 
 from .datasets import factory as data_factory
 from .dsk import algorithm
-from .utils import TEST_SIZE, TemporaryDirectory, Timer, fprint
+from .utils import TEST_SIZE, TemporaryDirectory, Timer, fprint, add_device_param, add_hyper_param
 
 try:
     import cudf
@@ -58,7 +58,6 @@ def print_version() -> None:
 
 def main(args: argparse.Namespace) -> None:
     print_version()
-    args.local_directory = os.path.expanduser(args.local_directory)
 
     if not os.path.exists(args.temporary_directory):
         os.mkdir(args.temporary_directory)
@@ -142,65 +141,49 @@ def cli_main() -> None:
     parser = argparse.ArgumentParser(
         description="Arguments for benchmarking with XGBoost dask."
     )
-    parser.add_argument(
-        "--local-directory",
-        type=str,
-        help="Local directory for storing the dataset.",
-        default="dxgb_bench_workspace",
+
+    subsparsers = parser.add_subparsers(dest="command")
+    dg_parser = subsparsers.add_parser("datagen")
+    bh_parser = subsparsers.add_parser("bench")
+
+    dg_parser.add_argument(
+        "--n_samples", type=int, help="Number of samples for generated dataset."
     )
-    parser.add_argument(
+    dg_parser.add_argument(
+        "--n_features", type=int, help="Number of features for generated dataset."
+    )
+    dg_parser.add_argument("--sparsity", type=float, help="Sparsity of generated dataset.")
+    dg_parser = add_device_param(dg_parser)
+
+    bh_parser.add_argument(
         "--temporary-directory",
         type=str,
         help="Temporary directory used for dask.",
         default="dask_workspace",
     )
-    parser.add_argument(
+    bh_parser.add_argument(
         "--output-directory",
         type=str,
         help="Directory storing benchmark results.",
         default="benchmark_outputs",
     )
-    parser.add_argument("--valid", action="store_true")
-    parser.add_argument(
+    bh_parser.add_argument("--valid", action="store_true")
+    bh_parser.add_argument(
         "--scheduler",
         type=str,
         help="Scheduler address.  Use local cluster by default.",
         default=None,
     )
-    parser.add_argument(
-        "--device",
-        type=str,
-        choices=["cuda", "cpu"],
-        help="cpu or cuda",
-        default="cuda",
-    )
-    parser.add_argument("--workers", type=int, help="Number of Workers", default=None)
-    parser.add_argument(
+    bh_parser = add_device_param(bh_parser)
+    bh_parser.add_argument("--workers", type=int, help="Number of Workers", default=None)
+    bh_parser.add_argument(
         "--cpus",
         type=int,
         help="Number of CPUs, used for setting number of threads.",
         default=psutil.cpu_count(logical=False),
     )
-    parser.add_argument(
-        "--tree_method", type=str, help="Used algorithm", default="hist"
-    )
-    parser.add_argument(
-        "--rounds", type=int, default=1000, help="Number of boosting rounds."
-    )
-    # data
-    parser.add_argument(
-        "--n_samples", type=int, help="Number of samples for generated dataset."
-    )
-    parser.add_argument(
-        "--n_features", type=int, help="Number of features for generated dataset."
-    )
-    parser.add_argument("--sparsity", type=float, help="Sparsity of generated dataset.")
-    parser.add_argument("--max-depth", type=int, default=6)
-    parser.add_argument(
-        "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
-    )
-    parser.add_argument("--subsample", type=float, default=None)
-    parser.add_argument("--colsample_bynode", type=float, default=None)
+    bh_parser = add_hyper_param(bh_parser)
+
     # output model
     parser.add_argument(
         "--model-out",
