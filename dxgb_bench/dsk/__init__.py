@@ -1,6 +1,7 @@
 # Copyright (c) 2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
+import numpy as np
 from dask import array as da
 from dask import dataframe as dd
 
@@ -9,7 +10,7 @@ def make_dense_regression(
     device: str, n_samples: int, n_features: int, random_state: int
 ) -> tuple[dd.DataFrame, dd.DataFrame]:
     rng = da.random.default_rng(seed=random_state)
-    X = rng.normal(size=(n_samples, n_features))
+    X = rng.normal(size=(n_samples, n_features)).astype(np.float32)
     if device.startswith("cuda"):
         X = X.to_backend("cupy")
     y = X.sum(axis=1)
@@ -18,4 +19,5 @@ def make_dense_regression(
     if device.startswith("cuda"):
         X_df = X_df.to_backend("cudf")
         y_df = y_df.to_backend("cudf")
+    print(X_df.dtypes, y_df.dtypes)
     return X_df, y_df
