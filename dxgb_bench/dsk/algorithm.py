@@ -96,6 +96,33 @@ class XgbDaskGpuHist(XgbDaskCpuHist):
         self.parameters["tree_method"] = "hist"
         self.parameters["device"] = "cuda"
 
+    def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> EvalsLog:
+        with xgb.config_context(verbosity=1):
+            with Timer(self.name, "DaskQuantileDMatrix"):
+                dtrain = dxgb.DaskQuantileDMatrix(
+                    self.client, data=X, label=y, weight=weight, enable_categorical=True
+                )
+
+            if self.should_eval:
+                callbacks = []
+                evals = [(dtrain, "Train")]
+            else:
+                callbacks = [Progress(self.num_boost_round)]
+                evals = []
+
+            with xgb.config_context(use_rmm=True):
+                with Timer(self.name, "train"):
+                    output = dxgb.train(
+                        client=self.client,
+                        params=self.parameters,
+                        dtrain=dtrain,
+                        evals=evals,
+                        num_boost_round=self.num_boost_round,
+                        callbacks=callbacks,
+                    )
+                    self.booster = output["booster"]
+                    return output["history"]
+
 
 class XgbDaskCpuApprox(XgbDaskBase):
     def __init__(

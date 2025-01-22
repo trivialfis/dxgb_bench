@@ -73,7 +73,7 @@ def cluster_type(
     else:
         total_gpus = dask_cuda.utils.get_n_gpus()
         assert args.workers is None or args.workers <= total_gpus
-        return LocalCUDACluster(*user_args, **kwargs)
+        return LocalCUDACluster(*user_args, **kwargs, rmm_pool_size="16G")
 
 
 def datagen(args: argparse.Namespace) -> None:
