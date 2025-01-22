@@ -235,7 +235,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         "--tree_method", type=str, help="Used algorithm", default="hist"
     )
     parser.add_argument(
-        "--rounds", type=int, default=1000, help="Number of boosting rounds."
+        "--n_rounds", type=int, default=128, help="Number of boosting rounds."
     )
     # data
     parser.add_argument("--max-depth", type=int, default=6)
@@ -244,6 +244,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     )
     parser.add_argument("--subsample", type=float, default=None)
     parser.add_argument("--colsample_bynode", type=float, default=None)
+    parser.add_argument("--n_bins", type=int, default=256)
     return parser
 
 

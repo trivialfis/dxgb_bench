@@ -13,6 +13,7 @@ import pandas
 import psutil
 import pynvml
 import xgboost
+from cuda import cudart
 from dask import dataframe as dd
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
@@ -73,7 +74,11 @@ def cluster_type(
     else:
         total_gpus = dask_cuda.utils.get_n_gpus()
         assert args.workers is None or args.workers <= total_gpus
-        return LocalCUDACluster(*user_args, **kwargs, rmm_pool_size="16G")
+        status, free, total = cudart.cudaMemGetInfo()
+        if status != cudart.cudaError_t.cudaSuccess:
+            raise RuntimeError(cudart.cudaGetErrorString(status))
+        size = str(int(total * 0.9) / 1024 ** 3) + "G"
+        return LocalCUDACluster(*user_args, **kwargs, rmm_pool_size=size)
 
 
 def datagen(args: argparse.Namespace) -> None:
@@ -174,7 +179,7 @@ def main(args: argparse.Namespace) -> None:
     # Don't override the previous result.
     i = 0
     while True:
-        f = args.tree_method + "-rounds:" + str(args.rounds) + "-" + str(i) + ".json"
+        f = args.tree_method + "-rounds:" + str(args.n_rounds) + "-" + str(i) + ".json"
         path = os.path.join(args.output_directory, f)
         if os.path.exists(path):
             i += 1

@@ -54,17 +54,23 @@ class XgbDaskBase:
 
 class XgbDaskCpuHist(XgbDaskBase):
     def __init__(
-        self, parameters: dict, rounds: int, client: Client, eval: bool
+        self, parameters: dict, rounds: int, n_bins: int, client: Client, eval: bool
     ) -> None:
         super().__init__(parameters, rounds, client, eval)
         self.name = "xgboost-dask-cpu-hist"
         self.parameters["tree_method"] = "hist"
+        self.parameters["max_bin"] = n_bins
 
     def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskQuantileDMatrix"):
                 dtrain = dxgb.DaskQuantileDMatrix(
-                    self.client, data=X, label=y, weight=weight, enable_categorical=True
+                    self.client,
+                    data=X,
+                    label=y,
+                    weight=weight,
+                    enable_categorical=True,
+                    max_bin=self.parameters["max_bin"],
                 )
 
             if self.should_eval:
@@ -89,18 +95,24 @@ class XgbDaskCpuHist(XgbDaskBase):
 
 class XgbDaskGpuHist(XgbDaskCpuHist):
     def __init__(
-        self, parameters: dict, rounds: int, client: Client, should_eval: bool
+        self, parameters: dict, rounds: int, n_bins: int, client: Client, should_eval: bool
     ) -> None:
         XgbDaskBase.__init__(self, parameters, rounds, client, should_eval)
         self.name = "xgboost-dask-gpu-hist"
         self.parameters["tree_method"] = "hist"
+        self.parameters["max_bin"] = n_bins
         self.parameters["device"] = "cuda"
 
     def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskQuantileDMatrix"):
                 dtrain = dxgb.DaskQuantileDMatrix(
-                    self.client, data=X, label=y, weight=weight, enable_categorical=True
+                    self.client,
+                    data=X,
+                    label=y,
+                    weight=weight,
+                    enable_categorical=True,
+                    max_bin=self.parameters["max_bin"],
                 )
 
             if self.should_eval:
@@ -162,12 +174,12 @@ def factory(
 
     assert client is not None
     if name == "hist" and args.device == "cuda":
-        return XgbDaskGpuHist(parameters, args.rounds, client, should_eval)
+        return XgbDaskGpuHist(parameters, args.n_rounds, args.n_bins, client, should_eval)
     elif name == "approx" and args.device == "cuda":
-        return XgbDaskGpuApprox(parameters, args.rounds, client, should_eval)
+        return XgbDaskGpuApprox(parameters, args.n_rounds, client, should_eval)
     elif name == "hist" and args.device == "cpu":
-        return XgbDaskCpuHist(parameters, args.rounds, client, should_eval)
+        return XgbDaskCpuHist(parameters, args.n_rounds, args.n_bins, client, should_eval)
     elif name == "approx" and args.device == "cpu":
-        return XgbDaskCpuApprox(parameters, args.rounds, client, should_eval)
+        return XgbDaskCpuApprox(parameters, args.n_rounds, client, should_eval)
 
     raise ValueError(f"Unknown tree method: {name}")
