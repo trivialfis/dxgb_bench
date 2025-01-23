@@ -18,32 +18,8 @@ from .dataiter import (
     load_all,
     train_test_split,
 )
-from .datasets.generated import make_dense_regression, make_sparse_regression
+from .datasets.generated import make_dense_regression, make_sparse_regression, save_Xy
 from .utils import DFT_OUT, Timer, add_data_params, add_device_param, split_path
-
-
-def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
-    n_dirs = len(saveto)
-    n_samples_per_batch = max(X.shape[0] // n_dirs, 1)
-    prev = 0
-
-    for b in range(n_dirs):
-        output = saveto[b]
-        end = min(X.shape[0], prev + n_samples_per_batch)
-        assert end - prev > 0, "Empty partition is not supported yet."
-        X_d = X[prev:end]
-        y_d = y[prev:end]
-
-        path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
-        with kvikio.CuFile(path, "w") as fd:
-            n_bytes = fd.write(X_d)
-            assert n_bytes == X_d.nbytes
-        path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.npa")
-        with kvikio.CuFile(path, "w") as fd:
-            n_bytes = fd.write(y_d)
-            assert n_bytes == y_d.nbytes
-
-        prev += end - prev
 
 
 def datagen(

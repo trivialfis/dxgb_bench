@@ -19,7 +19,12 @@ from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 
 from .datasets import factory as data_factory
-from .dsk import algorithm, make_dense_regression
+from .dsk import (
+    algorithm,
+    load_dense_gather,
+    make_dense_regression,
+    make_dense_regression_scatter,
+)
 from .utils import (
     DFT_OUT,
     TEST_SIZE,
@@ -77,19 +82,20 @@ def cluster_type(
         status, free, total = cudart.cudaMemGetInfo()
         if status != cudart.cudaError_t.cudaSuccess:
             raise RuntimeError(cudart.cudaGetErrorString(status))
-        size = str(int(total * 0.9) / 1024 ** 3) + "G"
+        size = str(int(total * 0.9) / 1024**3) + "G"
         return LocalCUDACluster(*user_args, **kwargs, rmm_pool_size=size)
 
 
 def datagen(args: argparse.Namespace) -> None:
-    saveto = os.path.expanduser(args.saveto)
-    X_path = os.path.join(saveto, "X")
-    y_path = os.path.join(saveto, "y")
 
-    if os.path.exists(X_path) or os.path.exists(y_path):
-        raise ValueError("Please remove the old data first.")
+    def doit_unified(client: Client) -> None:
+        saveto = os.path.expanduser(args.saveto)
+        X_path = os.path.join(saveto, "X")
+        y_path = os.path.join(saveto, "y")
 
-    def doit(client: Client) -> None:
+        if os.path.exists(X_path) or os.path.exists(y_path):
+            raise ValueError("Please remove the old data first.")
+
         X, y = make_dense_regression(
             args.device, args.n_samples, args.n_features, random_state=1994
         )
@@ -98,15 +104,31 @@ def datagen(args: argparse.Namespace) -> None:
         X.to_parquet(X_path)
         y.to_parquet(y_path)
 
+    def doit_scatter(client: Client) -> None:
+        make_dense_regression_scatter(
+            client,
+            args.device,
+            args.n_samples,
+            args.n_features,
+            saveto=args.saveto,
+            local_test=args.local_test_fs,
+        )
+
     if args.scheduler is not None:
         with Client(scheduler_file=args.scheduler) as client:
-            doit(client)
+            if args.scatter:
+                doit_scatter(client)
+            else:
+                doit_unified(client)
     else:
         with cluster_type(
             args, n_workers=args.workers, threads_per_worker=args.cpus
         ) as cluster:
             with Client(cluster) as client:
-                doit(client)
+                if args.scatter:
+                    doit_scatter(client)
+                else:
+                    doit_unified(client)
 
 
 def load_data(args: argparse.Namespace) -> tuple[dd.DataFrame, dd.DataFrame]:
@@ -128,7 +150,12 @@ def main(args: argparse.Namespace) -> None:
         os.mkdir(args.temporary_directory)
 
     def run_benchmark(client: Client) -> None:
-        X, y = load_data(args)
+        if args.gather:
+            X, y = load_dense_gather(
+                client, args.device, args.loadfrom, args.local_test_fs
+            )
+        else:
+            X, y = load_data(args)
 
         if args.valid:
             from dask_ml.model_selection import train_test_split
@@ -227,6 +254,12 @@ def cli_main() -> None:
         "--sparsity", type=float, help="Sparsity of generated dataset."
     )
     dg_parser.add_argument("--saveto", type=str, default=DFT_OUT)
+    dg_parser.add_argument(
+        "--scatter",
+        action="store_true",
+        help="Scatter the generated files to individual workers. This is to handler clusters that don't have a unified file system view.",
+    )
+    dg_parser.add_argument("--local_test_fs", action="store_true")
     dg_parser = add_device_param(dg_parser)
     dg_parser = add_sched(dg_parser)
 
@@ -237,6 +270,9 @@ def cli_main() -> None:
         default="dask_workspace",
     )
     bh_parser.add_argument("--loadfrom", type=str, default=DFT_OUT)
+    bh_parser.add_argument("--gather", action="store_true")
+    bh_parser.add_argument("--local_test_fs", action="store_true")
+
     bh_parser.add_argument(
         "--output-directory",
         type=str,
