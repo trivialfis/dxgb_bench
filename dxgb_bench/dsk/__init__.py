@@ -87,7 +87,11 @@ def load_dense_gather(
     loadfrom = os.path.expanduser(loadfrom)
 
     def get_shape(batch_idx: int) -> tuple[int, int]:
-        path = os.path.join(loadfrom, str(batch_idx))
+        if local_test:
+            path = os.path.join(loadfrom, str(batch_idx))
+        else:
+            path = loadfrom
+
         X, y = get_file_paths_local(path)
         print(X, y)
         x, n_samples, n_features, batch_idx, shard_idx = get_pinfo(X[0])
@@ -114,6 +118,7 @@ def load_dense_gather(
 
     workers = client.scheduler_info()["workers"]
     n_workers = len(workers)
+    print(f"n_workers: {n_workers}")
 
     futures = []
     for i in range(n_workers):
