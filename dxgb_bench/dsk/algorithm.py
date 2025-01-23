@@ -95,7 +95,12 @@ class XgbDaskCpuHist(XgbDaskBase):
 
 class XgbDaskGpuHist(XgbDaskCpuHist):
     def __init__(
-        self, parameters: dict, rounds: int, n_bins: int, client: Client, should_eval: bool
+        self,
+        parameters: dict,
+        rounds: int,
+        n_bins: int,
+        client: Client,
+        should_eval: bool,
     ) -> None:
         XgbDaskBase.__init__(self, parameters, rounds, client, should_eval)
         self.name = "xgboost-dask-gpu-hist"
@@ -174,11 +179,15 @@ def factory(
 
     assert client is not None
     if name == "hist" and args.device == "cuda":
-        return XgbDaskGpuHist(parameters, args.n_rounds, args.n_bins, client, should_eval)
+        return XgbDaskGpuHist(
+            parameters, args.n_rounds, args.n_bins, client, should_eval
+        )
     elif name == "approx" and args.device == "cuda":
         return XgbDaskGpuApprox(parameters, args.n_rounds, client, should_eval)
     elif name == "hist" and args.device == "cpu":
-        return XgbDaskCpuHist(parameters, args.n_rounds, args.n_bins, client, should_eval)
+        return XgbDaskCpuHist(
+            parameters, args.n_rounds, args.n_bins, client, should_eval
+        )
     elif name == "approx" and args.device == "cpu":
         return XgbDaskCpuApprox(parameters, args.n_rounds, client, should_eval)
 
