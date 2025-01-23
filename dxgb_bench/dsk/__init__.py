@@ -94,6 +94,8 @@ def load_dense_gather(
     def load(batch_idx: int) -> np.ndarray:
         if local_test:
             path = os.path.join(loadfrom, str(batch_idx))
+        else:
+            path = loadfrom
 
         X, y = load_all([loadfrom], device)
         y = y.reshape(X.shape[0], 1)
