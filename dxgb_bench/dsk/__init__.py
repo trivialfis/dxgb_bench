@@ -55,6 +55,8 @@ def make_dense_regression_scatter(
         )
         if local_test:
             path = os.path.join(saveto, str(batch_idx))
+        else:
+            path = saveto
         if not os.path.exists(path):
             os.mkdir(path)
 
