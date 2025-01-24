@@ -74,7 +74,7 @@ def print_version() -> None:
 def cluster_type(
     args: argparse.Namespace, *user_args: Any, **kwargs: Any
 ) -> LocalCluster:
-    if args.device == "CPU":
+    if args.device == "cpu":
         return LocalCluster(*user_args, **kwargs)
     else:
         total_gpus = dask_cuda.utils.get_n_gpus()
@@ -153,9 +153,15 @@ def main(args: argparse.Namespace) -> None:
         client.restart()
         with Timer("dask", "load"):
             if args.gather:
+                device = "cpu"
+                # device = args.device
                 X, y = load_dense_gather(
-                    client, args.device, args.loadfrom, args.local_test_fs
+                    client, device, args.loadfrom, args.local_test_fs
                 )
+                X = X.to_backend("cupy")
+                y = y.to_backend("cupy")
+                X, y = client.persist([X, y])
+                wait([X, y])
             else:
                 X, y = load_data(args)
 
