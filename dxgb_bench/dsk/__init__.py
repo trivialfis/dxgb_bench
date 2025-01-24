@@ -72,7 +72,7 @@ def make_dense_regression_scatter(
     futures = []
     for i in range(n_workers):
         batch_size = min(n_samples_per_worker, n_samples - last)
-        fut = client.submit(make, batch_size, i, last)
+        fut = client.submit(make, batch_size, i, last, workers=[workers[i]])
         last += batch_size
         futures.append(fut)
 
@@ -122,13 +122,13 @@ def load_dense_gather(
 
     futures = []
     for i in range(n_workers):
-        fut = client.submit(get_shape, i)
+        fut = client.submit(get_shape, i, workers=[workers[i]])
         futures.append(fut)
     shapes = client.gather(futures)
     print(shapes)
     arrays = []
     for i in range(n_workers):
-        fut = client.submit(load, i)
+        fut = client.submit(load, i, workers=[workers[i]])
         daarr = da.from_delayed(
             fut, shape=(shapes[i][0], shapes[i][1] + 1), dtype=np.float32
         )
