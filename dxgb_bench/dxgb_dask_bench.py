@@ -150,12 +150,14 @@ def main(args: argparse.Namespace) -> None:
         os.mkdir(args.temporary_directory)
 
     def run_benchmark(client: Client) -> None:
-        if args.gather:
-            X, y = load_dense_gather(
-                client, args.device, args.loadfrom, args.local_test_fs
-            )
-        else:
-            X, y = load_data(args)
+        client.restart()
+        with Timer("dask", "load"):
+            if args.gather:
+                X, y = load_dense_gather(
+                    client, args.device, args.loadfrom, args.local_test_fs
+                )
+            else:
+                X, y = load_data(args)
 
         if args.valid:
             from dask_ml.model_selection import train_test_split

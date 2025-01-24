@@ -57,6 +57,10 @@ def make_dense_regression_scatter(
             path = os.path.join(saveto, str(batch_idx))
         else:
             path = saveto
+        if os.path.exists(path):
+            import shutil
+            print(f"removing: {path}")
+            shutil.rmtree(path)
         if not os.path.exists(path):
             os.mkdir(path)
 
