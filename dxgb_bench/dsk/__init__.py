@@ -50,7 +50,7 @@ def make_dense_regression_scatter(
     workers = list(client.scheduler_info()["workers"].keys())
     n_workers = len(workers)
 
-    def rmtree() -> None:
+    def rmtree(h: str) -> None:
         fprint(f"rmtree: {saveto}")
         if os.path.exists(saveto):
             import shutil
@@ -70,7 +70,7 @@ def make_dense_regression_scatter(
         host, _ = parse_host_port(workers[i])
         if host in hosts:
             print("submit:", host, workers[i])
-            fut = client.submit(rmtree, workers=workers[i])
+            fut = client.submit(rmtree, host, workers=workers[i])
             futures.append(fut)
             hosts.remove(host)
 
