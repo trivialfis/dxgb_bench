@@ -60,8 +60,19 @@ def make_dense_regression_scatter(
         os.mkdir(saveto)
 
     futures: list[Future] = []
+    from distributed.comm import parse_host_port
+    hosts = set()
+    for w in workers:
+        host, _ = parse_host_port(w)
+        hosts.add(host)
+
     for i in range(n_workers):
-        fut = client.submit(rmtree, workers=workers[i])
+        host, _ = parse_host_port(workers[i])
+        if host in hosts:
+            fut = client.submit(rmtree, workers=workers[i])
+            futures.append(fut)
+            hosts.remove(host)
+
     client.gather(futures)
 
     def make(n_samples: int, batch_idx: int, seed: int) -> int:
