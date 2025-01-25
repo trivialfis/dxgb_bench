@@ -97,7 +97,7 @@ def load_dense_gather(
 
     loadfrom = os.path.expanduser(loadfrom)
 
-    def get_shape(batch_idx: int) -> tuple[int, int]:
+    def get_shape(batch_idx: int) -> list[tuple[int, int]]:
         if local_test:
             path = os.path.join(loadfrom, str(batch_idx))
         else:
@@ -105,8 +105,14 @@ def load_dense_gather(
 
         X, y = get_file_paths_local(path)
         print(X, y)
-        x, n_samples, n_features, batch_idx, shard_idx = get_pinfo(X[0])
-        return n_samples, n_features
+        # rows = []
+        shapes = []
+        for xp in X:
+            _, n_samples, n_features, _, _ = get_pinfo(xp)
+            # rows.append(n_samples)
+            shapes.append((n_samples, n_features))
+        # x, n_samples, n_features, batch_idx, shard_idx = get_pinfo(X[0])
+        return shapes
 
     def load(batch_idx: int) -> np.ndarray:
         if local_test:
