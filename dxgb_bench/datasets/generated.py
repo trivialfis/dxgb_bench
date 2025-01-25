@@ -171,8 +171,8 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
         X_d = X[prev:end]
         y_d = y[prev:end]
 
-        path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
-        print("saveto:", path, flush=True)
+        path = os.path.abspath(os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa"))
+        print("saveto:", os.path.abspath(path), flush=True)
         with kvikio.CuFile(path, "w") as fd:
             n_bytes = fd.write(X_d)
             assert n_bytes == X_d.nbytes
