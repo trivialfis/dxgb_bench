@@ -51,7 +51,7 @@ def make_dense_regression_scatter(
     n_workers = len(workers)
 
     def rmtree() -> None:
-        fprint(f"saveto: {saveto}")
+        fprint(f"rmtree: {saveto}")
         if os.path.exists(saveto):
             import shutil
 
@@ -69,6 +69,7 @@ def make_dense_regression_scatter(
     for i in range(n_workers):
         host, _ = parse_host_port(workers[i])
         if host in hosts:
+            print("submit:", host, workers[i])
             fut = client.submit(rmtree, workers=workers[i])
             futures.append(fut)
             hosts.remove(host)
