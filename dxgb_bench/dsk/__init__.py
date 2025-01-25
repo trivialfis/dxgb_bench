@@ -58,7 +58,7 @@ def make_dense_regression_scatter(
 
     futures = []
     for i in range(n_workers):
-        fut = client.submit(rmtree)
+        fut = client.submit(rmtree, workers=workers[i])
     client.gather(futures)
 
     def make(n_samples: int, batch_idx: int, seed: int) -> int:
