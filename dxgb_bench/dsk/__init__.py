@@ -8,6 +8,7 @@ import numpy as np
 from dask import array as da
 from dask import dataframe as dd
 from dask.distributed import Client, Future, wait
+from dask.distributed.comm import parse_host_port
 
 from ..datasets.generated import make_dense_regression as mdr
 from ..datasets.generated import save_Xy
@@ -60,7 +61,7 @@ def make_dense_regression_scatter(
         os.mkdir(saveto)
 
     futures: list[Future] = []
-    from distributed.comm import parse_host_port
+
     hosts = set()
     for w in workers:
         host, _ = parse_host_port(w)
