@@ -7,10 +7,12 @@ import os
 import numpy as np
 from dask import array as da
 from dask import dataframe as dd
-from dask.distributed import Client, wait
+from dask.distributed import Client, Future, wait
+from dask.distributed.comm import parse_host_port
 
 from ..datasets.generated import make_dense_regression as mdr
 from ..datasets.generated import save_Xy
+from ..utils import fprint
 
 
 def make_dense_regression(
@@ -41,9 +43,39 @@ def make_dense_regression_scatter(
     saveto: str,
     local_test: bool,
 ) -> None:
-    saveto = os.path.expanduser(saveto)
+    saveto = os.path.abspath(os.path.expanduser(saveto))
+    client.restart()
     if not os.path.exists(saveto):
         os.mkdir(saveto)
+
+    workers = list(client.scheduler_info()["workers"].keys())
+    n_workers = len(workers)
+
+    def rmtree(h: str) -> None:
+        fprint(f"rmtree: {saveto}")
+        if os.path.exists(saveto):
+            import shutil
+
+            fprint(f"removing: {saveto}")
+            shutil.rmtree(saveto)
+        os.mkdir(saveto)
+
+    futures: list[Future] = []
+
+    hosts = set()
+    for w in workers:
+        host, _ = parse_host_port(w)
+        hosts.add(host)
+
+    for i in range(n_workers):
+        host, _ = parse_host_port(workers[i])
+        if host in hosts:
+            print("submit:", host, workers[i])
+            fut = client.submit(rmtree, host, workers=workers[i])
+            futures.append(fut)
+            hosts.remove(host)
+
+    client.gather(futures)
 
     def make(n_samples: int, batch_idx: int, seed: int) -> int:
         X, y = mdr(
@@ -53,30 +85,21 @@ def make_dense_regression_scatter(
             sparsity=0.0,
             random_state=seed,
         )
-        if local_test:
-            path = os.path.join(saveto, str(batch_idx))
-        else:
-            path = saveto
-        if os.path.exists(path):
-            import shutil
-            print(f"removing: {path}")
-            shutil.rmtree(path)
-        if not os.path.exists(path):
-            os.mkdir(path)
-
-        save_Xy(X, y, 0, [path])
+        save_Xy(X, y, batch_idx, [saveto])
         return n_samples
 
-    workers = client.scheduler_info()["workers"]
-    n_workers = len(workers)
+    if n_samples > n_workers * 8:
+        n_tasks = n_workers * 8
+    else:
+        n_tasks = n_workers
 
-    n_samples_per_worker = int(math.ceil(n_samples / n_workers))
+    n_samples_per_task = int(math.ceil(n_samples / n_tasks))
     last = 0
 
     futures = []
-    for i in range(n_workers):
-        batch_size = min(n_samples_per_worker, n_samples - last)
-        fut = client.submit(make, batch_size, i, last, workers=[workers[i]])
+    for i in range(n_tasks):
+        batch_size = min(n_samples_per_task, n_samples - last)
+        fut = client.submit(make, batch_size, i, last, workers=[workers[i % n_workers]])
         last += batch_size
         futures.append(fut)
 
@@ -90,7 +113,7 @@ def load_dense_gather(
 
     loadfrom = os.path.expanduser(loadfrom)
 
-    def get_shape(batch_idx: int) -> tuple[int, int]:
+    def get_shape(batch_idx: int) -> list[tuple[int, int]]:
         if local_test:
             path = os.path.join(loadfrom, str(batch_idx))
         else:
@@ -98,8 +121,11 @@ def load_dense_gather(
 
         X, y = get_file_paths_local(path)
         print(X, y)
-        x, n_samples, n_features, batch_idx, shard_idx = get_pinfo(X[0])
-        return n_samples, n_features
+        shapes = []
+        for xp in X:
+            _, n_samples, n_features, _, _ = get_pinfo(xp)
+            shapes.append((n_samples, n_features))
+        return shapes
 
     def load(batch_idx: int) -> np.ndarray:
         if local_test:
@@ -120,7 +146,7 @@ def load_dense_gather(
         assert Xy.shape[1] == X.shape[1] + 1
         return Xy
 
-    workers = client.scheduler_info()["workers"]
+    workers = list(client.scheduler_info()["workers"].keys())
     n_workers = len(workers)
     print(f"n_workers: {n_workers}")
 
@@ -128,8 +154,12 @@ def load_dense_gather(
     for i in range(n_workers):
         fut = client.submit(get_shape, i, workers=[workers[i]])
         futures.append(fut)
-    shapes = client.gather(futures)
-    print(shapes)
+    shapes_local = client.gather(futures)
+    print("shapes_local:", shapes_local)
+    shapes = []
+    for s in shapes_local:
+        shapes.extend(s)
+
     arrays = []
     for i in range(n_workers):
         fut = client.submit(load, i, workers=[workers[i]])

@@ -165,13 +165,15 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
     prev = 0
 
     for b in range(n_dirs):
-        output = saveto[b]
+        output = os.path.abspath(saveto[b])
+        assert os.path.exists(output), output
         end = min(X.shape[0], prev + n_samples_per_batch)
         assert end - prev > 0, "Empty partition is not supported yet."
         X_d = X[prev:end]
         y_d = y[prev:end]
 
         path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
+        print("saveto:", os.path.abspath(path), flush=True)
         with kvikio.CuFile(path, "w") as fd:
             n_bytes = fd.write(X_d)
             assert n_bytes == X_d.nbytes

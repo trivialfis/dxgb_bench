@@ -7,6 +7,7 @@ import xgboost as xgb
 from distributed import Client
 from typing_extensions import TypeAlias
 from xgboost import dask as dxgb
+from xgboost.collective import Config as CollCfg
 
 from ..utils import DC, ID, Progress, Timer, fprint
 
@@ -127,7 +128,7 @@ class XgbDaskGpuHist(XgbDaskCpuHist):
                 callbacks = [Progress(self.num_boost_round)]
                 evals = []
 
-            with xgb.config_context(use_rmm=True):
+            with xgb.config_context(use_rmm=True, verbosity=2):
                 with Timer(self.name, "train"):
                     output = dxgb.train(
                         client=self.client,
@@ -136,6 +137,7 @@ class XgbDaskGpuHist(XgbDaskCpuHist):
                         evals=evals,
                         num_boost_round=self.num_boost_round,
                         callbacks=callbacks,
+                        coll_cfg=CollCfg(timeout=60),
                     )
                     self.booster = output["booster"]
                     return output["history"]
