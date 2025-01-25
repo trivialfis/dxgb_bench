@@ -42,8 +42,23 @@ def make_dense_regression_scatter(
     local_test: bool,
 ) -> None:
     saveto = os.path.expanduser(saveto)
+    client.restart()
     if not os.path.exists(saveto):
         os.mkdir(saveto)
+
+    workers = list(client.scheduler_info()["workers"].keys())
+    n_workers = len(workers)
+
+    def rmtree() -> None:
+        if os.path.exists(saveto):
+            import shutil
+            print(f"removing: {saveto}")
+            shutil.rmtree(saveto)
+
+    futures = []
+    for i in range(n_workers):
+        fut = client.submit(rmtree)
+    client.gather(futures)
 
     def make(n_samples: int, batch_idx: int, seed: int) -> int:
         X, y = mdr(
@@ -53,30 +68,21 @@ def make_dense_regression_scatter(
             sparsity=0.0,
             random_state=seed,
         )
-        if local_test:
-            path = os.path.join(saveto, str(batch_idx))
-        else:
-            path = saveto
-        if os.path.exists(path):
-            import shutil
-            print(f"removing: {path}")
-            shutil.rmtree(path)
-        if not os.path.exists(path):
-            os.mkdir(path)
-
-        save_Xy(X, y, 0, [path])
+        save_Xy(X, y, batch_idx, [saveto])
         return n_samples
 
-    workers = client.scheduler_info()["workers"]
-    n_workers = len(workers)
+    if n_samples > n_workers * 8:
+        n_tasks = n_workers * 8
+    else:
+        n_tasks = n_workers
 
-    n_samples_per_worker = int(math.ceil(n_samples / n_workers))
+    n_samples_per_task = int(math.ceil(n_samples / n_tasks))
     last = 0
 
     futures = []
-    for i in range(n_workers):
-        batch_size = min(n_samples_per_worker, n_samples - last)
-        fut = client.submit(make, batch_size, i, last, workers=[workers[i]])
+    for i in range(n_tasks):
+        batch_size = min(n_samples_per_task, n_samples - last)
+        fut = client.submit(make, batch_size, i, last, workers=[workers[i % n_workers]])
         last += batch_size
         futures.append(fut)
 
@@ -120,7 +126,7 @@ def load_dense_gather(
         assert Xy.shape[1] == X.shape[1] + 1
         return Xy
 
-    workers = client.scheduler_info()["workers"]
+    workers = list(client.scheduler_info()["workers"].keys())
     n_workers = len(workers)
     print(f"n_workers: {n_workers}")
 
@@ -128,8 +134,12 @@ def load_dense_gather(
     for i in range(n_workers):
         fut = client.submit(get_shape, i, workers=[workers[i]])
         futures.append(fut)
-    shapes = client.gather(futures)
-    print(shapes)
+    shapes_local = client.gather(futures)
+    print("shapes_local:", shapes_local)
+    shapes = []
+    for s in shapes_local:
+        shapes.extend(s)
+
     arrays = []
     for i in range(n_workers):
         fut = client.submit(load, i, workers=[workers[i]])
