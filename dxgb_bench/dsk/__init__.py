@@ -7,10 +7,11 @@ import os
 import numpy as np
 from dask import array as da
 from dask import dataframe as dd
-from dask.distributed import Client, wait
+from dask.distributed import Client, Future, wait
 
 from ..datasets.generated import make_dense_regression as mdr
 from ..datasets.generated import save_Xy
+from ..utils import fprint
 
 
 def make_dense_regression(
@@ -41,7 +42,7 @@ def make_dense_regression_scatter(
     saveto: str,
     local_test: bool,
 ) -> None:
-    saveto = os.path.expanduser(saveto)
+    saveto = os.path.abspath(os.path.expanduser(saveto))
     client.restart()
     if not os.path.exists(saveto):
         os.mkdir(saveto)
@@ -50,13 +51,15 @@ def make_dense_regression_scatter(
     n_workers = len(workers)
 
     def rmtree() -> None:
+        fprint(f"saveto: {saveto}")
         if os.path.exists(saveto):
             import shutil
-            print(f"removing: {saveto}")
+
+            fprint(f"removing: {saveto}")
             shutil.rmtree(saveto)
         os.mkdir(saveto)
 
-    futures = []
+    futures: list[Future] = []
     for i in range(n_workers):
         fut = client.submit(rmtree, workers=workers[i])
     client.gather(futures)
@@ -105,13 +108,10 @@ def load_dense_gather(
 
         X, y = get_file_paths_local(path)
         print(X, y)
-        # rows = []
         shapes = []
         for xp in X:
             _, n_samples, n_features, _, _ = get_pinfo(xp)
-            # rows.append(n_samples)
             shapes.append((n_samples, n_features))
-        # x, n_samples, n_features, batch_idx, shard_idx = get_pinfo(X[0])
         return shapes
 
     def load(batch_idx: int) -> np.ndarray:
