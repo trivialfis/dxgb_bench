@@ -54,6 +54,7 @@ def make_dense_regression_scatter(
             import shutil
             print(f"removing: {saveto}")
             shutil.rmtree(saveto)
+        os.mkdir(saveto)
 
     futures = []
     for i in range(n_workers):
