@@ -109,7 +109,15 @@ class XgbDaskGpuHist(XgbDaskCpuHist):
         self.parameters["max_bin"] = n_bins
         self.parameters["device"] = "cuda"
 
-    def fit(self, X: DC, y: DC, weight: Optional[DC] = None) -> EvalsLog:
+    def fit(
+        self,
+        X: DC,
+        y: DC,
+        weight: Optional[DC] = None,
+        # validation
+        X_valid: DC | None = None,
+        y_valid: DC | None = None,
+    ) -> EvalsLog:
         with xgb.config_context(verbosity=1):
             with Timer(self.name, "DaskQuantileDMatrix"):
                 dtrain = dxgb.DaskQuantileDMatrix(
@@ -123,7 +131,15 @@ class XgbDaskGpuHist(XgbDaskCpuHist):
 
             if self.should_eval:
                 callbacks = []
-                evals = [(dtrain, "Train")]
+                with Timer(self.name, "DaskQuantileDMatrix-1"):
+                    dvalid = dxgb.DaskQuantileDMatrix(
+                        self.client,
+                        data=X_valid,
+                        label=y_valid,
+                        enable_categorical=True,
+                        ref=dtrain,
+                    )
+                evals = [(dtrain, "Train"), (dvalid, "Valid")]
             else:
                 callbacks = [Progress(self.num_boost_round)]
                 evals = []

@@ -184,7 +184,9 @@ def main(args: argparse.Namespace) -> None:
                 wait([X_train, y_train])
 
         algo = algorithm.factory(args.tree_method, "reg:squarederror", client, args)
-        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(X, y)
+        eval_results: xgboost.callback.TrainingCallback.EvalsLog = algo.fit(
+            X_train, y_train, None, X_test, y_test
+        )
         if args.model_out is not None:
             algo.booster.save_model(args.model_out)
 
