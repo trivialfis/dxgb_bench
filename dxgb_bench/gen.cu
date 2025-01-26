@@ -5,6 +5,7 @@
 #include <thrust/system/omp/execution_policy.h>  // for par
 
 #include <limits>
+#include <iostream>
 
 namespace cuda_impl {
 template <typename Exec>
@@ -42,6 +43,7 @@ void Impl(Exec exec, int64_t m, int64_t n, double sparsity, int64_t seed, float 
 
 int MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity, int64_t seed,
                         float *out, float *y) {
+  std::cout << "is_cuda:" << is_cuda << std::endl;
   if (is_cuda) {
     Impl(thrust::cuda::par_nosync, m, n, sparsity, seed, out, y);
     cub::SyncStream(cudaStreamPerThread);
