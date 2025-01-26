@@ -165,5 +165,9 @@ def load_dense_gather(
     Xy = da.concatenate(arrays, axis=0)
     [Xy] = client.persist([Xy])
     wait([Xy])
-    print("Shape:", client.compute(Xy.shape).result())
+    res = client.compute(Xy.shape)
+    if hasattr(res, "result"):
+        print("Shape:", res.result())
+    else:
+        print("Shape:", res)
     return Xy[:, :-1], Xy[:, -1]
