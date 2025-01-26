@@ -158,9 +158,10 @@ def main(args: argparse.Namespace) -> None:
                 X, y = load_dense_gather(
                     client, device, args.loadfrom, args.local_test_fs
                 )
-                X = X.to_backend("cupy")
-                y = y.to_backend("cupy")
-                X, y = client.persist([X, y])
+                if not args.disable_device_qdm:
+                    X = X.to_backend("cupy")
+                    y = y.to_backend("cupy")
+                    X, y = client.persist([X, y])
                 wait([X, y])
             else:
                 X, y = load_data(args)
@@ -288,6 +289,7 @@ def cli_main() -> None:
         default="benchmark_outputs",
     )
     bh_parser.add_argument("--valid", action="store_true")
+    bh_parser.add_argument("--disable-device-qdm", action="store_true")
     bh_parser = add_sched(bh_parser)
     bh_parser = add_device_param(bh_parser)
     bh_parser = add_hyper_param(bh_parser)
