@@ -142,6 +142,7 @@ def load_dense_gather(
     def load1(X_path: str, y_path: str)-> np.ndarray:
         from ..dataiter import load_Xy
         X, y = load_Xy(X_path, y_path, device)
+        y = y.reshape(X.shape[0], 1)
 
         if device.startswith("cuda"):
             import cupy as cp
