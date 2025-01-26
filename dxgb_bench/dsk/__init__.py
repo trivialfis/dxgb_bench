@@ -113,7 +113,7 @@ def load_dense_gather(
 
     loadfrom = os.path.expanduser(loadfrom)
 
-    def get_shape(batch_idx: int) -> list[tuple[int, int]]:
+    def get_shape(batch_idx: int) -> list[tuple[str, str, tuple[int, int]]]:
         if local_test:
             path = os.path.join(loadfrom, str(batch_idx))
         else:
@@ -125,26 +125,7 @@ def load_dense_gather(
         for xp in X:
             _, n_samples, n_features, _, _ = get_pinfo(xp)
             shapes.append((n_samples, n_features))
-        return shapes
-
-    def load(batch_idx: int) -> np.ndarray:
-        if local_test:
-            path = os.path.join(loadfrom, str(batch_idx))
-        else:
-            path = loadfrom
-
-        X, y = load_all([loadfrom], device)
-        y = y.reshape(X.shape[0], 1)
-        if device.startswith("cuda"):
-            import cupy as cp
-
-            Xy = cp.append(X, y, axis=1)
-        else:
-            Xy = np.append(X, y, axis=1)
-
-        assert Xy.shape[0] == X.shape[0]
-        assert Xy.shape[1] == X.shape[1] + 1
-        return Xy
+        return list(zip(X, y, shapes))
 
     workers = list(client.scheduler_info()["workers"].keys())
     n_workers = len(workers)
@@ -154,20 +135,34 @@ def load_dense_gather(
     for i in range(n_workers):
         fut = client.submit(get_shape, i, workers=[workers[i]])
         futures.append(fut)
-    shapes_local = client.gather(futures)
-    print("shapes_local:", shapes_local)
-    shapes = []
-    for s in shapes_local:
-        shapes.extend(s)
+    # workers[local_files[X, y, shape]]
+    names_shapes_local: list[list[tuple[str, str, tuple[int, int]]]] = client.gather(futures)
+    print("shapes_local:", names_shapes_local)
+
+    def load1(X_path: str, y_path: str)-> np.ndarray:
+        from ..dataiter import load_Xy
+        X, y = load_Xy(X_path, y_path, device)
+
+        if device.startswith("cuda"):
+            import cupy as cp
+
+            Xy = cp.append(X, y, axis=1)
+        else:
+            Xy = np.append(X, y, axis=1)
+        return Xy
 
     arrays = []
-    for i in range(n_workers):
-        fut = client.submit(load, i, workers=[workers[i]])
-        daarr = da.from_delayed(
-            fut, shape=(shapes[i][0], shapes[i][1] + 1), dtype=np.float32
-        )
-        arrays.append(daarr)
+    for i in range(len(names_shapes_local)):
+        w = workers[i]
+        for j in range(len(names_shapes_local[i])):
+            Xp: str = names_shapes_local[i][j][0]
+            yp: str = names_shapes_local[i][j][1]
+            s: tuple[int, int] = names_shapes_local[i][j][2]
+            fut = client.submit(load1, Xp, yp, workers=[workers[i]])
+            arrays.append(da.from_delayed(fut, shape=(s[0], s[1] + 1), dtype=np.float32))
+
     Xy = da.concatenate(arrays, axis=0)
     [Xy] = client.persist([Xy])
     wait([Xy])
+    print("Shape:", client.compute(Xy.shape).result())
     return Xy[:, :-1], Xy[:, -1]
