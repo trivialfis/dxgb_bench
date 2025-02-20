@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+from __future__ import annotations
+
+import argparse
+
+import numpy as np
+from matplotlib import pyplot as plt
+
+from cat_bench import AVAILABLE_ALGOS, make_estimator
+from cat_bench.algorithms import run_all_algo
+
+
+def main(args: argparse.Namespace) -> None:
+    if args.algo == "all":
+        results = run_all_algo(args.dataset, args.n_iter, args.depth, args.cat_thresh)
+
+        fit_time = {}
+        test_score = {}
+        test_score_std = {}
+        for algo, val in results.items():
+            fit_time[algo] = val["fit_time"]
+            test_score[algo] = val["test_score_mean"]
+            test_score_std[algo] = val["test_score_std"]
+        print("fit_time:", fit_time)
+        print("test_score:", test_score)
+
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(21, 13))
+        ax1.bar(
+            x=list(fit_time.keys()),
+            height=list(fit_time.values()),
+            yerr=np.std(list(fit_time.values())),
+        )
+        ax2.bar(
+            x=list(test_score.keys()),
+            height=list(test_score.values()),
+            yerr=list(test_score_std.values()),
+        )
+        plt.show()
+    else:
+        est = make_estimator(args.algo, args.n_iter, args.depth, args.cat_thresh)
+        result = est.fit(args.dataset)
+        print(result)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--dataset", type=str, required=True)
+    parser.add_argument(
+        "--algo",
+        type=str,
+        choices=AVAILABLE_ALGOS + ["all"],
+        required=True,
+    )
+    parser.add_argument(
+        "--depth",
+        type=int,
+        default=6,
+    )
+    parser.add_argument(
+        "--n_iter",
+        type=int,
+        default=128,
+    )
+    parser.add_argument(
+        "--cat_thresh",
+        type=int,
+        default=32,
+    )
+    args = parser.parse_args()
+    main(args)

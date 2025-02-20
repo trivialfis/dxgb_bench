@@ -136,11 +136,14 @@ def load_dense_gather(
         fut = client.submit(get_shape, i, workers=[workers[i]])
         futures.append(fut)
     # workers[local_files[X, y, shape]]
-    names_shapes_local: list[list[tuple[str, str, tuple[int, int]]]] = client.gather(futures)
+    names_shapes_local: list[list[tuple[str, str, tuple[int, int]]]] = client.gather(
+        futures
+    )
     print("shapes_local:", names_shapes_local)
 
-    def load1(X_path: str, y_path: str)-> np.ndarray:
+    def load1(X_path: str, y_path: str) -> np.ndarray:
         from ..dataiter import load_Xy
+
         X, y = load_Xy(X_path, y_path, device)
         y = y.reshape(X.shape[0], 1)
 
@@ -160,7 +163,9 @@ def load_dense_gather(
             yp: str = names_shapes_local[i][j][1]
             s: tuple[int, int] = names_shapes_local[i][j][2]
             fut = client.submit(load1, Xp, yp, workers=[workers[i]])
-            arrays.append(da.from_delayed(fut, shape=(s[0], s[1] + 1), dtype=np.float32))
+            arrays.append(
+                da.from_delayed(fut, shape=(s[0], s[1] + 1), dtype=np.float32)
+            )
 
     Xy = da.concatenate(arrays, axis=0)
     [Xy] = client.persist([Xy])

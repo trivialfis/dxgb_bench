@@ -17,42 +17,7 @@ from .dataiter import (
     SynIterImpl,
     get_file_paths,
 )
-from .utils import Timer, fprint
-
-
-def setup_rmm(mr_name: str) -> None:
-    status, free, total = cudart.cudaMemGetInfo()
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
-    print("total:", total, "free:", free)
-
-    match mr_name:
-        case "arena":
-            fprint("Use `ArenaMemoryResource`.")
-            mr = rmm.mr.CudaMemoryResource()
-            mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
-            status, free, total = cudart.cudaMemGetInfo()
-            print("total:", total, "free:", free)
-        case "binning":
-            fprint("Use `BinningMemoryResource`.")
-            mr = rmm.mr.CudaAsyncMemoryResource(
-                initial_pool_size=int(total * 0.8),
-                release_threshold=int(total * 0.95),
-                enable_ipc=False,
-            )
-            mr = rmm.mr.BinningMemoryResource(mr, 21, 25)
-        case "pool":
-            fprint("Use `PoolMemoryResource`.")
-            mr = rmm.mr.CudaMemoryResource()
-            mr = rmm.mr.PoolMemoryResource(
-                mr,
-                initial_pool_size=int(total * 0.8),
-                release_threshold=int(total * 0.95),
-            )
-
-    mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
-    rmm.mr.set_current_device_resource(mr)
-    cp.cuda.set_allocator(rmm_cupy_allocator)
+from .utils import Timer, fprint, setup_rmm
 
 
 @dataclass

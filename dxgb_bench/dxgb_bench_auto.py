@@ -30,10 +30,18 @@ import numpy as np
 import xgboost as xgb
 from scipy import sparse
 from typing_extensions import override
-from xgboost.compat import concat
+from xgboost.compat import concat, import_cupy
 
-from .datasets.generated import make_sparse_regression
+from .datasets.generated import make_dense_regression, make_sparse_regression
 from .utils import Timer
+
+
+def make_outdir(outdirs: list[str], i: int) -> str:
+    outdir = outdirs[i % len(outdirs)]
+    outdir = os.path.abspath(os.path.expanduser(outdir))
+    if not os.path.exists(outdir):
+        os.mkdir(outdir)
+    return outdir
 
 
 def make_sparse_regression_batches(config: dict[str, Any]) -> dict[str, Any]:
@@ -41,23 +49,22 @@ def make_sparse_regression_batches(config: dict[str, Any]) -> dict[str, Any]:
     n_samples_per_batch: int = config["n_samples_per_batch"]
     n_features: int = config["n_features"]
     outdirs: list[str] = config["outdirs"]
+    sparsity = config["sparsity"]
     if config["format"] != "npy":
         raise ValueError("Only npz is supported for sparse output.")
 
     file_info = []
     n_samples = 0
 
+    size = 0
     for i in range(n_batches):
         X, y = make_sparse_regression(
             n_samples=n_samples_per_batch,
             n_features=n_features,
-            sparsity=config["sparsity"],
-            random_state=i * n_samples_per_batch,
+            sparsity=sparsity,
+            random_state=size,
         )
-        outdir = outdirs[i % len(outdirs)]
-        outdir = os.path.abspath(os.path.expanduser(outdir))
-        if not os.path.exists(outdir):
-            os.mkdir(outdir)
+        outdir = make_outdir(outdirs, i)
         X_path = os.path.join(outdir, f"X-{i}.npz")
         y_path = os.path.join(outdir, f"y-{i}.npy")
         sparse.save_npz(X_path, X)
@@ -66,13 +73,58 @@ def make_sparse_regression_batches(config: dict[str, Any]) -> dict[str, Any]:
         meta = {"shape": X.shape, "X": X_path, "y": y_path, "batch_idx": i}
         file_info.append(meta)
         n_samples += n_samples_per_batch
+        size += X.size
 
     meta = {"shape": (n_samples, n_features), "files": file_info, "format": "csr"}
     return meta
 
 
+def make_dense_regression_batches(config: dict[str, Any]) -> dict[str, Any]:
+    n_batches: int = config["n_batches"]
+    n_samples_per_batch: int = config["n_samples_per_batch"]
+    n_features: int = config["n_features"]
+    outdirs: list[str] = config["outdirs"]
+    device = config["device"]
+    sparsity = config["sparsity"]
+
+    n_samples = 0
+    size = 0
+    file_info = []
+
+    for i in range(n_batches):
+        X, y = make_dense_regression(
+            device=device,
+            n_samples=n_samples_per_batch,
+            n_features=n_features,
+            sparsity=sparsity,
+            random_state=size,
+        )
+        size += X.size
+
+        outdir = make_outdir(outdirs, i)
+
+        if config["format"] == "npy":
+            X_path = os.path.join(outdir, f"X-{i}.npy")
+            y_path = os.path.join(outdir, f"y-{i}.npy")
+            if device == "cuda":
+                cp = import_cupy()
+
+                cp.save(X_path, X)
+                cp.save(y_path, y)
+            else:
+                np.save(X_path, X)
+                np.save(y_path, y)
+
+        meta = {"shape": X.shape, "X": X_path, "y": y_path, "batch_idx": i}
+        n_samples += X.shape[0]
+        file_info.append(meta)
+
+    meta = {"shape": (n_samples, n_features), "files": file_info, "format": "npy"}
+    return meta
+
+
 def load_sparse_it(
-    meta: dict[str, Any]
+    meta: dict[str, Any], device: str
 ) -> Generator[tuple[sparse.csr_matrix, np.ndarray]]:
     n_batches = len(meta["files"])
     files = meta["files"]
@@ -86,16 +138,39 @@ def load_sparse_it(
         yield X, y
 
 
+def load_dense_it(
+    meta: dict[str, Any], device: str
+) -> Generator[tuple[np.ndarray, np.ndarray]]:
+    n_batches = len(meta["files"])
+    files = meta["files"]
+
+    for i in range(n_batches):
+        X_path = files[i]["X"]
+        y_path = files[i]["y"]
+        if device == "cuda":
+            cp = import_cupy()
+
+            X = cp.load(X_path)
+            y = cp.load(y_path)
+        else:
+            X = np.load(X_path)
+            y = np.load(y_path)
+
+        yield X, y
+
+
 class BenchIter(xgb.DataIter):
-    def __init__(self, meta: dict[str, Any]) -> None:
+    def __init__(self, meta: dict[str, Any], fmt: str, device: str) -> None:
         self.meta = meta
         self.gen: Generator[tuple[sparse.csr_matrix, np.ndarray]] | None = None
+        self.make_gen = load_sparse_it if fmt == "csr" else load_dense_it
+        self.device = device
         super().__init__()
 
     @override
     def next(self, input_data: Callable) -> bool:
         if self.gen is None:
-            self.gen = load_sparse_it(self.meta)
+            self.gen = self.make_gen(self.meta, self.device)
         try:
             X, y = next(self.gen)
             input_data(data=X, label=y)
@@ -108,54 +183,57 @@ class BenchIter(xgb.DataIter):
         self.gen = None
 
 
-def loaddata(use_batches: bool, dm_type: Callable) -> xgb.DMatrix:
+def loaddata(use_batches: bool, dm_type: Callable, device: str) -> xgb.DMatrix:
     with open("data.json", "r") as fd:
         meta = json.load(fd)
 
+    if use_batches:
+        it = BenchIter(meta, fmt="csr", device=device)
+        return dm_type(it)
+
+    Xs = []
+    ys = []
+
     if meta["format"] == "csr":
-        # load sparse data
-        n_batches = len(meta["files"])
-        if use_batches:
-            it = BenchIter(meta)
-            return dm_type(it)
-        else:
-            Xs = []
-            ys = []
-            for X, y in load_sparse_it(meta):
-                Xs.append(X)
-                ys.append(y)
-
-            X = concat(Xs)
-            y = concat(ys)
-            return dm_type(X, y)
+        for X, y in load_sparse_it(meta, device=device):
+            Xs.append(X)
+            ys.append(y)
     else:
-        pass
+        for X, y in load_dense_it(meta, device=device):
+            Xs.append(X)
+            ys.append(y)
+
+    X = concat(Xs)
+    y = concat(ys)
+    return dm_type(X, y)
 
 
-def datagen(args: argparse.Namespace) -> None:
-    with open(args.config, "r") as fd:
-        config = json.load(fd)
+def cleanup_outdirs(outdirs: list[str]) -> None:
+    for outdir in outdirs:
+        outdir = os.path.abspath(os.path.expanduser(outdir))
+        if os.path.exists(outdir):
+            shutil.rmtree(outdir)
+
+
+def datagen(config: dict[str, Any]) -> None:
+    outdirs = config["outdirs"]
+    cleanup_outdirs(outdirs)
 
     if config["assparse"]:
         with Timer("datagen", "sparse"):
-            outdirs = config["outdirs"]
-            for outdir in outdirs:
-                outdir = os.path.abspath(os.path.expanduser(outdir))
-                if os.path.exists(outdir):
-                    shutil.rmtree(outdir)
-
             meta = make_sparse_regression_batches(config)
-
-        with open("data.json", "w") as fd:
-            json.dump(meta, fd)
     else:
-        pass
+        with Timer("datagen", "dense"):
+            pass
+    with open("data.json", "w") as fd:
+        json.dump(meta, fd)
 
 
 def runbench(config: dict[str, Any]) -> None:
-    dmatrix = config["dmatrix"]
+    dmatrix: str = config["dmatrix"]
+    device: str = config["device"]
     with Timer("bench", "DMatrix"):
-        Xy = loaddata(dmatrix in ["extmem", "qdm_iter"], map_dm(dmatrix))
+        Xy = loaddata(dmatrix in ["extmem", "qdm_iter"], map_dm(dmatrix), device=device)
     with Timer("bench", "Train"):
         xgb.train(
             {"device": config["device"]},
@@ -163,6 +241,7 @@ def runbench(config: dict[str, Any]) -> None:
             dtrain=Xy,
             evals=[(Xy, "Train")],
         )
+
 
 def map_dm(name: str) -> Type:
     match name:
@@ -192,9 +271,10 @@ def cli_main() -> None:
 
     assert args.command in ("datagen", "bench")
 
+    with open(args.config, "r") as fd:
+        config = json.load(fd)
+
     if args.command == "datagen":
-        datagen(args)
+        datagen(config)
     else:
-        with open(args.config, "r") as fd:
-            config = json.load(fd)
         runbench(config)
