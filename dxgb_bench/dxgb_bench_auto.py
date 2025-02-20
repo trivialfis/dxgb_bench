@@ -133,7 +133,6 @@ def loaddata(use_batches: bool, dm_type: Callable) -> xgb.DMatrix:
 
 
 def datagen(args: argparse.Namespace) -> None:
-    # datggen
     with open(args.config, "r") as fd:
         config = json.load(fd)
 
@@ -152,6 +151,18 @@ def datagen(args: argparse.Namespace) -> None:
     else:
         pass
 
+
+def runbench(config: dict[str, Any]) -> None:
+    dmatrix = config["dmatrix"]
+    with Timer("bench", "DMatrix"):
+        Xy = loaddata(dmatrix in ["extmem", "qdm_iter"], map_dm(dmatrix))
+    with Timer("bench", "Train"):
+        xgb.train(
+            {"device": config["device"]},
+            num_boost_round=config["num_boost_round"],
+            dtrain=Xy,
+            evals=[(Xy, "Train")],
+        )
 
 def map_dm(name: str) -> Type:
     match name:
@@ -186,11 +197,4 @@ def cli_main() -> None:
     else:
         with open(args.config, "r") as fd:
             config = json.load(fd)
-            dmatrix = config["dmatrix"]
-        Xy = loaddata(dmatrix in ["extmem", "qdm_iter"], map_dm(dmatrix))
-        xgb.train(
-            {"device": config["device"]},
-            num_boost_round=config["num_boost_round"],
-            dtrain=Xy,
-            evals=[(Xy, "Train")],
-        )
+        runbench(config)
