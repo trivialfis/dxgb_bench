@@ -4,10 +4,9 @@ from __future__ import annotations
 import argparse
 
 import numpy as np
-from matplotlib import pyplot as plt
-
 from cat_bench import AVAILABLE_ALGOS, make_estimator
 from cat_bench.algorithms import run_all_algo
+from matplotlib import pyplot as plt
 
 
 def main(args: argparse.Namespace) -> None:

@@ -26,9 +26,9 @@ class Method(IntEnum):
 
 @unique
 class Task(IntEnum):
-    REG = 0,
-    BIN = 1,
-    MUL = 2,
+    REG = (0,)
+    BIN = (1,)
+    MUL = (2,)
 
 
 def get_meth(algo: str) -> Method:

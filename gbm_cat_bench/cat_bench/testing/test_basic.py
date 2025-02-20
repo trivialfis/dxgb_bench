@@ -1,5 +1,4 @@
 import pytest
-
 from cat_bench import AVAILABLE_ALGOS, make_estimator
 
 

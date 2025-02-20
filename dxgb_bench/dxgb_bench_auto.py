@@ -187,14 +187,15 @@ def loaddata(use_batches: bool, dm_type: Callable, device: str) -> xgb.DMatrix:
     with open("data.json", "r") as fd:
         meta = json.load(fd)
 
+    fmt = meta["format"]
     if use_batches:
-        it = BenchIter(meta, fmt="csr", device=device)
+        it = BenchIter(meta, fmt=fmt, device=device)
         return dm_type(it)
 
     Xs = []
     ys = []
 
-    if meta["format"] == "csr":
+    if fmt == "csr":
         for X, y in load_sparse_it(meta, device=device):
             Xs.append(X)
             ys.append(y)
@@ -224,7 +225,7 @@ def datagen(config: dict[str, Any]) -> None:
             meta = make_sparse_regression_batches(config)
     else:
         with Timer("datagen", "dense"):
-            pass
+            meta = make_dense_regression_batches(config)
     with open("data.json", "w") as fd:
         json.dump(meta, fd)
 

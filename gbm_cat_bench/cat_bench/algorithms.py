@@ -26,8 +26,7 @@ class Algo:
         self.depth = depth
 
     @abstractmethod
-    def fit(self, dataset: str) -> dict[str, Any]:
-        ...
+    def fit(self, dataset: str) -> dict[str, Any]: ...
 
 
 def avg_result(result: dict) -> dict[str, float]:
