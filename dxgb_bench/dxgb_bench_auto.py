@@ -14,7 +14,8 @@
 {
   "dmatrix": "qdm_iter",
   "device": "cpu",
-  "num_boost_round": 10
+  "num_boost_round": 10,
+  "use_rmm": True,
 }
 """
 
@@ -33,7 +34,7 @@ from typing_extensions import override
 from xgboost.compat import concat, import_cupy
 
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .utils import Timer
+from .utils import Timer, setup_rmm
 
 
 def make_outdir(outdirs: list[str], i: int) -> str:
@@ -126,6 +127,7 @@ def make_dense_regression_batches(config: dict[str, Any]) -> dict[str, Any]:
 def load_sparse_it(
     meta: dict[str, Any], device: str
 ) -> Generator[tuple[sparse.csr_matrix, np.ndarray]]:
+    "Load a sparse dataset as batches."
     n_batches = len(meta["files"])
     files = meta["files"]
 
@@ -141,6 +143,7 @@ def load_sparse_it(
 def load_dense_it(
     meta: dict[str, Any], device: str
 ) -> Generator[tuple[np.ndarray, np.ndarray]]:
+    "Load a dense dataset as batches."
     n_batches = len(meta["files"])
     files = meta["files"]
 
@@ -231,6 +234,9 @@ def datagen(config: dict[str, Any]) -> None:
 
 
 def runbench(config: dict[str, Any]) -> None:
+    if config.get("use_rmm", None):
+        setup_rmm("arena")
+
     dmatrix: str = config["dmatrix"]
     device: str = config["device"]
     with Timer("bench", "DMatrix"):
