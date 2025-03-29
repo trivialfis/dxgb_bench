@@ -194,6 +194,8 @@ def cli_main() -> None:
             cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
                 bench(client, args)
+            logs = cluster.get_logs()
+            print(logs)
 
 
 if __name__ == "__main__":
