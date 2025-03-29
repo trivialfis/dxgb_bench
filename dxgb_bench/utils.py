@@ -249,6 +249,18 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     return parser
 
 
+def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
+    params = {
+        "tree_method": args.tree_method,
+        "max_depth": args.max_depth,
+        "grow_policy": args.policy,
+        "subsample": args.subsample,
+        "colsample_bynode": args.colsample_bynode,
+        "max_bin": args.n_bins,
+    }
+    return params
+
+
 def split_path(path: str) -> list[str]:
     if path.find(",") != -1:
         path_ls = path.split(",")
@@ -257,7 +269,7 @@ def split_path(path: str) -> list[str]:
     return path_ls
 
 
-TEST_SIZE = 0.2
+TEST_SIZE = 0.2  # Emulate to 5-fold CV
 DFT_OUT = os.path.join(os.curdir, "data")
 
 
