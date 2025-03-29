@@ -1,0 +1,51 @@
+name: xgboost_dev
+channels:
+- conda-forge
+- rapidsai
+- nvidia
+dependencies:
+- c-compiler
+- cxx-compiler
+- cmake
+- cuda-cudart-dev
+- cuda-nvcc
+- cuda-profiler-api
+- libcurand-dev
+- cuda-python
+- cuda-nvtx-dev
+- cuda-version=12.8
+- ninja
+- sysroot_linux-64==2.28
+- asyncssh
+- gtest>=1.13.0
+- nccl
+- kvikio
+- rmm
+# python local
+- python==3.12
+- pip
+- hatchling
+- hypothesis
+- pytest
+- numpy
+- pandas
+- scipy
+- scikit-learn
+# python dask
+- dask>=2024.10
+- distributed>=2024.10
+# GPU
+- cudf==25.*
+- cupy
+- dask-cudf==25.*
+- dask-cuda==25.*
+# release
+- tqdm
+# tooling
+- isort
+- black
+- jedi
+- mypy
+- flake8
+- pip:
+  - build

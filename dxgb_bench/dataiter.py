@@ -464,6 +464,7 @@ class SynIterImpl(IterImpl):
         sparsity: float,
         assparse: bool,
         device: str,
+        rs: int = 0,
     ) -> None:
         self.n_samples_per_batch = n_samples_per_batch
         self.n_features = n_features
@@ -473,13 +474,14 @@ class SynIterImpl(IterImpl):
         self.device = device
 
         self.sizes: list[int] = []
+        self.rs = rs
 
     @property
     def n_batches(self) -> int:
         return self._n_batches
 
     def _seed(self, i: int) -> int:
-        return sum(self.sizes[:i])
+        return sum(self.sizes[:i]) + self.rs
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
