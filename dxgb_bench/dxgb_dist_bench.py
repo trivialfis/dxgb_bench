@@ -24,15 +24,6 @@ from .utils import (
 )
 
 
-def _get_logger() -> logging.Logger:
-    logger = logging.getLogger("[dxgb-dist-bench]")
-    logger.setLevel(logging.INFO)
-    if not logger.hasHandlers():
-        handler = logging.StreamHandler()
-        logger.addHandler(handler)
-    return logger
-
-
 def _write_to_first(dirname: str, msg: str) -> None:
     path = os.path.join(dirname, "xgboost.log")
     with open(path, "a") as fd:
@@ -115,7 +106,7 @@ def train(
 
     with worker_client() as client:
         with coll.CommunicatorContext(**rabit_args):
-            print("n_workers:", coll.get_world_size())
+            _write_to_first(logdir, f"n_workers:{coll.get_world_size()}, rank:{coll.get_rank()}")
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
             params.update({"nthread": n_threads, "n_jobs": n_threads})
