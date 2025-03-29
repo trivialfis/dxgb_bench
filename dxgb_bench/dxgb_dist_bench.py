@@ -189,13 +189,18 @@ def cli_main() -> None:
         action="store_true",
         help="Generate data on the fly instead of loading it from the disk.",
     )
-    parser.add_argument("--cluster-type", choices=["local", "ssh"], required=True)
+    parser.add_argument(
+        "--cluster-type", choices=["local", "ssh", "manual"], required=True
+    )
     parser.add_argument("--n_workers", type=int)
     parser.add_argument(
         "--hosts", type=str, help=";separated list of hosts.", required=False
     )
     parser.add_argument("--rpy", type=str, help="remote python path.", required=False)
     parser.add_argument("--username", type=str, help="SSH username.", required=False)
+    parser.add_argument(
+        "--sched", type=str, help="path the to schedule config.", required=False
+    )
 
     parser = add_device_param(parser)
     parser = add_hyper_param(parser)
@@ -207,6 +212,11 @@ def cli_main() -> None:
         with LocalCluster(n_workers=args.n_workers) as cluster:
             with Client(cluster) as client:
                 bench(client, args)
+    elif args.cluster_type == "manual":
+        sched = args.sched
+        assert sched is not None
+        with Client(scheduler_file=sched) as client:
+            bench(client, args)
     else:
         hosts = args.hosts.split(";")
         print(hosts)
