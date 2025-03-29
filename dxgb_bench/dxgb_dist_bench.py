@@ -21,6 +21,7 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     make_params_from_args,
+    setup_rmm,
 )
 
 
@@ -87,6 +88,7 @@ def train(
     rs: int,
     logdir: str,
 ) -> xgboost.Booster:
+    setup_rmm("arena")
     it_impl = SynIterImpl(
         n_samples_per_batch=args.n_samples_per_batch,
         n_features=args.n_features,
@@ -106,12 +108,16 @@ def train(
 
     with worker_client() as client:
         with coll.CommunicatorContext(**rabit_args):
-            _write_to_first(logdir, f"n_workers:{coll.get_world_size()}, rank:{coll.get_rank()}")
+            _write_to_first(
+                logdir, f"n_workers:{coll.get_world_size()}, rank:{coll.get_rank()}"
+            )
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
             params.update({"nthread": n_threads, "n_jobs": n_threads})
             params.update({"verbosity": args.verbosity})
-            with xgboost.config_context(nthread=n_threads, use_rmm=True, verbosity=args.verbosity):
+            with xgboost.config_context(
+                nthread=n_threads, use_rmm=True, verbosity=args.verbosity
+            ):
                 Xy = xgboost.ExtMemQuantileDMatrix(
                     it, max_quantile_batches=32, nthread=n_threads
                 )
@@ -181,7 +187,9 @@ def cli_main() -> None:
         assert rpy is not None
         assert username is not None
         with SSHCluster(
-            hosts=hosts, remote_python=rpy, connect_options={"username": username, "known_hosts": None}
+            hosts=hosts,
+            remote_python=rpy,
+            connect_options={"username": username, "known_hosts": None},
         ) as cluster:
             cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
