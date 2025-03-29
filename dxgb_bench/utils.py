@@ -257,6 +257,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "subsample": args.subsample,
         "colsample_bynode": args.colsample_bynode,
         "max_bin": args.n_bins,
+        "device": args.device,
     }
     return params
 
