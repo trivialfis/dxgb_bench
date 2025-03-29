@@ -27,7 +27,7 @@ from .utils import (
 def _write_to_first(dirname: str, msg: str) -> None:
     path = os.path.join(dirname, "xgboost.log")
     with open(path, "a") as fd:
-        print(msg.strip(), file=fd)
+        print(msg.strip(), file=fd, flush=True)
 
 
 class ForwardLoggingMonitor(EvaluationMonitor):
