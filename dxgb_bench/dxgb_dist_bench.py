@@ -119,7 +119,7 @@ def train(
             n_threads = dxgb.get_n_threads(params, worker)
             params.update({"nthread": n_threads, "n_jobs": n_threads})
             params.update({"verbosity": args.verbosity})
-            with xgboost.config_context(nthread=n_threads, use_rmm=True):
+            with xgboost.config_context(nthread=n_threads, use_rmm=True, verbosity=args.verbosity):
                 Xy = xgboost.ExtMemQuantileDMatrix(
                     it, max_quantile_batches=32, nthread=n_threads
                 )
