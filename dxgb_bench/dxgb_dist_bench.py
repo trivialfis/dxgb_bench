@@ -144,6 +144,11 @@ def cli_main() -> None:
     )
     parser.add_argument("--cluster-type", choices=["local", "ssh"], required=True)
     parser.add_argument("--n_workers", type=int)
+    parser.add_argument(
+        "--hosts", type=str, help=";separated list of hosts.", required=False
+    )
+    parser.add_argument("--rpy", type=str, help="remote python path.", required=False)
+    parser.add_argument("--username", type=str, help="SSH username.", required=False)
 
     parser = add_device_param(parser)
     parser = add_hyper_param(parser)
@@ -155,7 +160,17 @@ def cli_main() -> None:
             with Client(cluster) as client:
                 bench(client, args)
     else:
-        cluster_type = SSHCluster
+        hosts = args.hosts.split(";")
+        print(hosts)
+        rpy = args.rpy
+        username = args.username
+        assert rpy is not None
+        assert username is not None
+        with SSHCluster(
+            hosts=hosts, remote_python=rpy, connect_options={"username": username}
+        ) as cluster:
+            with Client(cluster) as client:
+                bench(client, args)
 
 
 if __name__ == "__main__":
