@@ -31,10 +31,39 @@ def _write_to_first(dirname: str, msg: str) -> None:
         print(msg.strip(), file=fd, flush=True)
 
 
+def _get_logger() -> logging.Logger:
+    logger = logging.getLogger("[xgboost.dask]")
+    logger.setLevel(logging.INFO)
+    if not logger.hasHandlers():
+        handler = logging.StreamHandler()
+        logger.addHandler(handler)
+    return logger
+
+
 class ForwardLoggingMonitor(EvaluationMonitor):
-    def __init__(self, dirname: str) -> None:
-        self.dirname = dirname
-        super().__init__(logger=lambda msg: _write_to_first(self.dirname, msg))
+    def __init__(
+        self,
+        client: Client,
+        logdir: str,
+    ) -> None:
+        """Print the evaluation result at each iteration. The default monitor in the
+        native interface logs the result to the Dask scheduler process. This class can
+        be used to forward the logging to the client process. Important: see the
+        `client` parameter for more info.
+
+        Parameters
+        ----------
+        client :
+            Distributed client. This must be the top-level client. The class uses
+            :py:meth:`distributed.Client.forward_logging` in conjunction with the Python
+            :py:mod:`logging` module to forward the evaluation results to the client
+            process. It has undefined behaviour if called in a nested task. As a result,
+            client-side logging is not enabled by default.
+
+        """
+        client.forward_logging(_get_logger().name)
+
+        super().__init__(logger=lambda msg: _get_logger().info(msg.strip()))
 
 
 def make_batches(
@@ -86,7 +115,7 @@ def train(
     rabit_args: dict[str, Any],
     n_batches: int,
     rs: int,
-    logdir: str,
+    log_cb: EvaluationMonitor,
 ) -> xgboost.Booster:
     setup_rmm("arena")
     it_impl = SynIterImpl(
@@ -108,9 +137,6 @@ def train(
 
     with worker_client() as client:
         with coll.CommunicatorContext(**rabit_args):
-            _write_to_first(
-                logdir, f"n_workers:{coll.get_world_size()}, rank:{coll.get_rank()}"
-            )
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
             params.update({"nthread": n_threads, "n_jobs": n_threads})
@@ -126,7 +152,7 @@ def train(
                     Xy,
                     evals=[(Xy, "Train")],
                     num_boost_round=args.n_rounds,
-                    callbacks=[ForwardLoggingMonitor(logdir)],
+                    callbacks=[log_cb],
                 )
     return booster
 
@@ -140,15 +166,17 @@ def bench(client: Client, args: argparse.Namespace) -> None:
     if not args.fly:
         raise NotImplementedError("--fly must be specified.")
 
+    cwd = os.getcwd()
+    log_cb = ForwardLoggingMonitor(client, cwd)
+
     n_batches_per_worker = args.n_batches // n_workers
     assert n_batches_per_worker > 1
     futures = []
-    cwd = os.getcwd()
     for worker_id, worker in enumerate(workers):
         n_batches_prev = worker_id * n_batches_per_worker
         rs = n_batches_prev * args.n_samples_per_batch * args.n_features
         n_batches = min(n_batches_per_worker, args.n_batches - n_batches_prev)
-        fut = client.submit(train, args, rabit_args, n_batches, rs, cwd)
+        fut = client.submit(train, args, rabit_args, n_batches, rs, log_cb)
         n_batches_prev += n_batches
         futures.append(fut)
     client.gather(futures)
