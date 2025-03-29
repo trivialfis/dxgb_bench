@@ -117,7 +117,9 @@ def train(
 
 def bench(client: Client, args: argparse.Namespace) -> None:
     workers = get_client_workers(client)
+    print(f"workers: {workers}")
     n_workers = len(workers)
+    assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
     if not args.fly:
         raise NotImplementedError("--fly must be specified.")
