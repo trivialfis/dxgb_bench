@@ -90,7 +90,11 @@ def datagen(client: Client, args: argparse.Namespace) -> None:
 
 
 def train(
-    args: argparse.Namespace, rabit_args: dict[str, Any], n_batches: int, rs: int
+    args: argparse.Namespace,
+    rabit_args: dict[str, Any],
+    n_batches: int,
+    rs: int,
+    logdir: str,
 ) -> xgboost.Booster:
     it_impl = SynIterImpl(
         n_samples_per_batch=args.n_samples_per_batch,
@@ -123,7 +127,7 @@ def train(
                     Xy,
                     evals=[(Xy, "Train")],
                     num_boost_round=args.n_rounds,
-                    callbacks=[ForwardLoggingMonitor()],
+                    callbacks=[ForwardLoggingMonitor(logdir)],
                 )
     return booster
 
@@ -140,11 +144,12 @@ def bench(client: Client, args: argparse.Namespace) -> None:
     n_batches_per_worker = args.n_batches // n_workers
     assert n_batches_per_worker > 1
     futures = []
+    cwd = os.getcwd()
     for worker_id, worker in enumerate(workers):
         n_batches_prev = worker_id * n_batches_per_worker
         rs = n_batches_prev * args.n_samples_per_batch * args.n_features
         n_batches = min(n_batches_per_worker, args.n_batches - n_batches_prev)
-        fut = client.submit(train, args, rabit_args, n_batches, rs)
+        fut = client.submit(train, args, rabit_args, n_batches, rs, cwd)
         n_batches_prev += n_batches
         futures.append(fut)
     client.gather(futures)
