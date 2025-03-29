@@ -174,7 +174,7 @@ def cli_main() -> None:
     parser = add_device_param(parser)
     parser = add_hyper_param(parser)
     parser = add_data_params(parser, required=True)
-    parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1)
+    parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
     args = parser.parse_args()
 
     if args.cluster_type == "local":
