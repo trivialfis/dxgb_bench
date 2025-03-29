@@ -171,7 +171,7 @@ def cli_main() -> None:
         with SSHCluster(
             hosts=hosts, remote_python=rpy, connect_options={"username": username}
         ) as cluster:
-            cluster.wait_for_workers(n_workers=len(hosts))
+            cluster.wait_for_workers(n_workers=len(hosts)-1)
             with Client(cluster) as client:
                 bench(client, args)
 
