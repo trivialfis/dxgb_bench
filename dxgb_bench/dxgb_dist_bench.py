@@ -187,7 +187,7 @@ def cli_main() -> None:
         assert rpy is not None
         assert username is not None
         with SSHCluster(
-            hosts=hosts, remote_python=rpy, connect_options={"username": username}
+            hosts=hosts, remote_python=rpy, connect_options={"username": username, "known_hosts": None}
         ) as cluster:
             cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
