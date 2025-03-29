@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from typing import Any
 
 import numpy as np
@@ -32,18 +33,16 @@ def _get_logger() -> logging.Logger:
     return logger
 
 
-def _write_to_first(msg: str) -> None:
-    with open("xgboost.log", "a") as fd:
+def _write_to_first(dirname: str, msg: str) -> None:
+    path = os.path.join(dirname, "xgboost.log")
+    with open(path, "a") as fd:
         print(msg.strip(), file=fd)
 
 
 class ForwardLoggingMonitor(EvaluationMonitor):
-    def __init__(self, rank: int = 0, period: int = 1) -> None:
-        super().__init__(
-            rank=rank,
-            period=period,
-            logger=_write_to_first,
-        )
+    def __init__(self, dirname: str) -> None:
+        self.dirname = dirname
+        super().__init__(logger=lambda msg: _write_to_first(self.dirname, msg))
 
 
 def make_batches(
