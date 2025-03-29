@@ -196,7 +196,7 @@ def cli_main() -> None:
             with Client(cluster) as client:
                 bench(client, args)
             logs = cluster.get_logs()
-            for k, v in logs:
+            for k, v in logs.items():
                 print(f"{k}\n{v}")
 
 
