@@ -11,7 +11,6 @@ from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost.callback import EvaluationMonitor
 from xgboost.testing.dask import get_client_workers
-from xgboost.tracker import RabitTracker
 
 from .dataiter import BenchIter, SynIterImpl
 from .datasets.generated import make_dense_regression, save_Xy
@@ -31,6 +30,20 @@ def _get_logger() -> logging.Logger:
         handler = logging.StreamHandler()
         logger.addHandler(handler)
     return logger
+
+
+def _write_to_first(msg: str) -> None:
+    with open("xgboost.log", "a") as fd:
+        print(msg.strip(), file=fd)
+
+
+class ForwardLoggingMonitor(EvaluationMonitor):
+    def __init__(self, rank: int = 0, period: int = 1) -> None:
+        super().__init__(
+            rank=rank,
+            period=period,
+            logger=_write_to_first,
+        )
 
 
 def make_batches(
@@ -111,6 +124,7 @@ def train(
                     Xy,
                     evals=[(Xy, "Train")],
                     num_boost_round=args.n_rounds,
+                    callbacks=[ForwardLoggingMonitor()],
                 )
     return booster
 
@@ -171,7 +185,7 @@ def cli_main() -> None:
         with SSHCluster(
             hosts=hosts, remote_python=rpy, connect_options={"username": username}
         ) as cluster:
-            cluster.wait_for_workers(n_workers=len(hosts)-1)
+            cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
                 bench(client, args)
 
