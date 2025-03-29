@@ -115,6 +115,7 @@ def train(
 
     with worker_client() as client:
         with coll.CommunicatorContext(**rabit_args):
+            print("n_workers:", coll.get_world_size())
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
             params.update({"nthread": n_threads, "n_jobs": n_threads})
@@ -195,7 +196,8 @@ def cli_main() -> None:
             with Client(cluster) as client:
                 bench(client, args)
             logs = cluster.get_logs()
-            print(logs)
+            for k, v in logs:
+                print(f"{k}\n{v}")
 
 
 if __name__ == "__main__":
