@@ -464,7 +464,7 @@ class SynIterImpl(IterImpl):
         sparsity: float,
         assparse: bool,
         device: str,
-        rs: int = 0
+        rs: int = 0,
     ) -> None:
         self.n_samples_per_batch = n_samples_per_batch
         self.n_features = n_features
