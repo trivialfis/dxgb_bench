@@ -118,6 +118,7 @@ def train(
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
             params.update({"nthread": n_threads, "n_jobs": n_threads})
+            params.update({"verbosity": args.verbosity})
             with xgboost.config_context(nthread=n_threads, use_rmm=True):
                 Xy = xgboost.ExtMemQuantileDMatrix(
                     it, max_quantile_batches=32, nthread=n_threads
@@ -173,6 +174,7 @@ def cli_main() -> None:
     parser = add_device_param(parser)
     parser = add_hyper_param(parser)
     parser = add_data_params(parser, required=True)
+    parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1)
     args = parser.parse_args()
 
     if args.cluster_type == "local":
