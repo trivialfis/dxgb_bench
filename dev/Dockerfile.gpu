@@ -37,7 +37,6 @@ RUN \
     -DUSE_DLOPEN_NCCL=ON \
     -DUSE_OPENMP=ON \
     -DUSE_NVTX=ON \
-    -DPLUGIN_FEDERATED=ON \
     -DPLUGIN_RMM=ON \
     -DCMAKE_CXX_FLAGS="-Wall -rdynamic" -DENABLE_ALL_WARNINGS=ON && \
     time ninja && \
