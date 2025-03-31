@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 from typing import Any
 
 import xgboost
@@ -68,7 +69,7 @@ def train(
         with coll.CommunicatorContext(**rabit_args):
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
-            params.update({"nthread": n_threads, "verbosity": args.verbosity})
+            params.update({"nthread": n_threads})
             with xgboost.config_context(
                 nthread=n_threads, use_rmm=True, verbosity=args.verbosity
             ):
@@ -80,6 +81,7 @@ def train(
                     Xy,
                     evals=[(Xy, "Train")],
                     num_boost_round=args.n_rounds,
+                    verbose_eval=False,
                     callbacks=[log_cb],
                 )
     return booster
@@ -106,7 +108,9 @@ def bench(client: Client, args: argparse.Namespace) -> None:
         fut = client.submit(train, args, rabit_args, n_batches, rs, log_cb)
         n_batches_prev += n_batches
         futures.append(fut)
-    client.gather(futures)
+    boosters = client.gather(futures)
+    assert len(boosters) == n_workers
+    assert all(b.num_boosted_rounds() == args.n_rounds for b in boosters)
 
 
 def cli_main() -> None:
@@ -117,7 +121,7 @@ def cli_main() -> None:
         help="Generate data on the fly instead of loading it from the disk.",
     )
     parser.add_argument(
-        "--cluster-type", choices=["local", "ssh", "manual"], required=True
+        "--cluster_type", choices=["local", "ssh", "manual"], required=True
     )
     parser.add_argument("--n_workers", type=int)
     parser.add_argument(
@@ -136,9 +140,20 @@ def cli_main() -> None:
     args = parser.parse_args()
 
     if args.cluster_type == "local":
-        with LocalCluster(n_workers=args.n_workers) as cluster:
-            with Client(cluster) as client:
-                bench(client, args)
+        if args.device == "cpu":
+            with LocalCluster(n_workers=args.n_workers) as cluster:
+                with Client(cluster) as client:
+                    bench(client, args)
+        else:
+            from dask_cuda import LocalCUDACluster
+
+            n_threads = os.cpu_count()
+            assert n_threads is not None
+            with LocalCUDACluster(
+                n_workers=args.n_workers, threads_per_worker=n_threads
+            ) as cluster:
+                with Client(cluster) as client:
+                    bench(client, args)
     elif args.cluster_type == "manual":
         sched = args.sched
         assert sched is not None
