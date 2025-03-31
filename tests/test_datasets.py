@@ -37,7 +37,8 @@ def test_sparse_regressioin() -> None:
     )
     assert X.shape[0] == 1023 and X.shape[1] == 32
     assert y.shape[0] == X.shape[0]
-    assert 13000 < X.nnz < 13100
+    # 1023 * 32 * 0.6 -> 13094
+    assert 13000 < X.nnz < 13110
 
 
 def test_dense_regression() -> None:

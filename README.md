@@ -1,10 +1,3 @@
-Some simple scripts for running benchmarks for [XGBoost](https://github.com/dmlc/xgboost).  Heavily inspired by [gbm-bench](https://github.com/NVIDIA/gbm-bench).
-
-To build a CPU image:
-``` sh
-./dxgb_bench/dev/build_image.sh cpu
-```
-
 Synthetic data
 --------------
 To use the data gen written C++, we need to build it using CMake first. One can use the
@@ -20,5 +13,6 @@ each other.
 Commands
 --------
 - dxgb-bench
-- dxgb-dask-bench
+- dxgb-dist-bench
 - dxgb-ext-bench
+<!-- - dxgb-dask-bench -->
