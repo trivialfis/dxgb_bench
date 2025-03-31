@@ -2,10 +2,8 @@ from __future__ import annotations
 
 import argparse
 import logging
-import os
 from typing import Any
 
-import numpy as np
 import xgboost
 from distributed import Client, LocalCluster, SSHCluster, get_worker, worker_client
 from xgboost import collective as coll
@@ -14,9 +12,7 @@ from xgboost.callback import EvaluationMonitor
 from xgboost.testing.dask import get_client_workers
 
 from .dataiter import BenchIter, SynIterImpl
-from .datasets.generated import make_dense_regression, save_Xy
 from .utils import (
-    DFT_OUT,
     add_data_params,
     add_device_param,
     add_hyper_param,
@@ -39,7 +35,6 @@ class ForwardLoggingMonitor(EvaluationMonitor):
         client.forward_logging(_get_logger().name)
 
         super().__init__(logger=lambda msg: _get_logger().info(msg.strip()))
-
 
 
 def train(
@@ -68,7 +63,7 @@ def train(
     )
     worker = get_worker()
 
-    with worker_client() as client:
+    with worker_client():
         with coll.CommunicatorContext(**rabit_args):
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
@@ -99,8 +94,7 @@ def bench(client: Client, args: argparse.Namespace) -> None:
     if not args.fly:
         raise NotImplementedError("--fly must be specified.")
 
-    cwd = os.getcwd()
-    log_cb = ForwardLoggingMonitor(client, cwd)
+    log_cb = ForwardLoggingMonitor(client)
 
     n_batches_per_worker = args.n_batches // n_workers
     assert n_batches_per_worker > 1
