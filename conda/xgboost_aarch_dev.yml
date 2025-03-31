@@ -41,6 +41,7 @@ dependencies:
 - dask-cuda==25.*
 # release
 - tqdm
+- typing_extensions
 # tooling
 - isort
 - black

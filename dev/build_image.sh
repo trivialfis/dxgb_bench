@@ -8,7 +8,7 @@ case $rt in
 	cp dxgb_bench/dev/Dockerfile.gpu Dockerfile
 	;;
     *)
-	echo "Invalid option."
+	echo "Invalid option. Expected [cpu|gpu]."
 	exit -1
 	;;
 esac

@@ -3,7 +3,7 @@ FROM mambaorg/micromamba:2.0.2-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-COPY --chown=$MAMBA_USER:$MAMBA_USER dxgb_bench/dev/xgboost_cpu_dev.yml /tmp/xgboost_dev.yml
+COPY --chown=$MAMBA_USER:$MAMBA_USER dxgb_bench/conda/xgboost_aarch_dev.yml /tmp/xgboost_dev.yml
 
 RUN --mount=type=cache,target=/opt/mambaforge/pkgs micromamba install -y -n base -f /tmp/xgboost_dev.yml -v
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
@@ -11,7 +11,7 @@ ARG MAMBA_DOCKERFILE_ACTIVATE=1
 RUN \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
     cd xgboost && \
-    git checkout c06994b2fbad93ff7377549b4ae9d27e16b45188 && \
+    git checkout 5fbab40988973a7c9e1161fa0dea92d38ac3885a && \
     cd -
 
 RUN \

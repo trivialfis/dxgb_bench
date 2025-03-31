@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:experimental
-FROM rapidsai/ci-conda:cuda12.5.1-ubuntu22.04-py3.12
+FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
 
 ENV DEBIAN_FRONTEND noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -18,18 +18,15 @@ RUN mkdir ws
 
 COPY dxgb_bench/dev/xgboost_dev.yml ws/xgboost_dev.yml
 
-RUN --mount=type=cache,target=/opt/mambaforge/pkgs mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes
+RUN --mount=type=cache,target=/opt/conda/pkgs mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes
 
 RUN \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
     cd xgboost && \
-    git checkout c06994b2fbad93ff7377549b4ae9d27e16b45188 && \
+    git checkout 5fbab40988973a7c9e1161fa0dea92d38ac3885a && \
     cd -
 
 COPY dxgb_bench ws/dxgb_bench
-
-RUN \
-    patch -p1 < ws/dxgb_bench/dev/unique.patch
 
 RUN \
     mkdir build && \
