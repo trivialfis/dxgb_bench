@@ -25,12 +25,6 @@ from .utils import (
 )
 
 
-def _write_to_first(dirname: str, msg: str) -> None:
-    path = os.path.join(dirname, "xgboost.log")
-    with open(path, "a") as fd:
-        print(msg.strip(), file=fd, flush=True)
-
-
 def _get_logger() -> logging.Logger:
     logger = logging.getLogger("[xgboost.dask]")
     logger.setLevel(logging.INFO)
@@ -41,73 +35,11 @@ def _get_logger() -> logging.Logger:
 
 
 class ForwardLoggingMonitor(EvaluationMonitor):
-    def __init__(
-        self,
-        client: Client,
-        logdir: str,
-    ) -> None:
-        """Print the evaluation result at each iteration. The default monitor in the
-        native interface logs the result to the Dask scheduler process. This class can
-        be used to forward the logging to the client process. Important: see the
-        `client` parameter for more info.
-
-        Parameters
-        ----------
-        client :
-            Distributed client. This must be the top-level client. The class uses
-            :py:meth:`distributed.Client.forward_logging` in conjunction with the Python
-            :py:mod:`logging` module to forward the evaluation results to the client
-            process. It has undefined behaviour if called in a nested task. As a result,
-            client-side logging is not enabled by default.
-
-        """
+    def __init__(self, client: Client) -> None:
         client.forward_logging(_get_logger().name)
 
         super().__init__(logger=lambda msg: _get_logger().info(msg.strip()))
 
-
-def make_batches(
-    device: str,
-    n_samples_per_batch: int,
-    n_features: int,
-    n_batches: int,
-    worker_id: int,
-    saveto: str,
-    rs: int,
-) -> None:
-    for i in range(n_batches):
-        X, y = make_dense_regression(
-            device=device,
-            n_samples=n_samples_per_batch,
-            n_features=n_features,
-            sparsity=0.0,
-            random_state=rs,
-        )
-        rs += X.size
-        save_Xy(X, y, i, [saveto])
-
-
-def datagen(client: Client, args: argparse.Namespace) -> None:
-    workers = get_client_workers(client)
-    n_workers = len(workers)
-    n_batches_per_worker = args.n_batches // n_workers
-    assert n_batches_per_worker > 1
-    futures = []
-    for worker_id, worker in enumerate(workers):
-        n_batches_prev = worker_id * n_batches_per_worker
-        n_batches = min(n_batches_per_worker, args.n_batches - n_batches_prev)
-        fut = client.submit(
-            make_batches,
-            n_samples_per_batch=args.n_samples_per_batch,
-            n_features=args.n_features,
-            n_batches=n_batches,
-            worker_id=worker_id,
-            saveto=args.saveto,
-            workers=[worker],
-        )
-        n_batches_prev += n_batches
-        futures.append(fut)
-    client.gather(futures)
 
 
 def train(
