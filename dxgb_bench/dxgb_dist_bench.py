@@ -68,8 +68,7 @@ def train(
         with coll.CommunicatorContext(**rabit_args):
             params = make_params_from_args(args)
             n_threads = dxgb.get_n_threads(params, worker)
-            params.update({"nthread": n_threads, "n_jobs": n_threads})
-            params.update({"verbosity": args.verbosity})
+            params.update({"nthread": n_threads, "verbosity": args.verbosity})
             with xgboost.config_context(
                 nthread=n_threads, use_rmm=True, verbosity=args.verbosity
             ):

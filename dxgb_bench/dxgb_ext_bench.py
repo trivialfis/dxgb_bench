@@ -10,7 +10,15 @@ from .external_mem import (
     extmem_qdm_train,
     extmem_spdm_train,
 )
-from .utils import Timer, add_data_params, add_device_param, add_rmm_param, split_path
+from .utils import (
+    Timer,
+    add_data_params,
+    add_device_param,
+    add_hyper_param,
+    add_rmm_param,
+    make_params_from_args,
+    split_path,
+)
 
 
 def main(args: argparse.Namespace) -> None:
@@ -37,14 +45,14 @@ def main(args: argparse.Namespace) -> None:
     if args.task == "ext-sp":
         extmem_spdm_train(
             opts,
-            n_bins=args.n_bins,
+            params=make_params_from_args(args),
             n_rounds=args.n_rounds,
             loadfrom=loadfrom,
         )
     elif args.task == "ext-qdm":
         extmem_qdm_train(
             opts,
-            n_bins=args.n_bins,
+            params=make_params_from_args(args),
             n_rounds=args.n_rounds,
             loadfrom=loadfrom,
         )
@@ -79,9 +87,8 @@ def cli_main() -> None:
     parser.add_argument("--loadfrom", type=str, default=dft_out)
 
     parser = add_data_params(parser, required=False, n_features=512)
+    parser = add_hyper_param(parser)
 
-    parser.add_argument("--n_rounds", type=int, default=128)
-    parser.add_argument("--n_bins", type=int, default=256)
     parser.add_argument(
         "--fly",
         action="store_true",

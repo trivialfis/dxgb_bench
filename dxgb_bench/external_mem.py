@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from dataclasses import dataclass
+from typing import Any
 
 import xgboost as xgb
 
@@ -107,7 +108,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
 
 def extmem_spdm_train(
     opts: Opts,
-    n_bins: int,
+    params: dict[str, Any],
     n_rounds: int,
     loadfrom: list[str],
 ) -> xgb.Booster:
@@ -126,12 +127,7 @@ def extmem_spdm_train(
 
     with Timer("ExtSparse", "train"):
         booster = xgb.train(
-            {
-                "tree_method": "hist",
-                "max_depth": 6,
-                "device": "cuda",
-                "max_bin": n_bins,
-            },
+            params,
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
@@ -142,7 +138,7 @@ def extmem_spdm_train(
 
 def extmem_qdm_train(
     opts: Opts,
-    n_bins: int,
+    params: dict[str, Any],
     n_rounds: int,
     loadfrom: list[str],
 ) -> xgb.Booster:
@@ -152,7 +148,7 @@ def extmem_qdm_train(
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
         Xy_train = xgb.ExtMemQuantileDMatrix(
-            it_train, max_bin=n_bins, max_quantile_batches=32
+            it_train, max_bin=params["max_bin"], max_quantile_batches=32
         )
 
     watches = [(Xy_train, "Train")]
@@ -164,12 +160,7 @@ def extmem_qdm_train(
 
     with Timer("ExtQdm", "train"):
         booster = xgb.train(
-            {
-                "tree_method": "hist",
-                "max_depth": 6,
-                "max_bin": n_bins,
-                "device": opts.device,
-            },
+            params,
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
