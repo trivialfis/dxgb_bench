@@ -17,7 +17,6 @@ dxgb-ext-bench = "dxgb_bench.dxgb_ext_bench:cli_main"
 dxgb-to-csv = "dxgb_bench.dxgb_to_csv:cli_main"
 dxgb-dask-bench = "dxgb_bench.dxgb_dask_bench:cli_main"
 dxgb-bench = "dxgb_bench.dxgb_bench:cli_main"
-dxgb-bench-auto = "dxgb_bench.dxgb_bench_auto:cli_main"
 dxgb-dist-bench = "dxgb_bench.dxgb_dist_bench:cli_main"
 
 [tool.setuptools]
