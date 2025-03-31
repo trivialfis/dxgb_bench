@@ -3,11 +3,7 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 
-import cupy as cp
-import rmm
 import xgboost as xgb
-from cuda import cudart
-from rmm.allocators.cupy import rmm_cupy_allocator
 
 from .dataiter import (
     TEST_SIZE,
@@ -17,7 +13,7 @@ from .dataiter import (
     SynIterImpl,
     get_file_paths,
 )
-from .utils import Timer, fprint, setup_rmm
+from .utils import Timer, setup_rmm
 
 
 @dataclass

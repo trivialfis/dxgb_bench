@@ -23,12 +23,20 @@ def cuda_cluster() -> Generator[LocalCUDACluster, None, None]:
 def test_make_dense_regression_cpu(cpu_cluster: LocalCluster) -> None:
     with Client(cpu_cluster) as client:
         X, y = make_dense_regression("cpu", 4096, 128, random_state=1994)
-        assert client.compute(X.shape[0]) == 4096 == client.compute(y.shape[0])
+        assert (
+            client.compute(X.shape[0]).result()
+            == 4096
+            == client.compute(y.shape[0]).result()
+        )
         assert X.shape[1] == 128
 
 
 def test_make_dense_regression_cuda(cuda_cluster: LocalCluster) -> None:
     with Client(cuda_cluster) as client:
         X, y = make_dense_regression("cuda", 4096, 128, random_state=1994)
-        assert client.compute(X.shape[0]) == 4096 == client.compute(y.shape[0])
+        assert (
+            client.compute(X.shape[0]).result()
+            == 4096
+            == client.compute(y.shape[0]).result()
+        )
         assert X.shape[1] == 128

@@ -31,3 +31,31 @@ jobs:
       run: |
         black --check .
         isort --profile=black --check .
+
+  tests:
+    name: Run basic tests
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest]
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: 'fales'
+    - uses: dmlc/xgboost-devops/actions/miniforge-setup@main
+      with:
+        environment-name: xgboost_dev
+        environment-file: conda/xgboost_aarch_dev.yml
+    - name: Install XGBoost
+      run: pip install xgboost
+    - name: Build
+      run:
+        mkdir build
+        cd build
+        cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dxgb_bench
+        ninja
+        cd ..
+    - run:
+        pytest -s -v ./tests/test_dataiter.py ./tests/test_datasets.py
+        pytest -s -v ./tests/dsk

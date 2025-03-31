@@ -1,3 +1,4 @@
+# Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import argparse
@@ -22,7 +23,7 @@ from .utils import (
 
 
 def _get_logger() -> logging.Logger:
-    logger = logging.getLogger("[xgboost.dask]")
+    logger = logging.getLogger("[dxgb-bench]")
     logger.setLevel(logging.INFO)
     if not logger.hasHandlers():
         handler = logging.StreamHandler()

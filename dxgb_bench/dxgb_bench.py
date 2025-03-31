@@ -1,10 +1,10 @@
-# Copyright (c) 2024, Jiaming Yuan.  All rights reserved.
+# Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import argparse
 import os
+from typing import Any
 
-import kvikio
 import numpy as np
 import xgboost as xgb
 from scipy import sparse
@@ -19,7 +19,15 @@ from .dataiter import (
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression, save_Xy
-from .utils import DFT_OUT, Timer, add_data_params, add_device_param, split_path
+from .utils import (
+    DFT_OUT,
+    Timer,
+    add_data_params,
+    add_device_param,
+    add_hyper_param,
+    make_params_from_args,
+    split_path,
+)
 
 
 def datagen(
@@ -72,7 +80,12 @@ def datagen(
 
 
 def bench(
-    task: str, loadfrom: list[str], n_rounds: int, valid: bool, device: str
+    task: str,
+    loadfrom: list[str],
+    params: dict[str, Any],
+    n_rounds: int,
+    valid: bool,
+    device: str,
 ) -> None:
     for d in loadfrom:
         assert os.path.exists(d)
@@ -118,7 +131,7 @@ def bench(
 
     with Timer("Qdm", "train"):
         booster = xgb.train(
-            {"tree_method": "hist", "device": device, "max_depth": 6},
+            params,
             Xy,
             num_boost_round=n_rounds,
             evals=watches,
@@ -164,7 +177,7 @@ def cli_main() -> None:
         ),
         required=True,
     )
-    bh_parser.add_argument("--n_rounds", type=int, default=128)
+    bh_parser = add_hyper_param(bh_parser)
     bh_parser.add_argument(
         "--valid", action="store_true", help="Split for the validation dataset."
     )
@@ -185,7 +198,8 @@ def cli_main() -> None:
     else:
         assert args.command == "bench"
         loadfrom = split_path(args.loadfrom)
-        bench(args.task, loadfrom, args.n_rounds, args.valid, args.device)
+        params = make_params_from_args(args)
+        bench(args.task, loadfrom, params, args.n_rounds, args.valid, args.device)
 
 
 if __name__ == "__main__":

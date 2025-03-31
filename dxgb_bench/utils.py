@@ -231,6 +231,11 @@ def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
     return parser
 
 
+def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument("--mr", choices=["arena", "binning", "pool"], default="arena")
+    return parser
+
+
 def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--tree_method", type=str, help="Used algorithm", default="hist"

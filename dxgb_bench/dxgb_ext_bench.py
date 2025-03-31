@@ -10,7 +10,7 @@ from .external_mem import (
     extmem_qdm_train,
     extmem_spdm_train,
 )
-from .utils import Timer, add_data_params, split_path
+from .utils import Timer, add_data_params, add_device_param, add_rmm_param, split_path
 
 
 def main(args: argparse.Namespace) -> None:
@@ -74,8 +74,8 @@ def cli_main() -> None:
     parser.add_argument(
         "--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True
     )
-    parser.add_argument("--mr", choices=["arena", "binning", "pool"], default="arena")
-    parser.add_argument("--device", choices=["cpu", "cuda"], required=True)
+    parser = add_rmm_param(parser)
+    parser = add_device_param(parser)
     parser.add_argument("--loadfrom", type=str, default=dft_out)
 
     parser = add_data_params(parser, required=False, n_features=512)
