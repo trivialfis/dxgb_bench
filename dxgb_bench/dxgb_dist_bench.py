@@ -149,6 +149,7 @@ def cli_main() -> None:
 
             n_threads = os.cpu_count()
             assert n_threads is not None
+            n_threads = max(n_threads // args.n_workers, 1)
             with LocalCUDACluster(
                 n_workers=args.n_workers, threads_per_worker=n_threads
             ) as cluster:
