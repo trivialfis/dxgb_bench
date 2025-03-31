@@ -117,7 +117,8 @@ def train(
     rs: int,
     log_cb: EvaluationMonitor,
 ) -> xgboost.Booster:
-    setup_rmm("arena")
+    if args.device == "cuda":
+        setup_rmm("arena")
     it_impl = SynIterImpl(
         n_samples_per_batch=args.n_samples_per_batch,
         n_features=args.n_features,
