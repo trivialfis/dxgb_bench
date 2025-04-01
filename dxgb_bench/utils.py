@@ -11,7 +11,6 @@ import time
 import warnings
 from typing import Any, Callable, Dict, TypeAlias, Union
 
-import numpy as np
 
 try:
     import nvtx
@@ -122,17 +121,19 @@ global_timer: GlobalTimer = {}
 
 
 class Timer:
-    def __init__(self, name: str, proc: str):
+    def __init__(self, name: str, proc: str, logger: Callable = fprint) -> None:
         self.name = name
         self.proc = proc
         self.proc_name = proc + " (sec)"
         self.range_id = None
+        self.logger = logger
 
     def __enter__(self) -> "Timer":
         if nvtx is not None:
             self.range_id = nvtx.start_range(self.name + "-" + self.proc)
         self.start = time.time()
-        fprint(self.name, self.proc_name, "started: ", time.ctime())
+        msg = f"{self.name} {self.proc_name} started: {time.ctime()}"
+        self.logger(msg)
         return self
 
     def __exit__(self, t: None, value: None, traceback: None) -> None:
@@ -146,7 +147,8 @@ class Timer:
             s = time.time()
             global_timer[self.name][self.proc_name] = s - s
         global_timer[self.name][self.proc_name] += end - self.start
-        fprint(self.name, self.proc_name, "ended in: ", end - self.start, "seconds.")
+        msg = f"{self.name} {self.proc_name} ended in: {end - self.start} seconds."
+        self.logger(msg)
 
     @staticmethod
     def global_timer() -> GlobalTimer:

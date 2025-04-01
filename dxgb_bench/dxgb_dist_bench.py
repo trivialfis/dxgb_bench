@@ -15,6 +15,7 @@ from xgboost.testing.dask import get_client_workers
 
 from .dataiter import BenchIter, SynIterImpl
 from .utils import (
+    Timer,
     add_data_params,
     add_device_param,
     add_hyper_param,
@@ -65,17 +66,24 @@ def train(
     )
     worker = get_worker()
 
-    with worker_client():
-        with coll.CommunicatorContext(**rabit_args):
-            params = make_params_from_args(args)
-            n_threads = dxgb.get_n_threads(params, worker)
-            params.update({"nthread": n_threads})
-            with xgboost.config_context(
-                nthread=n_threads, use_rmm=True, verbosity=args.verbosity
-            ):
+    with worker_client(), coll.CommunicatorContext(**rabit_args):
+        params = make_params_from_args(args)
+        n_threads = dxgb.get_n_threads(params, worker)
+        params.update({"nthread": n_threads})
+        with xgboost.config_context(
+            nthread=n_threads, use_rmm=True, verbosity=args.verbosity
+        ):
+
+            def log_fn(msg: str) -> None:
+                if coll.get_rank() == 0:
+                    _get_logger().info(msg)
+
+            with Timer("Distributed", "ExtMemQdm", logger=log_fn):
                 Xy = xgboost.ExtMemQuantileDMatrix(
                     it, max_quantile_batches=32, nthread=n_threads
                 )
+
+            with Timer("Distributed", "Train", logger=log_fn):
                 booster = xgboost.train(
                     params,
                     Xy,
@@ -100,17 +108,19 @@ def bench(client: Client, args: argparse.Namespace) -> None:
 
     n_batches_per_worker = args.n_batches // n_workers
     assert n_batches_per_worker > 1
-    futures = []
-    for worker_id, worker in enumerate(workers):
-        n_batches_prev = worker_id * n_batches_per_worker
-        rs = n_batches_prev * args.n_samples_per_batch * args.n_features
-        n_batches = min(n_batches_per_worker, args.n_batches - n_batches_prev)
-        fut = client.submit(train, args, rabit_args, n_batches, rs, log_cb)
-        n_batches_prev += n_batches
-        futures.append(fut)
-    boosters = client.gather(futures)
-    assert len(boosters) == n_workers
-    assert all(b.num_boosted_rounds() == args.n_rounds for b in boosters)
+
+    with Timer("Distributed", "Total", logger=lambda msg: _get_logger().info(msg)):
+        futures = []
+        for worker_id, worker in enumerate(workers):
+            n_batches_prev = worker_id * n_batches_per_worker
+            rs = n_batches_prev * args.n_samples_per_batch * args.n_features
+            n_batches = min(n_batches_per_worker, args.n_batches - n_batches_prev)
+            fut = client.submit(train, args, rabit_args, n_batches, rs, log_cb)
+            n_batches_prev += n_batches
+            futures.append(fut)
+        boosters = client.gather(futures)
+        assert len(boosters) == n_workers
+        assert all(b.num_boosted_rounds() == args.n_rounds for b in boosters)
 
 
 def cli_main() -> None:
