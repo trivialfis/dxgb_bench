@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import argparse
-import gc
 import math
 import os
 import shutil

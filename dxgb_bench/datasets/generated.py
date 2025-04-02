@@ -1,20 +1,17 @@
 # Copyright (c) 2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
-import argparse
 import ctypes
 import functools
 import os
-import pickle
 from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, Tuple
+from typing import Tuple
 
 import kvikio
 import numpy as np
 from scipy import sparse
 
-from ..utils import DType, div_roundup, fprint
-from .dataset import DataSet
+from ..utils import div_roundup, fprint
 
 
 @functools.cache
