@@ -245,14 +245,18 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--n_rounds", type=int, default=128, help="Number of boosting rounds."
     )
-    # data
     parser.add_argument("--max-depth", type=int, default=6)
     parser.add_argument(
         "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
     )
+    parser.add_argument("--n_bins", type=int, default=256)
     parser.add_argument("--subsample", type=float, default=None)
     parser.add_argument("--colsample_bynode", type=float, default=None)
-    parser.add_argument("--n_bins", type=int, default=256)
+    parser.add_argument("--colsample_bytree", type=float, default=None)
+    parser.add_argument("--eta", type=float, default=None)
+    parser.add_argument("--gamma", type=float, default=None)
+    parser.add_argument("--min_child_weight", type=float, default=None)
+    parser.add_argument("--reg_lambda", type=float, default=None)
     return parser
 
 
@@ -263,7 +267,12 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "grow_policy": args.policy,
         "subsample": args.subsample,
         "colsample_bynode": args.colsample_bynode,
+        "colsample_bytree": args.colsample_bytree,
         "max_bin": args.n_bins,
+        "lambda": args.reg_lambda,
+        "gamma": args.gamma,
+        "eta": args.eta,
+        "min_child_weight": args.min_child_weight,
         "device": args.device,
     }
     return params
