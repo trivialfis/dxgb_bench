@@ -100,7 +100,6 @@ def cli_main() -> None:
     parser.add_argument(
         "--predict_type", choices=["value", "contrib", "interaction"], required=False
     )
-    parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=3, type=int)
 
     args = parser.parse_args()
 

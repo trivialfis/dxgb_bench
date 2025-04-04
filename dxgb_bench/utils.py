@@ -10,7 +10,6 @@ import time
 import warnings
 from typing import Any, Callable, Dict, TypeAlias, Union
 
-
 try:
     import nvtx
 except ImportError as e:
@@ -256,6 +255,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--gamma", type=float, default=None)
     parser.add_argument("--min_child_weight", type=float, default=None)
     parser.add_argument("--reg_lambda", type=float, default=None)
+    parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
     return parser
 
 
@@ -273,6 +273,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "eta": args.eta,
         "min_child_weight": args.min_child_weight,
         "device": args.device,
+        "verbosity": args.verbosity,
     }
     return params
 
