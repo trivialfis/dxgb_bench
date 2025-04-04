@@ -165,7 +165,14 @@ def make_dense_binary_classification(
     else:
         from cuml.datasets import make_classification
 
-    X, y = make_classification(n_samples, n_features, random_state=random_state)
+    X, y = make_classification(
+        n_samples,
+        n_features,
+        n_redundant=0,
+        n_repeated=0,
+        n_informative=n_features,
+        random_state=random_state,
+    )
     gc.collect()
     return X, y
 

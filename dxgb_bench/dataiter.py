@@ -502,6 +502,7 @@ class SynIterImpl(IterImpl):
                 n_features=self.n_features,
                 random_state=self._seed(i),
             )
+            print("seed:", self._seed(i))
             if len(self.sizes) != self._n_batches:
                 self.sizes.append(X.size)
             return X, y
