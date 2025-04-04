@@ -249,7 +249,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--n_rounds", type=int, default=128, help="Number of boosting rounds."
     )
-    parser.add_argument("--max-depth", type=int, default=6)
+    parser.add_argument("--max_depth", type=int, default=6)
     parser.add_argument(
         "--policy", type=str, default="depthwise", choices=["lossguide", "depthwise"]
     )
