@@ -35,10 +35,14 @@ def datagen(
     n_features: int,
     n_batches: int,
     assparse: bool,
+    target_type: str,
     sparsity: float,
     device: str,
     outdirs: list[str],
 ) -> None:
+    if target_type != "reg":
+        raise NotImplementedError()
+
     for d in outdirs:
         if not os.path.exists(d):
             os.mkdir(d)
@@ -191,6 +195,7 @@ def cli_main() -> None:
             n_features=args.n_features,
             n_batches=args.n_batches,
             assparse=args.assparse,
+            target_type=args.target_type,
             sparsity=args.sparsity,
             device=args.device,
             outdirs=saveto,

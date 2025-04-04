@@ -19,6 +19,7 @@ from .utils import (
     add_data_params,
     add_device_param,
     add_hyper_param,
+    fprint,
     make_params_from_args,
     setup_rmm,
 )
@@ -55,6 +56,7 @@ def train(
         n_batches=n_batches,
         sparsity=args.sparsity,
         assparse=args.assparse,
+        target_type=args.target_type,
         device=args.device,
         rs=rs,
     )
@@ -97,7 +99,7 @@ def train(
 
 def bench(client: Client, args: argparse.Namespace) -> None:
     workers = get_client_workers(client)
-    print(f"workers: {workers}")
+    fprint(f"workers: {workers}")
     n_workers = len(workers)
     assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
@@ -171,7 +173,6 @@ def cli_main() -> None:
             bench(client, args)
     else:
         hosts = args.hosts.split(";")
-        print(hosts)
         rpy = args.rpy
         username = args.username
         assert rpy is not None
@@ -186,7 +187,7 @@ def cli_main() -> None:
                 bench(client, args)
             logs = cluster.get_logs()
             for k, v in logs.items():
-                print(f"{k}\n{v}")
+                fprint(f"{k}\n{v}")
 
 
 if __name__ == "__main__":

@@ -17,7 +17,11 @@ from scipy import sparse
 from typing_extensions import override
 from xgboost.compat import concat
 
-from .datasets.generated import make_dense_regression, make_sparse_regression
+from .datasets.generated import (
+    make_dense_binary_classification,
+    make_dense_regression,
+    make_sparse_regression,
+)
 from .utils import TEST_SIZE, Timer, fprint
 
 if TYPE_CHECKING:
@@ -463,6 +467,7 @@ class SynIterImpl(IterImpl):
         n_batches: int,
         sparsity: float,
         assparse: bool,
+        target_type: str,
         device: str,
         rs: int = 0,
     ) -> None:
@@ -471,6 +476,7 @@ class SynIterImpl(IterImpl):
         self._n_batches = n_batches
         self.sparsity = sparsity
         self.assparse = assparse
+        self.target_type = target_type
         self.device = device
 
         self.sizes: list[int] = []
@@ -485,6 +491,18 @@ class SynIterImpl(IterImpl):
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
+        if self.target_type == "bin" and self.assparse:
+            raise NotImplementedError(
+                "assparse is not supported for binary classification yet."
+            )
+        if self.target_type == "bin":
+            X, y = make_dense_binary_classification(
+                device=self.device,
+                n_samples=self.n_samples_per_batch,
+                n_features=self.n_features,
+                random_state=self._seed(i),
+            )
+            return X, y
         if self.assparse:
             assert i == 0, "not implemented"
             X, y = make_sparse_regression(

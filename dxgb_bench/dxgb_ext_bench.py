@@ -39,6 +39,7 @@ def main(args: argparse.Namespace) -> None:
         validation=args.valid,
         device=args.device,
         mr=args.mr,
+        target_type=args.target_type,
     )
     loadfrom = split_path(args.loadfrom)
 
@@ -102,6 +103,10 @@ def cli_main() -> None:
     )
 
     args = parser.parse_args()
+    if args.target_type == "bin" and args.fly is not True:
+        raise NotImplementedError(
+            "`--fly` must be true for binary classification target."
+        )
 
     with xgb.config_context(verbosity=args.verbosity, use_rmm=True):
         main(args)

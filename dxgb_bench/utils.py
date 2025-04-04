@@ -217,6 +217,12 @@ def add_data_params(
     parser.add_argument("--n_batches", type=int, default=1)
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
+    parser.add_argument(
+        "--target_type",
+        choices=["bin", "reg"],
+        default="reg",
+        help="Type of the target, either binary classification or regression.",
+    )
     return parser
 
 
@@ -274,6 +280,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "min_child_weight": args.min_child_weight,
         "device": args.device,
         "verbosity": args.verbosity,
+        "objective": "binary:logistic" if args.target_type == "bin" else None,
     }
     return params
 

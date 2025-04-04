@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ctypes
 import functools
+import gc
 import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple
@@ -153,6 +154,19 @@ def make_dense_regression(
         sparsity=sparsity,
     )
     psize(X)
+    return X, y
+
+
+def make_dense_binary_classification(
+    device: str, n_samples: int, n_features: int, random_state: int
+) -> Tuple[np.ndarray, np.ndarray]:
+    if device == "cpu":
+        from sklearn.datasets import make_classification
+    else:
+        from cuml.datasets import make_classification
+
+    X, y = make_classification(n_samples, n_features, random_state=random_state)
+    gc.collect()
     return X, y
 
 

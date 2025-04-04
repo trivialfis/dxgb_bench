@@ -27,6 +27,7 @@ class Opts:
     validation: bool
     device: str
     mr: str
+    target_type: str
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -70,6 +71,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
             n_batches=opts.n_batches,
             sparsity=opts.sparsity,
             assparse=False,
+            target_type=opts.target_type,
             device=opts.device,
         )
         it_train = BenchIter(
@@ -91,6 +93,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         n_batches=opts.n_batches,
         sparsity=opts.sparsity,
         assparse=False,
+        target_type=opts.target_type,
         device=opts.device,
     )
     it_valid_impl = SynIterImpl(
@@ -99,6 +102,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         n_batches=opts.n_batches,
         sparsity=opts.sparsity,
         assparse=False,
+        target_type=opts.target_type,
         device=opts.device,
     )
     it_train = BenchIter(it_train_impl, is_ext=True, is_valid=False, device=opts.device)
@@ -196,6 +200,7 @@ def extmem_qdm_inference(
             n_batches=n_batches,
             sparsity=sparsity,
             assparse=assparse,
+            target_type=args.target_type,
             device=device,
         )
     it = BenchIter(it_impl, is_ext=True, is_valid=False, device=device)
