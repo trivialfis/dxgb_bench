@@ -1,4 +1,4 @@
-# Copyright (c) 2024, Jiaming Yuan.  All rights reserved.
+# Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import os
@@ -77,12 +77,30 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
-        datagen(nspb, n_features, n_batches, False, 0.0, device, [path])
+        datagen(
+            nspb,
+            n_features,
+            n_batches,
+            False,
+            target_type="reg",
+            sparsity=0.0,
+            device=device,
+            outdirs=[path],
+        )
         X0, y0 = load_all([path], "cpu")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
-        datagen(nspb * n_batches, n_features, 1, False, 0.0, device, [path])
+        datagen(
+            nspb * n_batches,
+            n_features,
+            1,
+            False,
+            target_type="reg",
+            sparsity=0.0,
+            device=device,
+            outdirs=[path],
+        )
         X1, y1 = load_all([path], "cpu")
 
     np.testing.assert_allclose(X0, X1)
@@ -146,7 +164,16 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
-        datagen(nspb, n_features, n_batches, False, 0.0, device, [path])
+        datagen(
+            nspb,
+            n_features,
+            n_batches,
+            False,
+            target_type="reg",
+            sparsity=0.0,
+            device=device,
+            outdirs=[path],
+        )
         X3, y3 = load_all([path], "cpu")
 
     assert_allclose(X0, X1)
