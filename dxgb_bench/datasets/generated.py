@@ -160,19 +160,18 @@ def make_dense_regression(
 def make_dense_binary_classification(
     device: str, n_samples: int, n_features: int, random_state: int
 ) -> Tuple[np.ndarray, np.ndarray]:
-    if device == "cpu":
-        from sklearn.datasets import make_classification
-    else:
-        from cuml.datasets import make_classification
-
-    X, y = make_classification(
-        n_samples,
-        n_features,
-        n_redundant=0,
-        n_repeated=0,
-        n_informative=n_features,
-        random_state=random_state,
+    X, y_sum = make_dense_regression(
+        device, n_samples, n_features, sparsity=0.0, random_state=random_state
     )
+    if device == "cpu":
+
+        y = np.zeros(shape=(n_samples,), dtype=np.float32)
+    else:
+        import cupy as cp
+
+        y = cp.zeros(shape=(n_samples,), dtype=cp.float32)
+
+    y[y_sum > 0] = 1
     gc.collect()
     return X, y
 
