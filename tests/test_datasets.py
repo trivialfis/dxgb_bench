@@ -11,6 +11,7 @@ from scipy import sparse
 from xgboost.compat import concat
 
 from dxgb_bench.dataiter import (
+    BenchIter,
     LoadIterImpl,
     SynIterImpl,
     get_file_paths,
@@ -111,7 +112,15 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     n_batches = 12
     nspb = 8
 
-    impl = SynIterImpl(nspb, n_features, n_batches, 0.0, False, device)
+    impl = SynIterImpl(
+        nspb,
+        n_features,
+        n_batches,
+        0.0,
+        False,
+        target_type="reg",
+        device=device,
+    )
     Xs0, ys0 = [], []
     Xs1, ys1 = [], []
     for i in range(n_batches):
@@ -130,7 +139,9 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     X1 = concat(Xs1)
     y1 = concat(ys1)
 
-    impl = SynIterImpl(nspb * n_batches, n_features, 1, 0.0, False, device)
+    impl = SynIterImpl(
+        nspb * n_batches, n_features, 1, 0.0, False, target_type="reg", device=device
+    )
     X2, y2 = impl.get(0)
 
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -157,6 +168,53 @@ def test_dense_iter() -> None:
 
 
 @pytest.mark.parametrize("device", ["cpu", "cuda"])
+def test_deterministic(device: str) -> None:
+    n_samples_per_batch = 8192
+    n_features = 400
+    target_type = "bin"
+    n_batches = 4
+
+    impl = SynIterImpl(
+        n_samples_per_batch,
+        n_features,
+        n_batches,
+        0.0,
+        False,
+        target_type=target_type,
+        device=device,
+    )
+    it = BenchIter(impl, True, False, device)
+    Xs: list[np.ndarray] = []
+    ys: list[np.ndarray] = []
+
+    def append(data: np.ndarray, label: np.ndarray) -> None:
+        Xs.append(data)
+        ys.append(label)
+
+    while it.next(append):
+        continue
+    it.reset()
+
+    k = 0
+
+    def check(data: np.ndarray, label: np.ndarray) -> None:
+        nonlocal k
+
+        if device == "cpu":
+            np.testing.assert_allclose(data, Xs[k])
+            np.testing.assert_allclose(label, ys[k])
+        else:
+            cp.testing.assert_allclose(data, Xs[k])
+            cp.testing.assert_allclose(label, ys[k])
+
+        k += 1
+
+    while it.next(check):
+        continue
+    it.reset()
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda"])
 def test_cv(device: str) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         path0 = os.path.join(tmpdir, "data0")
@@ -167,7 +225,16 @@ def test_cv(device: str) -> None:
         n_batches = 4
         nspb = 8
 
-        datagen(nspb, n_features, n_batches, False, 0.0, device, [path0, path1])
+        datagen(
+            nspb,
+            n_features,
+            n_batches,
+            False,
+            target_type="reg",
+            sparsity=0.0,
+            device=device,
+            outdirs=[path0, path1],
+        )
         n_train, n_valid = get_valid_sizes(n_samples=nspb * n_batches)
         assert n_valid == 6
 
