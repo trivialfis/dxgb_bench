@@ -25,6 +25,7 @@ from .utils import (
     add_data_params,
     add_device_param,
     add_hyper_param,
+    add_target_type,
     make_params_from_args,
     split_path,
 )
@@ -156,6 +157,7 @@ def cli_main() -> None:
     # Datagen parser
     dg_parser = add_data_params(dg_parser, True)
     dg_parser = add_device_param(dg_parser)
+    dg_parser = add_target_type(dg_parser)
     dg_parser.add_argument(
         "--saveto",
         type=str,
@@ -182,6 +184,7 @@ def cli_main() -> None:
         required=True,
     )
     bh_parser = add_hyper_param(bh_parser)
+    bh_parser = add_target_type(bh_parser)
     bh_parser.add_argument(
         "--valid", action="store_true", help="Split for the validation dataset."
     )

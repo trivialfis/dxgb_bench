@@ -202,6 +202,16 @@ def div_roundup(a: int, b: int) -> int:
     return math.ceil(a / b)
 
 
+def add_target_type(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
+    parser.add_argument(
+        "--target_type",
+        choices=["bin", "reg"],
+        default="reg",
+        help="Type of the target, either binary classification or regression.",
+    )
+    return parser
+
+
 def add_data_params(
     parser: argparse.ArgumentParser,
     required: bool,
@@ -217,12 +227,7 @@ def add_data_params(
     parser.add_argument("--n_batches", type=int, default=1)
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
-    parser.add_argument(
-        "--target_type",
-        choices=["bin", "reg"],
-        default="reg",
-        help="Type of the target, either binary classification or regression.",
-    )
+    parser = add_target_type(parser)
     return parser
 
 
