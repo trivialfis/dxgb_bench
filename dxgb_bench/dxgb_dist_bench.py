@@ -135,7 +135,7 @@ def cli_main() -> None:
     parser.add_argument(
         "--cluster_type", choices=["local", "ssh", "manual"], required=True
     )
-    parser.add_argument("--n_workers", type=int)
+    parser.add_argument("--n_workers", type=int, required=True)
     parser.add_argument(
         "--hosts", type=str, help=";separated list of hosts.", required=False
     )
