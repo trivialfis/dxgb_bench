@@ -157,7 +157,6 @@ def cli_main() -> None:
     # Datagen parser
     dg_parser = add_data_params(dg_parser, True)
     dg_parser = add_device_param(dg_parser)
-    dg_parser = add_target_type(dg_parser)
     dg_parser.add_argument(
         "--saveto",
         type=str,
