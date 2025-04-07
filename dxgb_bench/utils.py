@@ -287,6 +287,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "verbosity": args.verbosity,
         "objective": "binary:logistic" if args.target_type == "bin" else None,
     }
+    fprint(params)
     return params
 
 
