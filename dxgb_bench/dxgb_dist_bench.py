@@ -125,6 +125,23 @@ def bench(client: Client, args: argparse.Namespace) -> None:
         assert all(b.num_boosted_rounds() == args.n_rounds for b in boosters)
 
 
+def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:
+    assert device in ["cpu", "cuda"]
+    if device == "cpu":
+        return LocalCluster(n_workers=n_workers, memory_limit=None, **kwargs)
+    from dask_cuda import LocalCUDACluster
+
+    n_threads = os.cpu_count()
+    assert n_threads is not None
+    n_threads = max(n_threads // n_workers, 1)
+    return LocalCUDACluster(
+        n_workers=n_workers,
+        threads_per_worker=n_threads,
+        memory_limit=None,
+        **kwargs,
+    )
+
+
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -133,7 +150,7 @@ def cli_main() -> None:
         help="Generate data on the fly instead of loading it from the disk.",
     )
     parser.add_argument(
-        "--cluster_type", choices=["local", "ssh", "manual"], required=True
+        "--cluster_type", choices=["local", "ssh", "sched"], required=True
     )
     parser.add_argument("--n_workers", type=int, required=True)
     parser.add_argument(
@@ -151,22 +168,10 @@ def cli_main() -> None:
     args = parser.parse_args()
 
     if args.cluster_type == "local":
-        if args.device == "cpu":
-            with LocalCluster(n_workers=args.n_workers) as cluster:
-                with Client(cluster) as client:
-                    bench(client, args)
-        else:
-            from dask_cuda import LocalCUDACluster
-
-            n_threads = os.cpu_count()
-            assert n_threads is not None
-            n_threads = max(n_threads // args.n_workers, 1)
-            with LocalCUDACluster(
-                n_workers=args.n_workers, threads_per_worker=n_threads
-            ) as cluster:
-                with Client(cluster) as client:
-                    bench(client, args)
-    elif args.cluster_type == "manual":
+        with local_cluster(device=args.device, n_workers=args.n_workers) as cluster:
+            with Client(cluster) as client:
+                bench(client, args)
+    elif args.cluster_type == "sched":
         sched = args.sched
         assert sched is not None
         with Client(scheduler_file=sched) as client:
