@@ -82,7 +82,10 @@ def train(
 
             with Timer("Distributed", "ExtMemQdm", logger=log_fn):
                 Xy = xgboost.ExtMemQuantileDMatrix(
-                    it, max_quantile_batches=32, nthread=n_threads
+                    it,
+                    max_quantile_batches=32,
+                    nthread=n_threads,
+                    max_bin=params["max_bin"],
                 )
 
             with Timer("Distributed", "Train", logger=log_fn):
