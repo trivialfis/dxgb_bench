@@ -21,6 +21,7 @@ def main(args: argparse.Namespace) -> None:
         f"dxgb-bench-{args.target}-{args.arch}-{args.sm}:latest",
         "--build-arg",
         f"SM={args.sm}",
+        "--build-arg",
         f"ARCH={args.arch}",
     ]
     if build_args is not None:
