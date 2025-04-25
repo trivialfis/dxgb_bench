@@ -23,7 +23,7 @@ RUN --mount=type=cache,target=/opt/conda/pkgs mamba env update -n base -f ws/xgb
 RUN \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
     cd xgboost && \
-    git checkout 5fbab40988973a7c9e1161fa0dea92d38ac3885a && \
+    git checkout f41be2cef10eaaa450271016355c41e3a9125502 && \
     cd -
 
 COPY dxgb_bench ws/dxgb_bench
