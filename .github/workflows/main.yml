@@ -59,7 +59,7 @@ jobs:
         conda info
         mkdir build
         cd build
-        cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dxgb_bench
+        cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CUDA_ARCHITECTURES=all ../dxgb_bench
         ninja
         cd ..
     - name: Test
