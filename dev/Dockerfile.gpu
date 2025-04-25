@@ -1,6 +1,7 @@
 # syntax=docker/dockerfile:experimental
 FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
 ARG ARCH
+ARG SM
 
 ENV DEBIAN_FRONTEND noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -27,6 +28,36 @@ RUN \
     cd -
 
 RUN --mount=type=cache,target=/opt/conda/pkgs mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes
+
+
+RUN \
+    cd /ws && \
+    git clone --recursive  https://github.com/dmlc/xgboost.git && \
+    cd xgboost && \
+    git checkout f41be2cef10eaaa450271016355c41e3a9125502 && \
+    cd /
+
+RUN \
+    cd /ws && \
+    rm -rf ./build && \
+    mkdir build && \
+    cd build && \
+    cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+	  -DUSE_CUDA=ON \
+	  -DUSE_NCCL=ON \
+	  -DUSE_DLOPEN_NCCL=ON \
+	  -DUSE_OPENMP=ON \
+	  -DUSE_NVTX=ON \
+	  -DPLUGIN_RMM=ON \
+	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
+
+RUN \
+    cd /ws/build && \
+    time ninja
+
+RUN \
+    cd /ws/xgboost/python-package && \
+    pip install . --no-deps --no-build-isolation
 
 COPY dxgb_bench ws/dxgb_bench
 

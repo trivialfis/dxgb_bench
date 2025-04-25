@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
 Examples:
 
-    python ./dxgb_bench/dev/build_image.py --target=gpu --build-args="ARCH=x86"
+    python ./dxgb_bench/dev/build_image.py --target=gpu --build-args="ARCH=x86;SM=90a"
 
     """)
     parser.add_argument(
