@@ -23,13 +23,15 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""
+    parser = argparse.ArgumentParser(
+        description="""
 
 Examples:
 
-    python ./dxgb_bench/dev/build_image.py --target=gpu --build-args="ARCH=x86;SM=90a"
+    python ./dxgb_bench/dev/build_image.py --target=gpu --build-args="ARCH=aarch;SM=90a"
 
-    """)
+    """
+    )
     parser.add_argument(
         "--build-args", help=";separated list of docker build arguments."
     )

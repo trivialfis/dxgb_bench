@@ -51,6 +51,8 @@ jobs:
       run: pip install xgboost
     - name: Build
       run: |
+        echo $CONDA_PREFIX
+        conda info
         mkdir build
         cd build
         cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dxgb_bench
