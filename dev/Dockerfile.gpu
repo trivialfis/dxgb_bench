@@ -1,5 +1,6 @@
 # syntax=docker/dockerfile:experimental
 FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
+ARG ARCH
 
 ENV DEBIAN_FRONTEND noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -17,39 +18,18 @@ RUN \
 RUN mkdir ws
 
 COPY dxgb_bench/dev/xgboost_dev.yml ws/xgboost_dev.yml
-
-RUN --mount=type=cache,target=/opt/conda/pkgs mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes
+COPY dxgb_bench/dev/install_nsight.sh ws/install_nsight.sh
+COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
-    git clone --recursive  https://github.com/dmlc/xgboost.git && \
-    cd xgboost && \
-    git checkout f41be2cef10eaaa450271016355c41e3a9125502 && \
+    cd ws && \
+    ./install_nsight.sh $ARCH && \
     cd -
+
+RUN --mount=type=cache,target=/opt/conda/pkgs mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes
 
 COPY dxgb_bench ws/dxgb_bench
 
 RUN \
-    mkdir build && \
-    cd build && \
-    cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-    -DUSE_CUDA=ON \
-    -DUSE_NCCL=ON \
-    -DUSE_DLOPEN_NCCL=ON \
-    -DUSE_OPENMP=ON \
-    -DUSE_NVTX=ON \
-    -DPLUGIN_RMM=ON \
-    -DCMAKE_CXX_FLAGS="-Wall -rdynamic" -DENABLE_ALL_WARNINGS=ON && \
-    time ninja && \
-    cd ../xgboost/python-package && \
-    pip install . --no-deps --no-build-isolation && \
-    cd ../../ && \
-    rm -rf build
-
-RUN \
     cd /ws/ && \
-    mkdir build && \
-    cd build && \
-    cmake ../dxgb_bench/dxgb_bench -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDXGB_USE_CUDA=ON -DCMAKE_CUDA_ARCHITECTURES=all -GNinja && \
-    ninja && \
-    cd ../dxgb_bench && \
-    pip install -e . --no-deps --no-build-isolation
+    ./build_dxgb_bench.sh
