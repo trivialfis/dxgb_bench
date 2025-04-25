@@ -62,7 +62,7 @@ jobs:
         cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CUDA_ARCHITECTURES=all ../dxgb_bench
         ninja
         cd ..
-        pip install . -e --no-build-isolation --no-deps
+        pip install -e . --no-build-isolation --no-deps
     - name: Test
       shell: bash -l {0}
       run: |
