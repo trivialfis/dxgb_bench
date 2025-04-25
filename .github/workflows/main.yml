@@ -49,12 +49,12 @@ jobs:
         miniforge-version: latest
         activate-environment: xgboost_dev
     - name: Install XGBoost
+      shell: bash -l {0}
       run: |
-        conda activate xgboost_dev
         pip install xgboost
     - name: Build
+      shell: bash -l {0}
       run: |
-        conda activate xgboost_dev
         echo $CONDA_PREFIX
         conda info
         mkdir build
@@ -63,7 +63,7 @@ jobs:
         ninja
         cd ..
     - name: Test
+      shell: bash -l {0}
       run: |
-        conda activate xgboost_dev
         pytest -s -v ./tests/test_dataiter.py ./tests/test_datasets.py
         pytest -s -v ./tests/dsk
