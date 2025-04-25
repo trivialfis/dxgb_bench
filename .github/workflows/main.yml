@@ -49,9 +49,12 @@ jobs:
         miniforge-version: latest
         activate-environment: xgboost_dev
     - name: Install XGBoost
-      run: pip install xgboost
+      run: |
+        conda activate xgboost_dev
+        pip install xgboost
     - name: Build
       run: |
+        conda activate xgboost_dev
         echo $CONDA_PREFIX
         conda info
         mkdir build
@@ -59,6 +62,8 @@ jobs:
         cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ../dxgb_bench
         ninja
         cd ..
-    - run: |
+    - name: Test
+      run: |
+        conda activate xgboost_dev
         pytest -s -v ./tests/test_dataiter.py ./tests/test_datasets.py
         pytest -s -v ./tests/dsk
