@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 
@@ -12,7 +13,13 @@ def main(args: argparse.Namespace) -> None:
     else:
         shutil.copyfile("dxgb_bench/dev/Dockerfile.gpu", "Dockerfile")
     build_args = args.build_args
-    cmd = ["docker", "build", ".", "-t", f"dxgb-bench-{args.target}:latest"]
+    cmd = [
+        "docker",
+        "build",
+        ".",
+        "-t",
+        f"dxgb-bench-{args.target}-{args.arch}-{args.sm}:latest",
+    ]
     if build_args is not None:
         build_args_lst: list[str] = build_args.split(";")
         for kv in build_args_lst:
@@ -28,12 +35,20 @@ if __name__ == "__main__":
 
 Examples:
 
-    python ./dxgb_bench/dev/build_image.py --target=gpu --build-args="ARCH=aarch;SM=90a"
+    python ./dxgb_bench/dev/build_image.py --target=gpu --arch=aarch --sm=90a
 
     """
     )
+    machine = platform.machine()
+    dft_arch = "aarch" if machine.startswith("aarch") else "x86"
     parser.add_argument(
-        "--build-args", help=";separated list of docker build arguments."
+        "--arch", choices=["x86", "aarch"], required=False, default=dft_arch
+    )
+    parser.add_argument("--sm", type=str, required=True)
+    parser.add_argument(
+        "--build-args",
+        help=";separated list of docker build arguments.",
+        required=False,
     )
     parser.add_argument("--target", choices=["cpu", "gpu"], default="gpu")
     args = parser.parse_args()
