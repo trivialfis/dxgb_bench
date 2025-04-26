@@ -396,13 +396,18 @@ class Strip:
                     shard_idx=shard_idx,
                     fmt=self._fmt,
                 )
-                if shard_idx == beg_shard_idx and shard_idx == end_shard_idx:
-                    hdl.read(path_shard, beg_in_shard, end_in_shard)
-                elif beg_shard_idx == shard_idx:
-                    hdl.read(path_shard, beg_in_shard, None)
-                elif end_shard_idx == shard_idx:
-                    hdl.read(path_shard, None, end_in_shard)
-                elif beg_shard_idx < shard_idx < end_shard_idx:
+                if begin is not None:
+                    if shard_idx == beg_shard_idx and shard_idx == end_shard_idx:
+                        hdl.read(path_shard, beg_in_shard, end_in_shard)
+                    elif beg_shard_idx == shard_idx:
+                        hdl.read(path_shard, beg_in_shard, None)
+                    elif end_shard_idx == shard_idx:
+                        hdl.read(path_shard, None, end_in_shard)
+                    elif beg_shard_idx < shard_idx < end_shard_idx:
+                        hdl.read(path_shard, None, None)
+                    else:
+                        pass
+                else:
                     hdl.read(path_shard, None, None)
             array = hdl.get()
             assert array.shape[0] == n_samples, (array.shape, n_samples)
