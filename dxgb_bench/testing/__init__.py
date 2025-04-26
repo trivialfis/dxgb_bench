@@ -10,7 +10,7 @@ import numpy as np
 @cache
 def has_cuda() -> bool:
     try:
-        from cuda import cudart
+        from cuda.bindings import runtime as cudart
 
         status, res = cudart.cudaGetDevice()
         cudart.cudaGetLastError()
