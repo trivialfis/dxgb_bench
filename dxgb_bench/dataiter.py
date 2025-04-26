@@ -1,13 +1,13 @@
 # Copyright (c) 2024, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
+import dataclasses
 import gc
 import os
 import re
 from abc import abstractmethod, abstractproperty
 from bisect import bisect_right
 from collections import defaultdict
-import dataclasses
 from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
 import kvikio
@@ -41,7 +41,7 @@ class IterImpl:
 
 @dataclasses.dataclass
 class PathInfo:
-    name: str                   # X|y
+    name: str  # X|y
     n_samples: int
     n_features: int
     batch_idx: int
