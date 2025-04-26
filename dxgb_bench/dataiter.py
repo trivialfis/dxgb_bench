@@ -10,7 +10,6 @@ from bisect import bisect_right
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
-import kvikio
 import numpy as np
 import xgboost as xgb
 from numpy import typing as npt
@@ -41,6 +40,8 @@ class IterImpl:
 
 @dataclasses.dataclass
 class PathInfo:
+    """Parse result of a path."""
+
     name: str  # X|y
     n_samples: int
     n_features: int
@@ -69,9 +70,16 @@ def load_Xy(
     if Xp.endswith("npz"):
         X = sparse.load_npz(Xp)
         y = np.load(yp)
+    elif Xp.endswith("npy"):
+        X = np.load(Xp)
+        y = np.load(yp)
     else:
+        assert Xp.endswith("kvi"), Xp
+        import kvikio
+
         pinfo = get_pinfo(Xp)
         X, y = _alloc(pinfo.n_samples, pinfo.n_features, device)
+
         with kvikio.CuFile(Xp, "r") as fd:
             n_bytes = fd.read(X)
             assert n_bytes == X.nbytes
@@ -80,6 +88,23 @@ def load_Xy(
             assert n_bytes == y.nbytes
 
     return X, y
+
+
+def _load_part(
+    path: str, begin: int, out_begin: int, out_end: int
+) -> npt.NDArray[np.float32]:
+    if path.endswith("npz"):
+        raise NotImplementedError("npz not supported yet.")
+    if path.endswith("npy"):
+        # Open for read only
+        array = np.load(path, mmap_mode="r")
+        return array[out_begin:out_end]
+    else:
+        assert path.endswith("kvi"), path
+        import kvikio
+
+        fd = kvikio.CuFile(path, "r")
+        return fd
 
 
 XyPair: TypeAlias = tuple[np.ndarray | sparse.csr_matrix, np.ndarray]
@@ -101,8 +126,8 @@ def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
     return X_files, y_files
 
 
-# X|y-rows-columns-batch-shard.npa
-fname_pattern = r"([X|y])_(\d+)_(\d+)-(\d+)-(\d+).npa"
+# X|y-rows-columns-batch-shard.npz
+fname_pattern = r"([X|y])_(\d+)_(\d+)-(\d+)-(\d+).[npy|npz|kvi]"
 
 
 def get_file_paths(loadfrom: list[str]) -> tuple[list[str], list[str]]:

@@ -87,6 +87,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             sparsity=0.0,
             device=device,
             outdirs=[path],
+            fmt="npy",
         )
         X0, y0 = load_all([path], "cpu")
 
@@ -101,6 +102,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             sparsity=0.0,
             device=device,
             outdirs=[path],
+            fmt="npy",
         )
         X1, y1 = load_all([path], "cpu")
 
@@ -175,6 +177,7 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
             sparsity=0.0,
             device=device,
             outdirs=[path],
+            fmt="npy",
         )
         X3, y3 = load_all([path], "cpu")
 
@@ -263,6 +266,7 @@ def test_cv(device: str) -> None:
             sparsity=0.0,
             device=device,
             outdirs=[path0, path1],
+            fmt="npy",
         )
         n_train, n_valid = get_valid_sizes(n_samples=nspb * n_batches)
         assert n_valid == 6

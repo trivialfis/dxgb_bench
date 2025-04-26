@@ -40,7 +40,11 @@ def datagen(
     sparsity: float,
     device: str,
     outdirs: list[str],
+    fmt: str,
 ) -> None:
+    if assparse and fmt == "auto":
+        fmt = "npz"
+
     if target_type != "reg":
         raise NotImplementedError()
 
@@ -67,7 +71,7 @@ def datagen(
 
                     assert isinstance(X, cp.ndarray)
 
-                save_Xy(X, y, i, outdirs)
+                save_Xy(X, y, i, fmt=fmt, saveto=outdirs)
             else:
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
@@ -201,6 +205,7 @@ def cli_main() -> None:
             sparsity=args.sparsity,
             device=args.device,
             outdirs=saveto,
+            fmt=args.fmt,
         )
     else:
         assert args.command == "bench"

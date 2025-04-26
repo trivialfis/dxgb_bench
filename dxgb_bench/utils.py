@@ -227,6 +227,7 @@ def add_data_params(
     parser.add_argument("--n_batches", type=int, default=1)
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
+    parser.add_argument("--fmt", choices=["auto", "npy", "npz", "kvi"], default="auto")
     parser = add_target_type(parser)
     return parser
 

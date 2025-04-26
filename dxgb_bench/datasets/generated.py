@@ -8,7 +8,6 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple
 
-import kvikio
 import numpy as np
 from scipy import sparse
 
@@ -176,7 +175,32 @@ def make_dense_binary_classification(
     return X, y
 
 
-def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
+def _save_array(X: np.ndarray | sparse.csr_matrix, fmt: str, path: str) -> None:
+    assert fmt in ("npy", "npz", "kvi"), f"Unsupported format: {fmt}"
+    fprint("saveto:", os.path.abspath(path))
+
+    if isinstance(X, sparse.csr_matrix):
+        assert fmt == "npz", f"Unsupported format for sparse: {fmt}"
+        sparse.save_npz(path, X)
+        return
+
+    if fmt == "npy":
+        np.save(path, X)
+    else:
+        import kvikio
+
+        with kvikio.CuFile(path, "w") as fd:
+            n_bytes = fd.write(X)
+            assert n_bytes == X.nbytes
+
+
+def save_Xy(X: np.ndarray, y: np.ndarray, i: int, fmt: str, saveto: list[str]) -> None:
+    """Save the X/y pair to disk. This can handle sharding the data into multiple
+    partitions.
+
+    """
+    assert fmt in ("npy", "npz", "kvi"), f"Unsupported format: {fmt}"
+
     n_dirs = len(saveto)
     n_samples_per_batch = max(X.shape[0] // n_dirs, 1)
     prev = 0
@@ -189,14 +213,9 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, saveto: list[str]) -> None:
         X_d = X[prev:end]
         y_d = y[prev:end]
 
-        path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.npa")
-        print("saveto:", os.path.abspath(path), flush=True)
-        with kvikio.CuFile(path, "w") as fd:
-            n_bytes = fd.write(X_d)
-            assert n_bytes == X_d.nbytes
-        path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.npa")
-        with kvikio.CuFile(path, "w") as fd:
-            n_bytes = fd.write(y_d)
-            assert n_bytes == y_d.nbytes
+        path = os.path.join(output, f"X_{X_d.shape[0]}_{X_d.shape[1]}-{i}-{b}.{fmt}")
+        _save_array(X_d, fmt, path)
+        path = os.path.join(output, f"y_{y_d.shape[0]}_1-{i}-{b}.{fmt}")
+        _save_array(y_d, fmt, path)
 
         prev += end - prev
