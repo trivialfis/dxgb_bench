@@ -252,8 +252,8 @@ class LoadIterImpl(IterImpl):
             shards = sorted(shards, key=key)
             y_shards_sorted[batch_idx] = shards
 
-        self.X_shards = X_shards_sorted
-        self.y_shards = y_shards_sorted
+        self.X_shards: dict[int, list[str]] = X_shards_sorted
+        self.y_shards: dict[int, list[str]] = y_shards_sorted
 
         assert len(self.X_shards) == len(self.y_shards)
 
@@ -351,7 +351,6 @@ class LoadIterImpl(IterImpl):
                 Xs = X_shards_i[sidx]
                 ys = y_shards_i[sidx]
                 vpinfo = get_pinfo(Xs)
-                # _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
                 if vpinfo.batch_idx == beg_idx:
                     begin = 0
                 else:
