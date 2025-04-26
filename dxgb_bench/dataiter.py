@@ -7,6 +7,7 @@ import re
 from abc import abstractmethod, abstractproperty
 from bisect import bisect_right
 from collections import defaultdict
+import dataclasses
 from typing import TYPE_CHECKING, Any, Callable, TypeAlias
 
 import kvikio
@@ -38,7 +39,17 @@ class IterImpl:
     def n_batches(self) -> int: ...
 
 
-def get_pinfo(Xp: str) -> tuple[str, int, int, int, int]:
+@dataclasses.dataclass
+class PathInfo:
+    name: str                   # X|y
+    n_samples: int
+    n_features: int
+    batch_idx: int
+    shard_idx: int
+
+
+def get_pinfo(Xp: str) -> PathInfo:
+    """Get information based on the file name."""
     name = os.path.basename(Xp)
     mat = re.search(fname_pattern, name)
     assert mat is not None
@@ -49,7 +60,7 @@ def get_pinfo(Xp: str) -> tuple[str, int, int, int, int]:
         int(batch_str),
         int(shard_str),
     )
-    return x, n_samples, n_features, batch_idx, shard_idx
+    return PathInfo(x, n_samples, n_features, batch_idx, shard_idx)
 
 
 def load_Xy(
@@ -59,8 +70,8 @@ def load_Xy(
         X = sparse.load_npz(Xp)
         y = np.load(yp)
     else:
-        _, n_samples, n_features, batch_idx, shard = get_pinfo(Xp)
-        X, y = _alloc(n_samples, n_features, device)
+        pinfo = get_pinfo(Xp)
+        X, y = _alloc(pinfo.n_samples, pinfo.n_features, device)
         with kvikio.CuFile(Xp, "r") as fd:
             n_bytes = fd.read(X)
             assert n_bytes == X.nbytes
@@ -129,11 +140,11 @@ def load_batches(
         Xs, ys = [], []
         for i in range(len(X_files)):
             # Assuming the paths are sorted.
-            xn, xr, _, xbidx, xsidx = get_pinfo(X_files[i])
-            yn, yr, _, ybidx, ysidx = get_pinfo(y_files[i])
-            assert xr == yr
-            assert xbidx == ybidx
-            assert xsidx == ysidx
+            x_pinfo = get_pinfo(X_files[i])
+            y_pinfo = get_pinfo(y_files[i])
+            assert x_pinfo.n_samples == y_pinfo.n_samples
+            assert x_pinfo.batch_idx == y_pinfo.batch_idx
+            assert x_pinfo.shard_idx == y_pinfo.shard_idx
             X, y = load_Xy(X_files[i], y_files[i], device)
             Xs.append(X)
             ys.append(y)
@@ -219,9 +230,9 @@ class LoadIterImpl(IterImpl):
         X_shards = defaultdict(list)
         y_shards = defaultdict(list)
         for fname in files:
-            name, n_samples, n_features, batch_idx, shard_idx = get_pinfo(fname[0])
-            X_shards[batch_idx].append(fname[0])
-            y_shards[batch_idx].append(fname[1])
+            pinfo = get_pinfo(fname[0])
+            X_shards[pinfo.batch_idx].append(fname[0])
+            y_shards[pinfo.batch_idx].append(fname[1])
             assert os.path.basename(fname[1]).startswith("y"), fname[1]
 
         def key(name: str) -> int:
@@ -256,9 +267,9 @@ class LoadIterImpl(IterImpl):
 
         shard_sizes = [0]
         for Xs, ys in zip(X_shards_i, y_shards_i):
-            _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
-            shard_sizes.append(n_samples_i)
-            assert bidx == i
+            pinfo_i = get_pinfo(Xs)
+            shard_sizes.append(pinfo_i.n_samples)
+            assert pinfo_i.batch_idx == i
         indptr = np.cumsum(shard_sizes)
         return indptr
 
@@ -273,12 +284,12 @@ class LoadIterImpl(IterImpl):
         n_train, n_valid = get_valid_sizes(n_samples)
         # Span of the validation set.
         beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(indptr, 0)
-        _, _, n_features, _, _ = get_pinfo(X_shards_i[0])
+        pinfo = get_pinfo(X_shards_i[0])
 
         if self.is_valid:
-            X, y = _alloc(n_valid, n_features, self.device)
+            X, y = _alloc(n_valid, pinfo.n_features, self.device)
         else:
-            X, y = _alloc(n_train, n_features, self.device)
+            X, y = _alloc(n_train, pinfo.n_features, self.device)
 
         def read_xy_shard(
             begin: int,
@@ -290,7 +301,7 @@ class LoadIterImpl(IterImpl):
             y: npt.NDArray[np.float32],
         ) -> tuple[kvikio.IOFuture, kvikio.CuFile, kvikio.IOFuture, kvikio.CuFile]:
             X_fd = kvikio.CuFile(Xs, "r")
-            offset_bytes = int(begin * n_features * X.itemsize)
+            offset_bytes = int(begin * pinfo.n_features * X.itemsize)
             X_fut = X_fd.pread(
                 X[prev:out_end], X[prev:out_end].nbytes, file_offset=offset_bytes
             )
@@ -321,7 +332,7 @@ class LoadIterImpl(IterImpl):
             return 0
 
         def read_snd_part(Xs: str, ys: str, end_in_shard: int) -> int:
-            begin, end = end_in_shard, n_samples_i
+            begin, end = end_in_shard, pinfo.n_samples
             out_end = prev + end - begin
             diff = out_end - prev
             if diff > 0:
@@ -339,16 +350,17 @@ class LoadIterImpl(IterImpl):
             for sidx in range(beg_idx, end_idx + 1):
                 Xs = X_shards_i[sidx]
                 ys = y_shards_i[sidx]
-                _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
-                if bidx == beg_idx:
+                vpinfo = get_pinfo(Xs)
+                # _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+                if vpinfo.batch_idx == beg_idx:
                     begin = 0
                 else:
                     begin = beg_in_shard
 
-                if bidx == end_idx - 1:
+                if vpinfo.batch_idx == end_idx - 1:
                     end = end_in_shard
                 else:
-                    end = n_samples_i
+                    end = vpinfo.n_samples
 
                 out_end = prev + end - begin
                 X_fut, X_fd, y_fut, y_fd = read_xy_shard(
@@ -365,7 +377,8 @@ class LoadIterImpl(IterImpl):
         for sidx in range(len(X_shards_i)):
             Xs = X_shards_i[sidx]
             ys = y_shards_i[sidx]
-            _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+            pinfo_i = get_pinfo(Xs)
+            # _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
 
             if sidx >= beg_idx and sidx <= end_idx:
                 # May or may not read the full shard
@@ -379,7 +392,7 @@ class LoadIterImpl(IterImpl):
                 # The validation data spans across more than one shards.
                 if sidx > beg_idx and sidx < end_idx:
                     # read full shard
-                    begin, end = 0, n_samples_i
+                    begin, end = 0, pinfo_i.n_samples
                     out_end = prev + end - begin
                     X_fut, X_fd, y_fut, y_fd = read_xy_shard(
                         begin, Xs, ys, prev, out_end, X, y
@@ -401,7 +414,7 @@ class LoadIterImpl(IterImpl):
                     continue
             else:
                 # Read full shard
-                begin, end = 0, n_samples_i
+                begin, end = 0, pinfo_i.n_samples
                 out_end = prev + end - begin
                 X_fut, X_fd, y_fut, y_fd = read_xy_shard(
                     begin, Xs, ys, prev, out_end, X, y
@@ -425,16 +438,18 @@ class LoadIterImpl(IterImpl):
         else:
             indptr = self.get_shard_indptr(i)
             n_samples = indptr[-1]
-            _, n_samples_i, n_features, bidx, sidx = get_pinfo(X_path[0])
-            X, y = _alloc(n_samples, n_features, self.device)
+            # _, n_samples_i, n_features, bidx, sidx = get_pinfo(X_path[0])
+            pinfo = get_pinfo(X_path[0])
+            X, y = _alloc(n_samples, pinfo.n_features, self.device)
             futures = []
             fds = []
 
             prev = 0
             for Xs, ys in zip(X_path, y_path):
-                _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+                # _, n_samples_i, n_features, bidx, sidx = get_pinfo(Xs)
+                pinfo = get_pinfo(Xs)
 
-                out_end = prev + n_samples_i
+                out_end = prev + pinfo.n_samples
 
                 X_fd = kvikio.CuFile(Xs, "r")
                 X_fut = X_fd.pread(X[prev:out_end], X[prev:out_end].nbytes)
@@ -442,7 +457,7 @@ class LoadIterImpl(IterImpl):
                 y_fd = kvikio.CuFile(ys, "r")
                 y_fut = y_fd.pread(y[prev:out_end], y[prev:out_end].nbytes)
 
-                prev += n_samples_i
+                prev += pinfo.n_samples
 
                 futures.append((X_fut, y_fut))
                 fds.append((X_fd, y_fd))
