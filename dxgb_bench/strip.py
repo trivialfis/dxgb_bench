@@ -38,7 +38,9 @@ class Backend:
     def write(self, array: np.ndarray, fname: str) -> None: ...
 
     @abstractmethod
-    def read(self, fname: str, begin: int | None, end: int | None) -> None:
+    def read(
+        self, fname: str, begin: int | None, end: int | None, shard_size: int
+    ) -> None:
         """Read data.
 
         Parameters
@@ -49,7 +51,8 @@ class Backend:
             Optional beginning sample idx.
         end:
             Optional end sample idx.
-
+        shard_size:
+            Number of samples in this shard.
         """
         ...
 
@@ -68,7 +71,7 @@ class Backend:
 class _Npy(Backend):
     @override
     def __enter__(self) -> Backend:
-        self._arrays = []
+        self._arrays: list[np.ndarray] = []
         return self
 
     @override
@@ -80,12 +83,16 @@ class _Npy(Backend):
         np.save(fname, array)
 
     @override
-    def read(self, fname: str, begin: int | None, end: int | None) -> None:
+    def read(
+        self, fname: str, begin: int | None, end: int | None, shard_size: int
+    ) -> None:
         if self.device == "cpu":
             from numpy import load
         else:
-            from cupy import load
+            from cupy import load  # type: ignore
 
+        # Shouldn't happen, but just in case if numpy/cupy slice makes a copy. Enumerate
+        # all possibility.
         if begin is not None and end is not None:
             a = load(fname, mmap_mode="r")[begin:end]
         elif begin is not None:
@@ -94,6 +101,7 @@ class _Npy(Backend):
             a = load(fname, mmap_mode="r")[:end]
         else:
             a = load(fname)
+            assert a.shape[0] == shard_size
 
         self._arrays.append(a)
 
@@ -116,6 +124,9 @@ class _Kvikio(Backend):
         import kvikio
 
         self._futures: list[kvikio.IOFuture] = []
+        self._fds: list[kvikio.CuFile] = []
+        self._prev = 0
+
         # allocate the array buffer
         if self.shape is not None:
             if self.device == "cpu":
@@ -126,13 +137,14 @@ class _Kvikio(Backend):
                 array = cp.empty(shape=self.shape, dtype=np.float32)
         else:
             array = None
-        self._array = array
+        self._array: np.ndarray | None = array
 
         return self
 
     @override
     def __exit__(self, *args: Any) -> None:
-        pass
+        for fd in self._fds:
+            fd.close()
 
     @override
     def write(self, array: np.ndarray, fname: str) -> None:
@@ -143,18 +155,39 @@ class _Kvikio(Backend):
             assert n_bytes == array.nbytes
 
     @override
-    def read(self, fname: str, begin: int | None, end: int | None) -> None:
-        assert self._array is not None
+    def read(
+        self, fname: str, begin: int | None, end: int | None, shard_size: int
+    ) -> None:
         import kvikio
 
-        with kvikio.CuFile(fname, "r") as fd:
-            n_bytes = fd.read(X)
-            assert n_bytes == X.nbytes
+        assert self._array is not None
+
+        # File handler
+        fd = kvikio.CuFile(fname, "r")
+        self._fds.append(fd)
+        # data shape
+        pinfo = get_pinfo(fname)
+
+        if begin is None:
+            begin = 0
+        offset_bytes = int(begin * pinfo.n_features * np.float32().itemsize)
+
+        if end is not None:
+            n_samples_read = end - begin
+        else:
+            n_samples_read = shard_size - begin
+
+        out = self._array[self._prev : self._prev + n_samples_read]
+        fut = fd.pread(out, out.nbytes, file_offset=offset_bytes)
+        self._futures.append(fut)
+
+        self._prev += n_samples_read
 
     @override
     def get(self) -> np.ndarray:
         for fut in self._futures:
             fut.get()
+        assert self._array is not None
         return self._array
 
 
@@ -162,10 +195,10 @@ def dispatch_backend(device: str, fmt: str, shape: tuple[int, ...] | None) -> Ba
     match fmt:
         case "npy":
             return _Npy(shape, device)
-        case "kvi":
+        case "kio":
             return _Kvikio(shape, device)
         case "npz":
-            raise NotImplementedError()
+            raise NotImplementedError("Sparse matrix is not yet supported.")
         case _:
             raise ValueError("Invalid format.")
     return _Npy()
@@ -203,12 +236,13 @@ def make_file_name(
 
 # filename pattern
 # X|y-rows-columns-batch-shard.npz
-FNAME_PAT = r"([X|y])-r(\d+)-c(\d+)-b(\d+)-s(\d+).[npy|npz|kvi]"
+FNAME_PAT = r"([X|y])-r(\d+)-c(\d+)-b(\d+)-s(\d+).[npy|npz|kio]"
 
 
 def get_pinfo(path: str) -> PathInfo:
     name = os.path.basename(path)
     mat = re.search(FNAME_PAT, name)
+    assert mat is not None
     x, rows_str, cols_str, batch_str, shard_str = mat.groups()
     n_samples, n_features, batch_idx, shard_idx = (
         int(rows_str),
@@ -333,6 +367,7 @@ class Strip:
         n_samples = shard_i.n_samples
         n_samples_per_shard = divup(n_samples, n_dirs)
 
+        # Track the size of each shard
         shard_sizes = [0]
         prev = 0
         for shard_idx, dirname in enumerate(self._dirs):
@@ -352,7 +387,8 @@ class Strip:
         batch_idx:
             The batch index.
         begin:
-            Optional range begin, for train test split.
+            Optional range begin, for train test split. This indexes into the entire
+            batch.
         end:
             Optional range end.
 
@@ -362,7 +398,7 @@ class Strip:
 
         """
         assert self._dirs and self._fmt
-        n_dirs = len(self._device)
+        n_dirs = len(self._dirs)
 
         if begin is not None:
             assert end is not None
@@ -384,6 +420,10 @@ class Strip:
             self._batch_key[batch_idx].n_features,
         )
 
+        # Track the size of each shard
+        n_samples_per_shard = divup(self._batch_key[batch_idx].n_samples, n_dirs)
+        prev = 0
+
         with dispatch_backend(
             device=self._device, fmt=self._fmt, shape=shape_res
         ) as hdl:
@@ -396,19 +436,26 @@ class Strip:
                     shard_idx=shard_idx,
                     fmt=self._fmt,
                 )
+
+                size = min(
+                    n_samples_per_shard, self._batch_key[batch_idx].n_samples - prev
+                )
+
                 if begin is not None:
                     if shard_idx == beg_shard_idx and shard_idx == end_shard_idx:
-                        hdl.read(path_shard, beg_in_shard, end_in_shard)
+                        hdl.read(path_shard, beg_in_shard, end_in_shard, size)
                     elif beg_shard_idx == shard_idx:
-                        hdl.read(path_shard, beg_in_shard, None)
+                        hdl.read(path_shard, beg_in_shard, None, size)
                     elif end_shard_idx == shard_idx:
-                        hdl.read(path_shard, None, end_in_shard)
+                        hdl.read(path_shard, None, end_in_shard, size)
                     elif beg_shard_idx < shard_idx < end_shard_idx:
-                        hdl.read(path_shard, None, None)
+                        hdl.read(path_shard, None, None, size)
                     else:
                         pass
                 else:
-                    hdl.read(path_shard, None, None)
+                    hdl.read(path_shard, None, None, size)
+
+                prev += size
             array = hdl.get()
             assert array.shape[0] == n_samples, (array.shape, n_samples)
         return array
