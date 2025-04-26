@@ -8,6 +8,7 @@ that have multiple disks but don't have RAID-0.
 from __future__ import annotations
 
 import dataclasses
+import math
 import os
 import re
 from abc import abstractmethod
@@ -17,6 +18,10 @@ from typing import Any
 import numpy as np
 from numpy import typing as npt
 from typing_extensions import override
+
+
+def divup(a: int, b: int) -> int:
+    return math.ceil(a / b)
 
 
 class Backend:
@@ -81,8 +86,12 @@ class _Npy(Backend):
         else:
             from cupy import load
 
-        if begin is not None:
+        if begin is not None and end is not None:
             a = load(fname, mmap_mode="r")[begin:end]
+        elif begin is not None:
+            a = load(fname, mmap_mode="r")[begin:]
+        elif end is not None:
+            a = load(fname, mmap_mode="r")[:end]
         else:
             a = load(fname)
 
@@ -232,6 +241,8 @@ class Strip:
 
     Parameters
     ----------
+    name:
+        X or y.
     dirs:
         The directories for sharding.
     fmt:
@@ -263,7 +274,6 @@ class Strip:
         self._device = device
 
         self._file_info = self.list_file_info()
-        # fixme: unique by name
         self._batch_key = {f.batch_idx: f for f in self._file_info}
 
         assert self._fmt in ("npy", "npz", "kio")
@@ -274,7 +284,7 @@ class Strip:
 
         n_dirs = len(self._dirs)
         n_samples = array.shape[0]
-        n_samples_per_shard = n_samples // n_dirs
+        n_samples_per_shard = divup(n_samples, n_dirs)
         prev = 0
         assert len(array.shape) <= 2
 
@@ -321,7 +331,7 @@ class Strip:
 
         n_dirs = len(self._dirs)
         n_samples = shard_i.n_samples
-        n_samples_per_shard = n_samples // n_dirs
+        n_samples_per_shard = divup(n_samples, n_dirs)
 
         shard_sizes = [0]
         prev = 0
@@ -352,6 +362,7 @@ class Strip:
 
         """
         assert self._dirs and self._fmt
+        n_dirs = len(self._device)
 
         if begin is not None:
             assert end is not None
@@ -364,23 +375,35 @@ class Strip:
             )
         else:
             n_samples = self._batch_key[batch_idx].n_samples
-            beg_shard_idx, beg_in_shard, end_shard_idx, end_in_shard = -1, -1, -1, -1
+            beg_shard_idx, end_shard_idx = 0, n_dirs - 1
+            beg_in_shard, end_in_shard = -1, -1
 
-        shape = (n_samples, self._batch_key[batch_idx].n_features)
+        shape_res = (n_samples, self._batch_key[batch_idx].n_features)
+        shape_orig = (
+            self._batch_key[batch_idx].n_samples,
+            self._batch_key[batch_idx].n_features,
+        )
 
-        with dispatch_backend(device=self._device, fmt=self._fmt, shape=shape) as hdl:
+        with dispatch_backend(
+            device=self._device, fmt=self._fmt, shape=shape_res
+        ) as hdl:
             for shard_idx, dirname in enumerate(self._dirs):
                 path_shard = make_file_name(
-                    shape=shape,
+                    shape=shape_orig,
                     dirname=dirname,
                     name=self._name,
                     batch_idx=batch_idx,
                     shard_idx=shard_idx,
                     fmt=self._fmt,
                 )
-                if beg_shard_idx <= shard_idx <= end_shard_idx:
+                if shard_idx == beg_shard_idx and shard_idx == end_shard_idx:
                     hdl.read(path_shard, beg_in_shard, end_in_shard)
-                else:
+                elif beg_shard_idx == shard_idx:
+                    hdl.read(path_shard, beg_in_shard, None)
+                elif end_shard_idx == shard_idx:
+                    hdl.read(path_shard, None, end_in_shard)
+                elif beg_shard_idx < shard_idx < end_shard_idx:
                     hdl.read(path_shard, None, None)
             array = hdl.get()
+            assert array.shape[0] == n_samples, (array.shape, n_samples)
         return array
