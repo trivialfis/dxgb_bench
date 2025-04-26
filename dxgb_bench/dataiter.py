@@ -1,7 +1,6 @@
-# Copyright (c) 2024, Jiaming Yuan.  All rights reserved.
+# Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
-import dataclasses
 import gc
 import os
 import re
@@ -23,6 +22,7 @@ from .datasets.generated import (
     make_sparse_regression,
 )
 from .utils import TEST_SIZE, Timer, fprint
+from .strip import PathInfo
 
 if TYPE_CHECKING:
     from cupy import ndarray as cpnd
@@ -36,17 +36,6 @@ class IterImpl:
 
     @abstractproperty
     def n_batches(self) -> int: ...
-
-
-@dataclasses.dataclass
-class PathInfo:
-    """Parse result of a path."""
-
-    name: str  # X|y
-    n_samples: int
-    n_features: int
-    batch_idx: int
-    shard_idx: int
 
 
 def get_pinfo(Xp: str) -> PathInfo:

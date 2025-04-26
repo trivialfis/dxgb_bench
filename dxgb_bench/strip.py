@@ -259,10 +259,14 @@ def get_shard_ids(
     n_samples = indptr[-1]
     assert end < n_samples
 
+    # The first shard within range
     beg_idx: int = bisect_right(indptr, begin) - 1
+    # The last shard
     end_idx: int = bisect_right(indptr, end) - 1
 
+    # Index into the first shard
     beg_in_shard = begin - indptr[beg_idx]
+    # Index into the last shard
     end_in_shard = end - indptr[end_idx]
 
     return beg_idx, beg_in_shard, end_idx, end_in_shard
@@ -325,6 +329,7 @@ class Strip:
         if len(array.shape) == 1:
             shape = (n_samples, 1)
         else:
+            assert len(array.shape) == 2
             shape = array.shape
 
         with dispatch_backend(device=self._device, fmt=self._fmt, shape=shape) as hdl:
@@ -401,6 +406,7 @@ class Strip:
         n_dirs = len(self._dirs)
 
         if begin is not None:
+            # Read only a subset of the batch.
             assert end is not None
             n_samples = end - begin
             assert n_samples > 0
@@ -410,6 +416,7 @@ class Strip:
                 indptr, begin, end
             )
         else:
+            # Read the entire batch.
             n_samples = self._batch_key[batch_idx].n_samples
             beg_shard_idx, end_shard_idx = 0, n_dirs - 1
             beg_in_shard, end_in_shard = -1, -1
