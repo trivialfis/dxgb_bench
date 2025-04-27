@@ -13,12 +13,12 @@ from xgboost import QuantileDMatrix
 from .dataiter import (
     TEST_SIZE,
     BenchIter,
-    LoadIterImpl,
-    get_file_paths,
+    LoadIterStrip,
     load_all,
     train_test_split,
 )
-from .datasets.generated import make_dense_regression, make_sparse_regression, save_Xy
+from .datasets.generated import make_dense_regression, make_sparse_regression
+from .strip import make_strips
 from .utils import (
     DFT_OUT,
     Timer,
@@ -27,6 +27,7 @@ from .utils import (
     add_hyper_param,
     add_target_type,
     make_params_from_args,
+    mkdirs,
     split_path,
 )
 
@@ -35,24 +36,29 @@ def datagen(
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
+    *,
     assparse: bool,
     target_type: str,
     sparsity: float,
     device: str,
     outdirs: list[str],
+    fmt: str,
 ) -> None:
+    if assparse and fmt == "auto":
+        fmt = "npz"
+
     if target_type != "reg":
         raise NotImplementedError()
 
-    for d in outdirs:
-        if not os.path.exists(d):
-            os.mkdir(d)
+    mkdirs(outdirs)
 
     with Timer("datagen", "gen"):
         size = 0
+
+        X_fd, y_fd = make_strips(["X", "y"], outdirs, fmt=fmt, device=device)
+
         for i in range(n_batches):
             assert n_samples_per_batch >= 1
-            out = outdirs[i % len(outdirs)]
             if not assparse:  # default
                 X, y = make_dense_regression(
                     device=device,
@@ -67,8 +73,10 @@ def datagen(
 
                     assert isinstance(X, cp.ndarray)
 
-                save_Xy(X, y, i, outdirs)
+                X_fd.write(X, batch_idx=i)
+                y_fd.write(y, batch_idx=i)
             else:
+                out = outdirs[i % len(outdirs)]
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
@@ -76,9 +84,9 @@ def datagen(
                     random_state=size,
                 )
                 sparse.save_npz(
-                    os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npy"), X
+                    os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npz"), X
                 )
-                np.save(os.path.join(out, f"y_{y.shape[0]}_1-{i}.npy"), y)
+                np.save(os.path.join(out, f"y_{y.shape[0]}_1-{i}.npz"), y)
             size += X.size
 
     print(Timer.global_timer())
@@ -113,24 +121,28 @@ def bench(
             watches = [(Xy, "Train")]
     else:
         assert task == "qdm-iter"
-        X_files, y_files = get_file_paths(loadfrom)
-        paths = list(zip(X_files, y_files))
         if valid:
-            it_impl = LoadIterImpl(paths, split=True, is_valid=False, device=device)
+            it_impl = LoadIterStrip(
+                loadfrom, test_size=TEST_SIZE, is_valid=False, device=device
+            )
             it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
 
-            it_impl = LoadIterImpl(paths, split=True, is_valid=True, device=device)
+            it_impl = LoadIterStrip(
+                loadfrom, test_size=TEST_SIZE, is_valid=True, device=device
+            )
             it_valid = BenchIter(it_impl, is_ext=False, is_valid=True, device=device)
         else:
-            it_impl = LoadIterImpl(paths, split=False, is_valid=False, device=device)
+            it_impl = LoadIterStrip(
+                loadfrom, test_size=None, is_valid=False, device=device
+            )
             it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
             it_valid = None
 
-        with Timer("Qdm", "Train-DMatrix"):
+        with Timer("Qdm", "Train-DMatrix-Iter"):
             Xy = QuantileDMatrix(it_train)
             watches = [(Xy, "Train")]
         if valid:
-            with Timer("Qdm", "Valid-DMatrix"):
+            with Timer("Qdm", "Valid-DMatrix-Iter"):
                 Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
                 watches.append((Xy_valid, "Valid"))
 
@@ -201,6 +213,7 @@ def cli_main() -> None:
             sparsity=args.sparsity,
             device=args.device,
             outdirs=saveto,
+            fmt=args.fmt,
         )
     else:
         assert args.command == "bench"

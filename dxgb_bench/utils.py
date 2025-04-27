@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 import warnings
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, TypeAlias, Union
 
 try:
@@ -152,6 +153,11 @@ class Timer:
     def global_timer() -> GlobalTimer:
         return global_timer
 
+    @staticmethod
+    def reset() -> None:
+        global global_timer
+        global_timer = {}
+
 
 class TemporaryDirectory:
     def __init__(self, path: str) -> None:
@@ -227,6 +233,7 @@ def add_data_params(
     parser.add_argument("--n_batches", type=int, default=1)
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
+    parser.add_argument("--fmt", choices=["auto", "npy", "npz", "kio"], default="auto")
     parser = add_target_type(parser)
     return parser
 
@@ -243,7 +250,12 @@ def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
 
 
 def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("--mr", choices=["arena", "binning", "pool"], default="arena")
+    parser.add_argument(
+        "--mr",
+        choices=["arena", "binning", "pool"],
+        default="arena",
+        help="Name of the RMM memory resource.",
+    )
     return parser
 
 
@@ -342,3 +354,22 @@ def setup_rmm(mr_name: str) -> None:
     mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
+
+
+def mkdirs(outdirs: list[str]) -> None:
+    for d in outdirs:
+        if not os.path.exists(d):
+            os.mkdir(d)
+
+
+@dataclass
+class Opts:
+    n_samples_per_batch: int
+    n_features: int
+    n_batches: int
+    sparsity: float
+    on_the_fly: bool
+    validation: bool
+    device: str
+    mr: str | None
+    target_type: str

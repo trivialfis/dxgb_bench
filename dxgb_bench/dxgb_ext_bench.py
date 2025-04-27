@@ -1,16 +1,17 @@
 #!/usr/bin/env python
+"""Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved."""
+
 import argparse
 import os
 
 import xgboost as xgb
 
 from .external_mem import (
-    Opts,
-    extmem_qdm_inference,
-    extmem_qdm_train,
-    extmem_spdm_train,
+    qdm_train,
+    spdm_train,
 )
 from .utils import (
+    Opts,
     Timer,
     add_data_params,
     add_device_param,
@@ -41,37 +42,25 @@ def main(args: argparse.Namespace) -> None:
         mr=args.mr,
         target_type=args.target_type,
     )
+    assert opts.mr is not None
     loadfrom = split_path(args.loadfrom)
 
     if args.task == "ext-sp":
-        extmem_spdm_train(
+        spdm_train(
             opts,
             params=make_params_from_args(args),
             n_rounds=args.n_rounds,
             loadfrom=loadfrom,
         )
     elif args.task == "ext-qdm":
-        extmem_qdm_train(
+        qdm_train(
             opts,
             params=make_params_from_args(args),
             n_rounds=args.n_rounds,
             loadfrom=loadfrom,
         )
     else:
-        assert args.predict_type is not None
-        assert args.model is not None
-        extmem_qdm_inference(
-            loadfrom=loadfrom,
-            n_bins=args.n_bins,
-            n_samples_per_batch=n // n_batches,
-            n_features=n_features,
-            n_batches=n_batches,
-            assparse=False,
-            sparsity=args.sparsity,
-            device=args.device,
-            on_the_fly=args.fly == 1,
-            args=args,
-        )
+        raise ValueError(f"Invalid task: {args.task}")
 
     print(Timer.global_timer())
 
@@ -81,7 +70,13 @@ def cli_main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True
+        "--task",
+        choices=["ext-sp", "ext-qdm"],
+        required=True,
+        help="""
+ext-sp: Use the sparse DMatrix (the DMatrix class in Python).
+ext-qdm: Use the ExtMemQuantileDMatrix.
+        """,
     )
     parser = add_rmm_param(parser)
     parser = add_device_param(parser)
@@ -96,11 +91,6 @@ def cli_main() -> None:
         help="Generate data on the fly instead of loading it from the disk.",
     )
     parser.add_argument("--valid", action="store_true")
-
-    parser.add_argument("--model", type=str, required=False)
-    parser.add_argument(
-        "--predict_type", choices=["value", "contrib", "interaction"], required=False
-    )
 
     args = parser.parse_args()
     if args.target_type == "bin" and args.fly is not True:

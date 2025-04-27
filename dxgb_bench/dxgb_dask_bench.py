@@ -18,7 +18,6 @@ from dask import dataframe as dd
 from dask.distributed import Client, LocalCluster, wait
 from dask_cuda import LocalCUDACluster
 
-from .datasets import factory as data_factory
 from .dsk import (
     algorithm,
     load_dense_gather,
@@ -112,6 +111,7 @@ def datagen(args: argparse.Namespace) -> None:
             args.n_features,
             saveto=args.saveto,
             local_test=args.local_test_fs,
+            fmt="npy",
         )
 
     if args.scheduler is not None:

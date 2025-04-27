@@ -42,6 +42,7 @@ def make_dense_regression_scatter(
     n_features: int,
     saveto: str,
     local_test: bool,
+    fmt: str,
 ) -> None:
     saveto = os.path.abspath(os.path.expanduser(saveto))
     client.restart()
@@ -85,7 +86,7 @@ def make_dense_regression_scatter(
             sparsity=0.0,
             random_state=seed,
         )
-        save_Xy(X, y, batch_idx, [saveto])
+        save_Xy(X, y, batch_idx, fmt, [saveto])
         return n_samples
 
     if n_samples > n_workers * 8:
@@ -109,7 +110,7 @@ def make_dense_regression_scatter(
 def load_dense_gather(
     client: Client, device: str, loadfrom: str, local_test: bool
 ) -> tuple[da.Array, da.Array]:
-    from ..dataiter import fname_pattern, get_file_paths_local, get_pinfo, load_all
+    from ..dataiter import get_file_paths_local, get_pinfo
 
     loadfrom = os.path.expanduser(loadfrom)
 
@@ -123,8 +124,8 @@ def load_dense_gather(
         print(X, y)
         shapes = []
         for xp in X:
-            _, n_samples, n_features, _, _ = get_pinfo(xp)
-            shapes.append((n_samples, n_features))
+            pinfo = get_pinfo(xp)
+            shapes.append((pinfo.n_samples, pinfo.n_features))
         return list(zip(X, y, shapes))
 
     workers = list(client.scheduler_info()["workers"].keys())
@@ -139,7 +140,6 @@ def load_dense_gather(
     names_shapes_local: list[list[tuple[str, str, tuple[int, int]]]] = client.gather(
         futures
     )
-    print("shapes_local:", names_shapes_local)
 
     def load1(X_path: str, y_path: str) -> np.ndarray:
         from ..dataiter import load_Xy
@@ -147,6 +147,7 @@ def load_dense_gather(
         X, y = load_Xy(X_path, y_path, device)
         y = y.reshape(X.shape[0], 1)
 
+        # merge X and y for easier return.
         if device.startswith("cuda"):
             import cupy as cp
 
@@ -157,7 +158,6 @@ def load_dense_gather(
 
     arrays = []
     for i in range(len(names_shapes_local)):
-        w = workers[i]
         for j in range(len(names_shapes_local[i])):
             Xp: str = names_shapes_local[i][j][0]
             yp: str = names_shapes_local[i][j][1]

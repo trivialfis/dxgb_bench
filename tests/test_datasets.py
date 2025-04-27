@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from itertools import product
 
 import cupy as cp
 import numpy as np
@@ -12,15 +13,15 @@ from xgboost.compat import concat
 
 from dxgb_bench.dataiter import (
     BenchIter,
-    LoadIterImpl,
+    LoadIterStrip,
     SynIterImpl,
-    get_file_paths,
     get_valid_sizes,
     load_all,
 )
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.testing import devices, has_cuda
+from dxgb_bench.strip import make_file_name, make_strips
+from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, formats, has_cuda
 
 
 def test_sparse_regressioin() -> None:
@@ -82,11 +83,12 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb,
             n_features,
             n_batches,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
             outdirs=[path],
+            fmt="npy",
         )
         X0, y0 = load_all([path], "cpu")
 
@@ -96,11 +98,12 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb * n_batches,
             n_features,
             1,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
             outdirs=[path],
+            fmt="npy",
         )
         X1, y1 = load_all([path], "cpu")
 
@@ -115,16 +118,6 @@ def test_dense_batches() -> None:
     X1, y1 = run_dense_batches("cuda")
     np.testing.assert_allclose(X0, X1, rtol=1e-6)
     np.testing.assert_allclose(y0, y1, rtol=5e-6)
-
-
-def assert_allclose(
-    a: np.ndarray | cp.ndarray, b: np.ndarray | cp.ndarray, rtol: float = 1e-7
-) -> None:
-    if hasattr(a, "get"):
-        a = a.get()
-    if hasattr(b, "get"):
-        b = b.get()
-    np.testing.assert_allclose(a, b, rtol=rtol)
 
 
 def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
@@ -170,30 +163,32 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb,
             n_features,
             n_batches,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
             outdirs=[path],
+            fmt="npy",
         )
         X3, y3 = load_all([path], "cpu")
 
-    assert_allclose(X0, X1)
-    assert_allclose(X0, X2)
-    assert_allclose(X0, X3)
+    assert_array_allclose(X0, X1)
+    assert_array_allclose(X0, X2)
+    assert_array_allclose(X0, X3)
 
-    assert_allclose(y0, y1)
-    assert_allclose(y0, y2)
-    assert_allclose(y0, y3)
+    assert_array_allclose(y0, y1)
+    assert_array_allclose(y0, y2)
+    assert_array_allclose(y0, y3)
 
     return X0, y0
 
 
+@pytest.mark.skipif(reason="No CUDA.", condition=not has_cuda())
 def test_dense_iter() -> None:
     X0, y0 = run_dense_iter("cpu")
     X1, y1 = run_dense_iter("cuda")
-    assert_allclose(X0, X1, rtol=5e-6)
-    assert_allclose(y0, y1, rtol=5e-6)
+    assert_array_allclose(X0, X1, rtol=5e-6)
+    assert_array_allclose(y0, y1, rtol=5e-6)
 
 
 @pytest.mark.parametrize("device", devices())
@@ -245,10 +240,7 @@ def test_deterministic(device: str) -> None:
 
 @pytest.mark.parametrize("device", devices())
 def test_cv(device: str) -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path0 = os.path.join(tmpdir, "data0")
-        path1 = os.path.join(tmpdir, "data1")
-
+    with TmpDir(2, True) as outdirs:
         # Within batch read
         n_features = 2
         n_batches = 4
@@ -258,28 +250,95 @@ def test_cv(device: str) -> None:
             nspb,
             n_features,
             n_batches,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
-            outdirs=[path0, path1],
+            outdirs=outdirs,
+            fmt="npy",
         )
         n_train, n_valid = get_valid_sizes(n_samples=nspb * n_batches)
         assert n_valid == 6
 
-        files = get_file_paths([path0, path1])
-        impl = LoadIterImpl(list(zip(files[0], files[1])), True, False, device)
-        assert len(impl.X_shards) == n_batches
-
-        X, y = load_all([path0, path1], device)
+        impl = LoadIterStrip(outdirs, is_valid=False, test_size=0.2, device=device)
+        X, y = load_all(outdirs, device)
 
         prev = 0
         for i in range(impl.n_batches):
             X_i, y_i = impl.get(i)
-            if isinstance(X_i, cp.ndarray):
-                assert_allclose = cp.testing.assert_allclose
-            else:
-                assert_allclose = np.testing.assert_allclose
-            assert_allclose(X[prev + 1 : prev + nspb], X_i)
-            assert_allclose(y[prev + 1 : prev + nspb], y_i)
+            assert_array_allclose(X[prev : prev + nspb - 1], X_i)
+            assert_array_allclose(y[prev : prev + nspb - 1], y_i)
             prev += nspb
+
+
+@pytest.mark.parametrize("device", devices())
+def test_datagen(device: str) -> None:
+    n_shards = 2
+    with TmpDir(n_shards, True) as outdirs:
+        n_features = 4
+        n_batches = 8
+        nspb = 16
+
+        datagen(
+            nspb,
+            n_features,
+            n_batches,
+            assparse=False,
+            target_type="reg",
+            sparsity=0.0,
+            device=device,
+            outdirs=outdirs,
+            fmt="npy",
+        )
+
+        for shard_idx, d in enumerate(outdirs):
+            Xs, ys = [], []
+            for b in range(n_batches):
+                fname = make_file_name(
+                    (nspb, n_features),
+                    "X",
+                    "X",
+                    batch_idx=b,
+                    shard_idx=shard_idx,
+                    fmt="npy",
+                )
+                X = np.load(os.path.join(d, fname))
+                assert X.shape == (nspb // n_shards, n_features)
+                Xs.append(X)
+
+                fname = make_file_name(
+                    (nspb, 1),
+                    "y",
+                    "y",
+                    batch_idx=b,
+                    shard_idx=shard_idx,
+                    fmt="npy",
+                )
+                y = np.load(os.path.join(d, fname))
+                assert y.shape[0] == nspb // n_shards
+                assert y.shape[0] == y.size
+                ys.append(y)
+
+            # Must be unique, not guaranteed, just unlikely to have same floating
+            # values.
+            for i in range(1, n_batches):
+                assert not (Xs[0] == Xs[i]).any()
+                assert not (ys[0] == ys[i]).any()
+
+        X, y = load_all(outdirs, device)
+        assert X.shape[0] == y.shape[0] == nspb * n_batches
+
+
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
+def test_load_all(device: str, fmt: str) -> None:
+    n_shards = 2
+    with TmpDir(n_shards, True) as outdirs:
+        X_fd, y_fd = make_strips(["X", "y"], outdirs, fmt=fmt, device=device)
+        X = np.arange(0, 64, dtype=np.float32).reshape(8, 8)
+        y = X.sum(axis=1)
+        X_fd.write(X, 0)
+        y_fd.write(y, 0)
+
+        X_res, y_res = load_all(outdirs, device=device)
+        assert_array_allclose(X, X_res.squeeze())
+        assert_array_allclose(y, y_res.squeeze())
