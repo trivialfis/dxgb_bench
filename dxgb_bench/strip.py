@@ -377,6 +377,10 @@ class Strip:
     def batch_key(self) -> dict[int, PathInfo]:
         return self._batch_key
 
+    @property
+    def n_batches(self) -> int:
+        return len(self.list_file_info())
+
     def get_shard_indptr(self, batch_idx: int) -> npt.NDArray[np.int64]:
         shard_i = self._batch_key[batch_idx]
 

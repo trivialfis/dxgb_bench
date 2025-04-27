@@ -79,23 +79,6 @@ def load_Xy(
     return X, y
 
 
-def _load_part(
-    path: str, begin: int, out_begin: int, out_end: int
-) -> npt.NDArray[np.float32]:
-    if path.endswith("npz"):
-        raise NotImplementedError("npz not supported yet.")
-    if path.endswith("npy"):
-        # Open for read only
-        array = np.load(path, mmap_mode="r")
-        return array[out_begin:out_end]
-    else:
-        assert path.endswith("kvi"), path
-        import kvikio
-
-        fd = kvikio.CuFile(path, "r")
-        return fd
-
-
 XyPair: TypeAlias = tuple[np.ndarray | sparse.csr_matrix, np.ndarray]
 
 
@@ -145,21 +128,15 @@ def load_batches(
     loadfrom: list[str], device: str
 ) -> tuple[list[np.ndarray] | list[sparse.csr_matrix], list[np.ndarray]]:
     """Load all batches."""
-    X_files, y_files = get_file_paths(loadfrom)
+    X_fd = Strip("X", dirs=loadfrom, fmt=None, device=device)
+    y_fd = Strip("y", dirs=loadfrom, fmt=None, device=device)
 
     with Timer("load-batches", "load"):
-        paths = list(zip(X_files, y_files))
-        assert paths
-
         Xs, ys = [], []
-        for i in range(len(X_files)):
-            # Assuming the paths are sorted.
-            x_pinfo = get_pinfo(X_files[i])
-            y_pinfo = get_pinfo(y_files[i])
-            assert x_pinfo.n_samples == y_pinfo.n_samples
-            assert x_pinfo.batch_idx == y_pinfo.batch_idx
-            assert x_pinfo.shard_idx == y_pinfo.shard_idx
-            X, y = load_Xy(X_files[i], y_files[i], device)
+        for i in range(X_fd.n_batches):
+            X = X_fd.read(i)
+            y = y_fd.read(i)
+            assert X.shape[0] == y.shape[0]
             Xs.append(X)
             ys.append(y)
     assert len(Xs) == len(ys)
@@ -522,7 +499,7 @@ class LoadIterStrip(IterImpl):
 
     @property
     def n_batches(self) -> int:
-        return len(self.pinfo)
+        return self.X.n_batches
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
