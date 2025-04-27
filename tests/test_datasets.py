@@ -20,7 +20,7 @@ from dxgb_bench.dataiter import (
 )
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.testing import devices, has_cuda
+from dxgb_bench.testing import devices, has_cuda, assert_array_allclose
 
 
 def test_sparse_regressioin() -> None:
@@ -119,16 +119,6 @@ def test_dense_batches() -> None:
     np.testing.assert_allclose(y0, y1, rtol=5e-6)
 
 
-def assert_allclose(
-    a: np.ndarray | cp.ndarray, b: np.ndarray | cp.ndarray, rtol: float = 1e-7
-) -> None:
-    if hasattr(a, "get"):
-        a = a.get()
-    if hasattr(b, "get"):
-        b = b.get()
-    np.testing.assert_allclose(a, b, rtol=rtol)
-
-
 def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     n_features = 4
     n_batches = 12
@@ -181,13 +171,13 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
         )
         X3, y3 = load_all([path], "cpu")
 
-    assert_allclose(X0, X1)
-    assert_allclose(X0, X2)
-    assert_allclose(X0, X3)
+    assert_array_allclose(X0, X1)
+    assert_array_allclose(X0, X2)
+    assert_array_allclose(X0, X3)
 
-    assert_allclose(y0, y1)
-    assert_allclose(y0, y2)
-    assert_allclose(y0, y3)
+    assert_array_allclose(y0, y1)
+    assert_array_allclose(y0, y2)
+    assert_array_allclose(y0, y3)
 
     return X0, y0
 
@@ -195,8 +185,8 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
 def test_dense_iter() -> None:
     X0, y0 = run_dense_iter("cpu")
     X1, y1 = run_dense_iter("cuda")
-    assert_allclose(X0, X1, rtol=5e-6)
-    assert_allclose(y0, y1, rtol=5e-6)
+    assert_array_allclose(X0, X1, rtol=5e-6)
+    assert_array_allclose(y0, y1, rtol=5e-6)
 
 
 @pytest.mark.parametrize("device", devices())

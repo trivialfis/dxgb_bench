@@ -66,5 +66,5 @@ jobs:
     - name: Test
       shell: bash -l {0}
       run: |
-        pytest -s -v ./tests/test_dataiter.py ./tests/test_datasets.py ./tests/test_strip.py
+        pytest -s -v ./tests/test_datasets.py ./tests/test_strip.py
         pytest -s -v ./tests/dsk

@@ -1,4 +1,5 @@
 """Copyright (c) 2025, Jiaming Yuan.  All rights reserved."""
+from __future__ import annotations
 
 import os
 import shutil
@@ -7,7 +8,8 @@ from itertools import product
 import numpy as np
 import pytest
 
-from dxgb_bench.strip import Strip
+from dxgb_bench.dataiter import get_valid_sizes
+from dxgb_bench.strip import Strip, get_shard_ids
 from dxgb_bench.testing import Device, assert_array_allclose, devices
 
 
@@ -30,6 +32,41 @@ def assert_dirs_exist(tmpdirs: list[str]) -> None:
     for tmpdir in tmpdirs:
         dirname = os.path.join(tmpdir, "X")
         assert os.path.exists(dirname)
+
+
+def find_shard_ids(indptr: np.ndarray, fold: int) -> tuple[int, int, int, int]:
+    n_train, n_valid = get_valid_sizes(indptr[-1])
+    begin = n_valid * fold
+    end = begin + n_valid
+    return get_shard_ids(indptr, begin, end)
+
+
+def test_shard_ids() -> None:
+    a = [0, 3, 3]  # 2 shards
+    indptr = np.cumsum(a)
+
+    beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(indptr, 0)
+    assert beg_idx == 0
+    assert end_idx == 0
+    assert beg_in_shard == 0
+    assert end_in_shard == 1
+
+    beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(indptr, 1)
+    assert beg_idx == 0
+    assert end_idx == 0
+    assert beg_in_shard == 1
+    assert end_in_shard == 2
+
+    a = [0, 5, 5]  # 2 shards
+    indptr = np.cumsum(a)
+    n_train, n_valid = get_valid_sizes(indptr[-1])
+    assert n_train == 8
+    assert n_valid == 2
+    beg_idx, beg_in_shard, end_idx, end_in_shard = find_shard_ids(indptr, 2)
+    assert beg_idx == 0
+    assert end_idx == 1
+    assert beg_in_shard == 4
+    assert end_in_shard == 1
 
 
 @pytest.mark.parametrize("device,fmt", product(devices(), ["npy", "kio"]))
