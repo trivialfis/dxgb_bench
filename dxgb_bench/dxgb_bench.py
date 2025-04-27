@@ -37,6 +37,7 @@ def datagen(
     n_samples_per_batch: int,
     n_features: int,
     n_batches: int,
+    *,
     assparse: bool,
     target_type: str,
     sparsity: float,

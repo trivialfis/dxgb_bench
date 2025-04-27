@@ -20,7 +20,8 @@ from dxgb_bench.dataiter import (
 )
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.testing import devices, has_cuda, assert_array_allclose
+from dxgb_bench.strip import make_file_name
+from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, has_cuda
 
 
 def test_sparse_regressioin() -> None:
@@ -162,7 +163,7 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb,
             n_features,
             n_batches,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
@@ -251,7 +252,7 @@ def test_cv(device: str) -> None:
             nspb,
             n_features,
             n_batches,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
@@ -277,3 +278,58 @@ def test_cv(device: str) -> None:
             assert_allclose(X[prev + 1 : prev + nspb], X_i)
             assert_allclose(y[prev + 1 : prev + nspb], y_i)
             prev += nspb
+
+
+@pytest.mark.parametrize("device", devices())
+def test_datagen(device: str) -> None:
+    n_shards = 2
+    with TmpDir(n_shards, True) as outdirs:
+        n_features = 4
+        n_batches = 8
+        nspb = 16
+
+        datagen(
+            nspb,
+            n_features,
+            n_batches,
+            assparse=False,
+            target_type="reg",
+            sparsity=0.0,
+            device=device,
+            outdirs=outdirs,
+            fmt="npy",
+        )
+
+        for shard_idx, d in enumerate(outdirs):
+            Xs, ys = [], []
+            for b in range(n_batches):
+                fname = make_file_name(
+                    (nspb, n_features),
+                    "X",
+                    "X",
+                    batch_idx=b,
+                    shard_idx=shard_idx,
+                    fmt="npy",
+                )
+                X = np.load(os.path.join(d, fname))
+                assert X.shape == (nspb // n_shards, n_features)
+                Xs.append(X)
+
+                fname = make_file_name(
+                    (nspb, 1),
+                    "y",
+                    "y",
+                    batch_idx=b,
+                    shard_idx=shard_idx,
+                    fmt="npy",
+                )
+                y = np.load(os.path.join(d, fname))
+                assert y.shape[0] == nspb // n_shards
+                assert y.shape[0] == y.size
+                ys.append(y)
+
+            # Must be unique, not guaranteed, just unlikely to have same floating
+            # values.
+            for i in range(1, n_batches):
+                assert not (Xs[0] == Xs[i]).any()
+                assert not (ys[0] == ys[i]).any()

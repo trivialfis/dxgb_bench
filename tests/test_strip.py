@@ -1,4 +1,5 @@
 """Copyright (c) 2025, Jiaming Yuan.  All rights reserved."""
+
 from __future__ import annotations
 
 import os
@@ -10,22 +11,13 @@ import pytest
 
 from dxgb_bench.dataiter import get_valid_sizes
 from dxgb_bench.strip import Strip, get_shard_ids
-from dxgb_bench.testing import Device, assert_array_allclose, devices
-
-
-def make_tmp(idx: int) -> str:
-    """Used for debugging. We can replace it with `tempfile` if needed."""
-    tmpdir = f"./tmp-{idx}"
-    if os.path.exists(tmpdir):
-        shutil.rmtree(tmpdir)
-    os.mkdir(tmpdir)
-    return tmpdir
-
-
-def cleanup_tmp(tmpdirs: list[str]) -> None:
-    for tmpdir in tmpdirs:
-        if os.path.exists(tmpdir):
-            shutil.rmtree(tmpdir)
+from dxgb_bench.testing import (
+    Device,
+    assert_array_allclose,
+    cleanup_tmp,
+    devices,
+    make_tmp,
+)
 
 
 def assert_dirs_exist(tmpdirs: list[str]) -> None:
