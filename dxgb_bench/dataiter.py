@@ -21,8 +21,8 @@ from .datasets.generated import (
     make_dense_regression,
     make_sparse_regression,
 )
+from .strip import PathInfo, Strip
 from .utils import TEST_SIZE, Timer, fprint
-from .strip import PathInfo
 
 if TYPE_CHECKING:
     from cupy import ndarray as cpnd
@@ -483,6 +483,68 @@ class LoadIterImpl(IterImpl):
     @property
     def n_batches(self) -> int:
         return len(self.X_shards)
+
+
+class LoadIterStrip(IterImpl):
+    """An iterator for loading dataset from disks.
+
+    Parameters
+    ----------
+    loadfrom:
+        A list of directories containing the data.
+    is_valid:
+        Whether this is a validation dataset. Ignored when test_size is None.
+    test_size:
+        Use validation split if it's not None. Specifies the ratio of the test dataset.
+    device:
+        cpu or cuda.
+
+    """
+
+    def __init__(
+        self, loadfrom: list[str], is_valid: bool, test_size: float | None, device: str
+    ) -> None:
+        self.loadfrom = loadfrom
+        self._is_valid = is_valid
+        self._test_ratio = test_size
+
+        self.X = Strip("X", loadfrom)
+        self.y = Strip("y", loadfrom)
+
+        self.pinfo = self.X.list_file_info()
+
+        if is_valid:
+            if test_size is None:
+                raise ValueError("Must have a size for train test split.")
+            assert test_size is not None
+
+    @property
+    def n_batches(self) -> int:
+        return len(self.pinfo)
+
+    @override
+    def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
+        Xinfo = self.X.batch_key[i]
+
+        n_samples = Xinfo.n_samples
+        n_test = int(n_samples * self._test_ratio)
+        n_train = n_samples - n_test
+
+        if self._test_ratio is not None:
+            if self.is_valid:
+                # This is the validation dataset.
+                # similar to X_i[:n_train]
+                X = self.X.read(i, n_train, n_samples)
+                y = self.y.read(i, n_train, n_samples)
+            else:
+                # This is the training dataset.
+                X = self.X.read(i, 0, n_train)
+                y = self.y.read(i, 0, n_train)
+        else:
+            # Read the full batch
+            X = self.X.read(i)
+            y = self.y.read(i)
+        return X, y
 
 
 class SynIterImpl(IterImpl):

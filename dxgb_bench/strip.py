@@ -365,6 +365,10 @@ class Strip:
                 results.append(pinfo)
         return results
 
+    @property
+    def batch_key(self) -> dict[int, PathInfo]:
+        return self._batch_key
+
     def get_shard_indptr(self, batch_idx: int) -> npt.NDArray[np.int64]:
         shard_i = self._batch_key[batch_idx]
 
