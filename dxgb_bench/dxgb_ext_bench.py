@@ -7,11 +7,11 @@ import os
 import xgboost as xgb
 
 from .external_mem import (
-    Opts,
     qdm_train,
     spdm_train,
 )
 from .utils import (
+    Opts,
     Timer,
     add_data_params,
     add_device_param,

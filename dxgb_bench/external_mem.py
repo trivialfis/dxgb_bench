@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 import xgboost as xgb
@@ -14,20 +13,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import Timer, setup_rmm
-
-
-@dataclass
-class Opts:
-    n_samples_per_batch: int
-    n_features: int
-    n_batches: int
-    sparsity: float
-    on_the_fly: bool
-    validation: bool
-    device: str
-    mr: str | None
-    target_type: str
+from .utils import Timer, setup_rmm, Opts
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -119,7 +105,7 @@ def spdm_train(
     loadfrom: list[str],
 ) -> xgb.Booster:
     """Train with the Sparse DMatrix."""
-    if opts.device == "cuda":
+    if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)

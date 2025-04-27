@@ -8,6 +8,7 @@ import shutil
 import sys
 import time
 import warnings
+from dataclasses import dataclass
 from typing import Any, Callable, Dict, TypeAlias, Union
 
 try:
@@ -359,3 +360,16 @@ def mkdirs(outdirs: list[str]) -> None:
     for d in outdirs:
         if not os.path.exists(d):
             os.mkdir(d)
+
+
+@dataclass
+class Opts:
+    n_samples_per_batch: int
+    n_features: int
+    n_batches: int
+    sparsity: float
+    on_the_fly: bool
+    validation: bool
+    device: str
+    mr: str | None
+    target_type: str

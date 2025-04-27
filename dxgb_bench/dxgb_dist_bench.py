@@ -15,6 +15,7 @@ from xgboost.testing.dask import get_client_workers
 
 from .dataiter import BenchIter, SynIterImpl
 from .utils import (
+    Opts,
     Timer,
     add_data_params,
     add_device_param,
@@ -42,38 +43,40 @@ class ForwardLoggingMonitor(EvaluationMonitor):
 
 
 def train(
-    args: argparse.Namespace,
+    opts: Opts,
+    n_rounds: int,
     rabit_args: dict[str, Any],
     n_batches: int,
+    params: dict[str, Any],
     rs: int,
     log_cb: EvaluationMonitor,
+    verbosity: int,
 ) -> xgboost.Booster:
-    if args.device == "cuda":
+    if opts.device == "cuda":
         setup_rmm("arena")
     it_impl = SynIterImpl(
-        n_samples_per_batch=args.n_samples_per_batch,
-        n_features=args.n_features,
+        n_samples_per_batch=opts.n_samples_per_batch,
+        n_features=opts.n_features,
         n_batches=n_batches,
-        sparsity=args.sparsity,
-        assparse=args.assparse,
-        target_type=args.target_type,
-        device=args.device,
+        sparsity=opts.sparsity,
+        assparse=False,
+        target_type=opts.target_type,
+        device=opts.device,
         rs=rs,
     )
     it = BenchIter(
         it_impl,
         is_ext=True,
         is_valid=False,
-        device=args.device,
+        device=opts.device,
     )
     worker = get_worker()
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
-        params = make_params_from_args(args)
         n_threads = dxgb.get_n_threads(params, worker)
         params.update({"nthread": n_threads})
         with xgboost.config_context(
-            nthread=n_threads, use_rmm=True, verbosity=args.verbosity
+            nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
 
             def log_fn(msg: str) -> None:
@@ -93,39 +96,53 @@ def train(
                     params,
                     Xy,
                     evals=[(Xy, "Train")],
-                    num_boost_round=args.n_rounds,
+                    num_boost_round=n_rounds,
                     verbose_eval=False,
                     callbacks=[log_cb],
                 )
     return booster
 
 
-def bench(client: Client, args: argparse.Namespace) -> None:
+def bench(
+    client: Client, n_rounds: int, opts: Opts, params: dict[str, Any], verbosity: int
+) -> xgboost.Booster:
     workers = get_client_workers(client)
     fprint(f"workers: {workers}")
     n_workers = len(workers)
     assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
-    if not args.fly:
+    if not opts.on_the_fly:
         raise NotImplementedError("--fly must be specified.")
 
     log_cb = ForwardLoggingMonitor(client)
 
-    n_batches_per_worker = args.n_batches // n_workers
+    n_batches_per_worker = opts.n_batches // n_workers
     assert n_batches_per_worker > 1
 
     with Timer("Distributed", "Total", logger=lambda msg: _get_logger().info(msg)):
         futures = []
         for worker_id, worker in enumerate(workers):
             n_batches_prev = worker_id * n_batches_per_worker
-            rs = n_batches_prev * args.n_samples_per_batch * args.n_features
-            n_batches = min(n_batches_per_worker, args.n_batches - n_batches_prev)
-            fut = client.submit(train, args, rabit_args, n_batches, rs, log_cb)
+            rs = n_batches_prev * opts.n_samples_per_batch * opts.n_features
+            n_batches = min(n_batches_per_worker, opts.n_batches - n_batches_prev)
+            fut = client.submit(
+                train,
+                opts,
+                n_rounds,
+                rabit_args,
+                n_batches,
+                params,
+                rs,
+                log_cb,
+                verbosity,
+            )
             n_batches_prev += n_batches
             futures.append(fut)
         boosters = client.gather(futures)
         assert len(boosters) == n_workers
-        assert all(b.num_boosted_rounds() == args.n_rounds for b in boosters)
+        assert all(b.num_boosted_rounds() == n_rounds for b in boosters)
+
+    return boosters[0]
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:
@@ -170,15 +187,28 @@ def cli_main() -> None:
     parser = add_data_params(parser, required=True)
     args = parser.parse_args()
 
+    opts = Opts(
+        n_samples_per_batch=args.n_samples_per_batch,
+        n_features=args.n_features,
+        n_batches=args.n_batches,
+        sparsity=args.sparsity,
+        on_the_fly=args.fly,
+        validation=args.valid,
+        device=args.device,
+        mr=args.mr,
+        target_type=args.target_type,
+    )
+    params = make_params_from_args(args)
+
     if args.cluster_type == "local":
         with local_cluster(device=args.device, n_workers=args.n_workers) as cluster:
             with Client(cluster) as client:
-                bench(client, args)
+                bench(client, args.n_rounds, opts, params, args.verbosity)
     elif args.cluster_type == "sched":
         sched = args.sched
         assert sched is not None
         with Client(scheduler_file=sched) as client:
-            bench(client, args)
+            bench(client, args.n_rounds, opts, params, args.verbosity)
     else:
         hosts = args.hosts.split(";")
         rpy = args.rpy
@@ -192,7 +222,7 @@ def cli_main() -> None:
         ) as cluster:
             cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
-                bench(client, args)
+                bench(client, args.n_rounds, opts, params, args.verbosity)
             logs = cluster.get_logs()
             for k, v in logs.items():
                 fprint(f"{k}\n{v}")
