@@ -1,4 +1,5 @@
 """Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -10,9 +11,8 @@ from .dataiter import (
     TEST_SIZE,
     BenchIter,
     IterImpl,
-    LoadIterImpl,
+    LoadIterStrip,
     SynIterImpl,
-    get_file_paths,
 )
 from .utils import Timer, setup_rmm
 
@@ -33,11 +33,9 @@ class Opts:
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
     if not opts.on_the_fly:
         # Load files
-        X_files, y_files = get_file_paths(loadfrom)
-        files: list[tuple[str, str]] = list(zip(X_files, y_files))
         if opts.validation:
-            it_impl: IterImpl = LoadIterImpl(
-                files, True, is_valid=False, device=opts.device
+            it_impl: IterImpl = LoadIterStrip(
+                loadfrom, is_valid=False, test_size=TEST_SIZE, device=opts.device
             )
             train_it = BenchIter(
                 it_impl,
@@ -45,7 +43,9 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
                 is_valid=False,
                 device=opts.device,
             )
-            it_impl = LoadIterImpl(files, True, is_valid=True, device=opts.device)
+            it_impl = LoadIterStrip(
+                loadfrom, is_valid=True, test_size=TEST_SIZE, device=opts.device
+            )
             valid_it = BenchIter(
                 it_impl,
                 is_ext=True,
@@ -53,7 +53,9 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
                 device=opts.device,
             )
         else:
-            it_impl = LoadIterImpl(files, False, is_valid=False, device=opts.device)
+            it_impl = LoadIterStrip(
+                loadfrom, is_valid=False, test_size=None, device=opts.device
+            )
             train_it = BenchIter(
                 it_impl,
                 is_ext=True,

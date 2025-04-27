@@ -260,11 +260,7 @@ def test_cv(device: str) -> None:
         n_train, n_valid = get_valid_sizes(n_samples=nspb * n_batches)
         assert n_valid == 6
 
-        # files = get_file_paths(outdirs)
-        # impl = LoadIterImpl(list(zip(files[0], files[1])), True, False, device)
         impl = LoadIterStrip(outdirs, is_valid=False, test_size=0.2, device=device)
-        # assert len(impl.X_shards) == n_batches
-
         X, y = load_all(outdirs, device)
 
         prev = 0
