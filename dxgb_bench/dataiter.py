@@ -533,11 +533,12 @@ class LoadIterStrip(IterImpl):
         if self._test_ratio is not None:
             if self.is_valid:
                 # This is the validation dataset.
-                # similar to X_i[:n_train]
+                # similar to X_i[n_train:]
                 X = self.X.read(i, n_train, n_samples)
                 y = self.y.read(i, n_train, n_samples)
             else:
                 # This is the training dataset.
+                # similar to X_i[:n_train]
                 X = self.X.read(i, 0, n_train)
                 y = self.y.read(i, 0, n_train)
         else:
