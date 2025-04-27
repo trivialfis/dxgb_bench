@@ -13,7 +13,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import Timer, setup_rmm, Opts
+from .utils import Opts, Timer, setup_rmm
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
