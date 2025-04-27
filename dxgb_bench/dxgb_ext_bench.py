@@ -42,6 +42,7 @@ def main(args: argparse.Namespace) -> None:
         mr=args.mr,
         target_type=args.target_type,
     )
+    assert opts.mr is not None
     loadfrom = split_path(args.loadfrom)
 
     if args.task == "ext-sp":

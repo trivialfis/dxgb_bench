@@ -150,7 +150,7 @@ def qdm_train(
     loadfrom: list[str],
 ) -> xgb.Booster:
     """Train with the ExtMemQuantileDMatrix."""
-    if opts.device == "cuda":
+    if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
@@ -163,7 +163,9 @@ def qdm_train(
 
     if it_valid is not None:
         with Timer("ExtQdm", "DMatrix-Valid"):
-            Xy_valid = xgb.ExtMemQuantileDMatrix(it_valid, ref=Xy_train)
+            Xy_valid = xgb.ExtMemQuantileDMatrix(
+                it_valid, max_bin=params["max_bin"], ref=Xy_train
+            )
             watches.append((Xy_valid, "Valid"))
 
     with Timer("ExtQdm", "train"):

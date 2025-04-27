@@ -152,6 +152,11 @@ class Timer:
     def global_timer() -> GlobalTimer:
         return global_timer
 
+    @staticmethod
+    def reset() -> None:
+        global global_timer
+        global_timer = {}
+
 
 class TemporaryDirectory:
     def __init__(self, path: str) -> None:
