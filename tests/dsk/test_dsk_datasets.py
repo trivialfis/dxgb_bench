@@ -6,6 +6,7 @@ from dask_cuda import LocalCUDACluster
 from distributed import Client, LocalCluster
 
 from dxgb_bench.dsk import make_dense_regression
+from dxgb_bench.testing import has_cuda
 
 
 @pytest.fixture(scope="module")
@@ -31,6 +32,7 @@ def test_make_dense_regression_cpu(cpu_cluster: LocalCluster) -> None:
         assert X.shape[1] == 128
 
 
+@pytest.mark.skipif(reason="No CUDA.", condition=not has_cuda())
 def test_make_dense_regression_cuda(cuda_cluster: LocalCluster) -> None:
     with Client(cuda_cluster) as client:
         X, y = make_dense_regression("cuda", 4096, 128, random_state=1994)
