@@ -8,7 +8,6 @@ import xgboost as xgb
 
 from .external_mem import (
     Opts,
-    extmem_qdm_inference,
     extmem_qdm_train,
     extmem_spdm_train,
 )
@@ -60,20 +59,7 @@ def main(args: argparse.Namespace) -> None:
             loadfrom=loadfrom,
         )
     else:
-        assert args.predict_type is not None
-        assert args.model is not None
-        extmem_qdm_inference(
-            loadfrom=loadfrom,
-            n_bins=args.n_bins,
-            n_samples_per_batch=n // n_batches,
-            n_features=n_features,
-            n_batches=n_batches,
-            assparse=False,
-            sparsity=args.sparsity,
-            device=args.device,
-            on_the_fly=args.fly == 1,
-            args=args,
-        )
+        raise ValueError(f"Invalid task: {args.task}")
 
     print(Timer.global_timer())
 
@@ -83,7 +69,7 @@ def cli_main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--task", choices=["ext-sp", "ext-qdm", "ext-inf"], required=True
+        "--task", choices=["ext-sp", "ext-qdm"], required=True
     )
     parser = add_rmm_param(parser)
     parser = add_device_param(parser)
@@ -98,11 +84,6 @@ def cli_main() -> None:
         help="Generate data on the fly instead of loading it from the disk.",
     )
     parser.add_argument("--valid", action="store_true")
-
-    parser.add_argument("--model", type=str, required=False)
-    parser.add_argument(
-        "--predict_type", choices=["value", "contrib", "interaction"], required=False
-    )
 
     args = parser.parse_args()
     if args.target_type == "bin" and args.fly is not True:
