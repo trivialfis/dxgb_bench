@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import os
-import shutil
-from itertools import product
 
 import numpy as np
 import pytest
+
+from itertools import product
 
 from dxgb_bench.dataiter import get_valid_sizes
 from dxgb_bench.strip import Strip, get_shard_ids
@@ -16,6 +16,7 @@ from dxgb_bench.testing import (
     assert_array_allclose,
     cleanup_tmp,
     devices,
+    formats,
     make_tmp,
 )
 
@@ -61,7 +62,7 @@ def test_shard_ids() -> None:
     assert end_in_shard == 1
 
 
-@pytest.mark.parametrize("device,fmt", product(devices(), ["npy", "kio"]))
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_single(device: Device, fmt: str) -> None:
     tmpdir0 = make_tmp(0)
     X_out = Strip("X", [tmpdir0], fmt, device)
@@ -85,7 +86,7 @@ def test_single(device: Device, fmt: str) -> None:
     cleanup_tmp([tmpdir0])
 
 
-@pytest.mark.parametrize("device,fmt", product(devices(), ["npy", "kio"]))
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_stripping(device: Device, fmt: str) -> None:
     tmpdirs = [make_tmp(i) for i in range(3)]
     X_out = Strip("X", tmpdirs, fmt, device)
@@ -112,7 +113,7 @@ def test_stripping(device: Device, fmt: str) -> None:
     cleanup_tmp(tmpdirs)
 
 
-@pytest.mark.parametrize("device,fmt", product(devices(), ["npy", "kio"]))
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_stripping_less(device: Device, fmt: str) -> None:
     n_dirs = 8
     tmpdirs = [make_tmp(i) for i in range(n_dirs)]
@@ -161,11 +162,11 @@ def run_subset_tests(n_dirs: int, device: Device, fmt: str) -> None:
     cleanup_tmp(tmpdirs)
 
 
-@pytest.mark.parametrize("device,fmt", product(devices(), ["npy", "kio"]))
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_single_subset(device: Device, fmt: str) -> None:
     run_subset_tests(1, device, fmt)
 
 
-@pytest.mark.parametrize("device,fmt", product(devices(), ["npy", "kio"]))
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_stripping_subset(device: Device, fmt: str) -> None:
     run_subset_tests(3, device, fmt)

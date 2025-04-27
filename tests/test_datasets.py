@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+from itertools import product
 
 import cupy as cp
 import numpy as np
@@ -20,8 +21,8 @@ from dxgb_bench.dataiter import (
 )
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.strip import make_file_name
-from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, has_cuda
+from dxgb_bench.strip import make_file_name, make_strips
+from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, has_cuda, formats
 
 
 def test_sparse_regressioin() -> None:
@@ -333,3 +334,21 @@ def test_datagen(device: str) -> None:
             for i in range(1, n_batches):
                 assert not (Xs[0] == Xs[i]).any()
                 assert not (ys[0] == ys[i]).any()
+
+        X, y = load_all(outdirs, device)
+        assert X.shape[0] == y.shape[0] == nspb * n_batches
+
+
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
+def test_load_all(device: str, fmt: str) -> None:
+    n_shards = 2
+    with TmpDir(n_shards, True) as outdirs:
+        X_fd, y_fd = make_strips(["X", "y"], outdirs, fmt=fmt, device=device)
+        X = np.arange(0, 64, dtype=np.float32).reshape(8, 8)
+        y = X.sum(axis=1)
+        X_fd.write(X, 0)
+        y_fd.write(y, 0)
+
+        X_res, y_res = load_all(outdirs, device=device)
+        assert_array_allclose(X, X_res.squeeze())
+        assert_array_allclose(y, y_res.squeeze())

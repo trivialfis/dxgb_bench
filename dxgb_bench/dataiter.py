@@ -134,8 +134,8 @@ def load_batches(
     with Timer("load-batches", "load"):
         Xs, ys = [], []
         for i in range(X_fd.n_batches):
-            X = X_fd.read(i)
-            y = y_fd.read(i)
+            X = X_fd.read(i, None, None)
+            y = y_fd.read(i, None, None)
             assert X.shape[0] == y.shape[0]
             Xs.append(X)
             ys.append(y)

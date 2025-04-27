@@ -12,7 +12,7 @@ import os
 import re
 from abc import abstractmethod
 from bisect import bisect_right
-from typing import Any
+from typing import Any, Sequence
 
 import numpy as np
 from numpy import typing as npt
@@ -23,6 +23,7 @@ from .utils import div_roundup
 
 class _TrackShard:
     """Track the size of each shard."""
+
     def __init__(self, n_samples: int, n_dirs: int) -> None:
         self._prev = 0
         self.n_samples = n_samples
@@ -474,3 +475,9 @@ class Strip:
             array = hdl.get()
             assert array.shape[0] == n_samples, (array.shape, n_samples)
         return array
+
+
+def make_strips(
+    names: Sequence[str], dirs: list[str], fmt: str | None, device: str
+) -> list[Strip]:
+    return [Strip(n, dirs, fmt, device) for n in names]

@@ -30,6 +30,10 @@ def devices() -> list[Device]:
     return ["cpu"]
 
 
+def formats() -> list[str]:
+    return ["npy", "kio"]
+
+
 def assert_array_allclose(
     a: np.ndarray, b: np.ndarray, rtol: SupportsFloat = 1e-7
 ) -> None:
