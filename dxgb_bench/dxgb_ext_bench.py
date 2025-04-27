@@ -8,8 +8,8 @@ import xgboost as xgb
 
 from .external_mem import (
     Opts,
-    extmem_qdm_train,
-    extmem_spdm_train,
+    qdm_train,
+    spdm_train,
 )
 from .utils import (
     Timer,
@@ -45,14 +45,14 @@ def main(args: argparse.Namespace) -> None:
     loadfrom = split_path(args.loadfrom)
 
     if args.task == "ext-sp":
-        extmem_spdm_train(
+        spdm_train(
             opts,
             params=make_params_from_args(args),
             n_rounds=args.n_rounds,
             loadfrom=loadfrom,
         )
     elif args.task == "ext-qdm":
-        extmem_qdm_train(
+        qdm_train(
             opts,
             params=make_params_from_args(args),
             n_rounds=args.n_rounds,

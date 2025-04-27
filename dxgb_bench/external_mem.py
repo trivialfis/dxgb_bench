@@ -112,12 +112,13 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
     return it_train, it_valid
 
 
-def extmem_spdm_train(
+def spdm_train(
     opts: Opts,
     params: dict[str, Any],
     n_rounds: int,
     loadfrom: list[str],
 ) -> xgb.Booster:
+    """Train with the Sparse DMatrix."""
     if opts.device == "cuda":
         setup_rmm(opts.mr)
 
@@ -142,12 +143,13 @@ def extmem_spdm_train(
     return booster
 
 
-def extmem_qdm_train(
+def qdm_train(
     opts: Opts,
     params: dict[str, Any],
     n_rounds: int,
     loadfrom: list[str],
 ) -> xgb.Booster:
+    """Train with the ExtMemQuantileDMatrix."""
     if opts.device == "cuda":
         setup_rmm(opts.mr)
 

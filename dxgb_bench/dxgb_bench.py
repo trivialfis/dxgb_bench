@@ -18,7 +18,7 @@ from .dataiter import (
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression
-from .strip import Strip
+from .strip import make_strips
 from .utils import (
     DFT_OUT,
     Timer,
@@ -55,8 +55,7 @@ def datagen(
     with Timer("datagen", "gen"):
         size = 0
 
-        X_fd = Strip("X", dirs=outdirs, fmt=fmt, device=device)
-        y_fd = Strip("y", dirs=outdirs, fmt=fmt, device=device)
+        X_fd, y_fd = make_strips(["X", "y"], outdirs, fmt=fmt, device=device)
 
         for i in range(n_batches):
             assert n_samples_per_batch >= 1
