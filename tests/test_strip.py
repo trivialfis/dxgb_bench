@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 import os
+from itertools import product
 
 import numpy as np
 import pytest
-
-from itertools import product
 
 from dxgb_bench.dataiter import get_valid_sizes
 from dxgb_bench.strip import Strip, get_shard_ids
@@ -60,6 +59,13 @@ def test_shard_ids() -> None:
     assert end_idx == 1
     assert beg_in_shard == 4
     assert end_in_shard == 1
+
+    indptr = np.array([0, 3, 6])
+    beg_idx, beg_in_shard, end_idx, end_in_shard = get_shard_ids(indptr, 0, 6)
+    assert beg_idx == 0
+    assert end_idx == 1
+    assert beg_in_shard == 0
+    assert end_in_shard == 3
 
 
 @pytest.mark.parametrize("device,fmt", product(devices(), formats()))

@@ -13,8 +13,7 @@ from xgboost import QuantileDMatrix
 from .dataiter import (
     TEST_SIZE,
     BenchIter,
-    LoadIterImpl,
-    get_file_paths,
+    LoadIterStrip,
     load_all,
     train_test_split,
 )
@@ -123,24 +122,28 @@ def bench(
             watches = [(Xy, "Train")]
     else:
         assert task == "qdm-iter"
-        X_files, y_files = get_file_paths(loadfrom)
-        paths = list(zip(X_files, y_files))
         if valid:
-            it_impl = LoadIterImpl(paths, split=True, is_valid=False, device=device)
+            it_impl = LoadIterStrip(
+                loadfrom, test_size=TEST_SIZE, is_valid=False, device=device
+            )
             it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
 
-            it_impl = LoadIterImpl(paths, split=True, is_valid=True, device=device)
+            it_impl = LoadIterStrip(
+                loadfrom, test_size=TEST_SIZE, is_valid=True, device=device
+            )
             it_valid = BenchIter(it_impl, is_ext=False, is_valid=True, device=device)
         else:
-            it_impl = LoadIterImpl(paths, split=False, is_valid=False, device=device)
+            it_impl = LoadIterStrip(
+                loadfrom, test_size=None, is_valid=False, device=device
+            )
             it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
             it_valid = None
 
-        with Timer("Qdm", "Train-DMatrix"):
+        with Timer("Qdm", "Train-DMatrix-Iter"):
             Xy = QuantileDMatrix(it_train)
             watches = [(Xy, "Train")]
         if valid:
-            with Timer("Qdm", "Valid-DMatrix"):
+            with Timer("Qdm", "Valid-DMatrix-Iter"):
                 Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
                 watches.append((Xy_valid, "Valid"))
 

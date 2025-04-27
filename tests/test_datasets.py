@@ -183,6 +183,7 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     return X0, y0
 
 
+@pytest.mark.skipif(reason="No CUDA.", condition=not has_cuda())
 def test_dense_iter() -> None:
     X0, y0 = run_dense_iter("cpu")
     X1, y1 = run_dense_iter("cuda")
@@ -261,9 +262,7 @@ def test_cv(device: str) -> None:
 
         # files = get_file_paths(outdirs)
         # impl = LoadIterImpl(list(zip(files[0], files[1])), True, False, device)
-        impl = LoadIterStrip(
-            outdirs, is_valid=False, test_size=0.2, device=device
-        )
+        impl = LoadIterStrip(outdirs, is_valid=False, test_size=0.2, device=device)
         # assert len(impl.X_shards) == n_batches
 
         X, y = load_all(outdirs, device)

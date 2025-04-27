@@ -62,7 +62,7 @@ class Backend:
         begin:
             Optional beginning sample idx.
         end:
-            Optional end sample idx.
+            Optional end sample idx, Exlusive.
         shard_size:
             Number of samples in this shard.
         """
@@ -269,12 +269,16 @@ def get_shard_ids(
     indptr: npt.NDArray[np.int64], begin: int, end: int
 ) -> tuple[int, int, int, int]:
     n_samples = indptr[-1]
-    assert end < n_samples
+    # assert end < n_samples
 
     # The first shard within range
     beg_idx: int = bisect_right(indptr, begin) - 1
-    # The last shard
-    end_idx: int = bisect_right(indptr, end) - 1
+    # The last shard within range
+    if end == n_samples:
+        # end is exclusive.
+        end_idx: int = len(indptr) - 2
+    else:
+        end_idx = bisect_right(indptr, end) - 1
 
     # Index into the first shard
     beg_in_shard = begin - indptr[beg_idx]
@@ -408,7 +412,7 @@ class Strip:
             Optional range begin, for train test split. This indexes into the entire
             batch.
         end:
-            Optional range end.
+            Optional range end. Exclusive.
 
         Returns
         -------
