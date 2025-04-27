@@ -343,3 +343,9 @@ def setup_rmm(mr_name: str) -> None:
     mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
+
+
+def mkdirs(outdirs: list[str]) -> None:
+    for d in outdirs:
+        if not os.path.exists(d):
+            os.mkdir(d)

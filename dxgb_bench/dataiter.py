@@ -7,7 +7,7 @@ import re
 from abc import abstractmethod, abstractproperty
 from bisect import bisect_right
 from collections import defaultdict
-from typing import TYPE_CHECKING, Any, Callable, TypeAlias
+from typing import TYPE_CHECKING, Any, Callable, SupportsFloat, TypeAlias
 
 import numpy as np
 import xgboost as xgb
@@ -179,8 +179,10 @@ def load_all(loadfrom: list[str], device: str) -> XyPair:
     return X, y
 
 
-def get_valid_sizes(n_samples: int) -> tuple[int, int]:
-    n_valid = int(n_samples * TEST_SIZE)
+def get_valid_sizes(
+    n_samples: int, test_size: SupportsFloat = TEST_SIZE
+) -> tuple[int, int]:
+    n_valid = int(n_samples * test_size)
     n_train = n_samples - n_valid
     return n_train, n_valid
 
@@ -527,8 +529,7 @@ class LoadIterStrip(IterImpl):
         Xinfo = self.X.batch_key[i]
 
         n_samples = Xinfo.n_samples
-        n_test = int(n_samples * self._test_ratio)
-        n_train = n_samples - n_test
+        n_train, _ = get_valid_sizes(n_samples, self._test_ratio)
 
         if self._test_ratio is not None:
             if self.is_valid:

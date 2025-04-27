@@ -18,7 +18,8 @@ from .dataiter import (
     load_all,
     train_test_split,
 )
-from .datasets.generated import make_dense_regression, make_sparse_regression, save_Xy
+from .datasets.generated import make_dense_regression, make_sparse_regression
+from .strip import Strip
 from .utils import (
     DFT_OUT,
     Timer,
@@ -27,6 +28,7 @@ from .utils import (
     add_hyper_param,
     add_target_type,
     make_params_from_args,
+    mkdirs,
     split_path,
 )
 
@@ -48,15 +50,16 @@ def datagen(
     if target_type != "reg":
         raise NotImplementedError()
 
-    for d in outdirs:
-        if not os.path.exists(d):
-            os.mkdir(d)
+    mkdirs(outdirs)
 
     with Timer("datagen", "gen"):
         size = 0
+
+        X_fd = Strip("X", dirs=outdirs, fmt=fmt, device=device)
+        y_fd = Strip("y", dirs=outdirs, fmt=fmt, device=device)
+
         for i in range(n_batches):
             assert n_samples_per_batch >= 1
-            out = outdirs[i % len(outdirs)]
             if not assparse:  # default
                 X, y = make_dense_regression(
                     device=device,
@@ -71,8 +74,10 @@ def datagen(
 
                     assert isinstance(X, cp.ndarray)
 
-                save_Xy(X, y, i, fmt=fmt, saveto=outdirs)
+                X_fd.write(X, batch_idx=i)
+                y_fd.write(y, batch_idx=i)
             else:
+                out = outdirs[i % len(outdirs)]
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
@@ -80,9 +85,9 @@ def datagen(
                     random_state=size,
                 )
                 sparse.save_npz(
-                    os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npy"), X
+                    os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npz"), X
                 )
-                np.save(os.path.join(out, f"y_{y.shape[0]}_1-{i}.npy"), y)
+                np.save(os.path.join(out, f"y_{y.shape[0]}_1-{i}.npz"), y)
             size += X.size
 
     print(Timer.global_timer())

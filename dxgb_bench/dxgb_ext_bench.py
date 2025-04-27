@@ -1,4 +1,6 @@
 #!/usr/bin/env python
+"""Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved."""
+
 import argparse
 import os
 

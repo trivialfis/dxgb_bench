@@ -8,7 +8,6 @@ that have multiple disks but don't have RAID-0.
 from __future__ import annotations
 
 import dataclasses
-import math
 import os
 import re
 from abc import abstractmethod
@@ -19,9 +18,21 @@ import numpy as np
 from numpy import typing as npt
 from typing_extensions import override
 
+from .utils import div_roundup
 
-def divup(a: int, b: int) -> int:
-    return math.ceil(a / b)
+
+class _TrackShard:
+    """Track the size of each shard."""
+    def __init__(self, n_samples: int, n_dirs: int) -> None:
+        self._prev = 0
+        self.n_samples = n_samples
+        self.n_samples_per_shard = div_roundup(n_samples, n_dirs)
+
+    def step(self) -> tuple[int, int]:
+        size = min(self.n_samples_per_shard, self.n_samples - self._prev)
+        prev = self._prev
+        self._prev += size
+        return prev, size
 
 
 class Backend:
@@ -320,10 +331,8 @@ class Strip:
         if array.dtype != np.float32:
             raise TypeError("Only f32 is supported.")
 
-        n_dirs = len(self._dirs)
         n_samples = array.shape[0]
-        n_samples_per_shard = divup(n_samples, n_dirs)
-        prev = 0
+        shard_it = _TrackShard(n_samples, len(self._dirs))
         assert len(array.shape) <= 2
 
         if len(array.shape) == 1:
@@ -338,7 +347,7 @@ class Strip:
                 if not os.path.exists(dirname):
                     os.mkdir(dirname)
 
-                size = min(n_samples_per_shard, n_samples - prev)
+                prev, size = shard_it.step()
                 shard = array[prev : prev + size]
                 path_shard = make_file_name(
                     shape=shape,
@@ -349,7 +358,6 @@ class Strip:
                     fmt=self._fmt,
                 )
                 hdl.write(shard, path_shard)
-                prev += size
 
         return array.size * array.itemsize
 
@@ -372,17 +380,13 @@ class Strip:
     def get_shard_indptr(self, batch_idx: int) -> npt.NDArray[np.int64]:
         shard_i = self._batch_key[batch_idx]
 
-        n_dirs = len(self._dirs)
         n_samples = shard_i.n_samples
-        n_samples_per_shard = divup(n_samples, n_dirs)
+        shard_it = _TrackShard(n_samples, len(self._dirs))
 
-        # Track the size of each shard
         shard_sizes = [0]
-        prev = 0
         for shard_idx, dirname in enumerate(self._dirs):
-            size = min(n_samples_per_shard, n_samples - prev)
+            prev, size = shard_it.step()
             shard_sizes.append(size)
-            prev += size
 
         indptr = np.cumsum(shard_sizes)
         assert indptr[-1] == n_samples
@@ -431,9 +435,8 @@ class Strip:
             self._batch_key[batch_idx].n_features,
         )
 
-        # Track the size of each shard
-        n_samples_per_shard = divup(self._batch_key[batch_idx].n_samples, n_dirs)
-        prev = 0
+        # Track the size of each shard. Use full batch n_samples
+        shard_it = _TrackShard(self._batch_key[batch_idx].n_samples, len(self._dirs))
 
         with dispatch_backend(
             device=self._device, fmt=self._fmt, shape=shape_res
@@ -448,9 +451,7 @@ class Strip:
                     fmt=self._fmt,
                 )
 
-                size = min(
-                    n_samples_per_shard, self._batch_key[batch_idx].n_samples - prev
-                )
+                prev, size = shard_it.step()
 
                 if begin is not None:
                     if shard_idx == beg_shard_idx and shard_idx == end_shard_idx:
@@ -466,7 +467,6 @@ class Strip:
                 else:
                     hdl.read(path_shard, None, None, size)
 
-                prev += size
             array = hdl.get()
             assert array.shape[0] == n_samples, (array.shape, n_samples)
         return array
