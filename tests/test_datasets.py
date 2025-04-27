@@ -20,6 +20,7 @@ from dxgb_bench.dataiter import (
 )
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
+from dxgb_bench.testing import devices, has_cuda
 
 
 def test_sparse_regressioin() -> None:
@@ -108,6 +109,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
     return X0, y0
 
 
+@pytest.mark.skipif(reason="No CUDA.", condition=not has_cuda())
 def test_dense_batches() -> None:
     X0, y0 = run_dense_batches("cpu")
     X1, y1 = run_dense_batches("cuda")
@@ -194,7 +196,7 @@ def test_dense_iter() -> None:
     assert_allclose(y0, y1, rtol=5e-6)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", devices())
 def test_deterministic(device: str) -> None:
     n_samples_per_batch = 8192
     n_features = 400
@@ -241,7 +243,7 @@ def test_deterministic(device: str) -> None:
     it.reset()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda"])
+@pytest.mark.parametrize("device", devices())
 def test_cv(device: str) -> None:
     with tempfile.TemporaryDirectory() as tmpdir:
         path0 = os.path.join(tmpdir, "data0")

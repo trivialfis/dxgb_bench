@@ -15,7 +15,7 @@ def has_cuda() -> bool:
         status, res = cudart.cudaGetDevice()
         cudart.cudaGetLastError()
         return status == cudart.cudaError_t.cudaSuccess
-    except ImportError:
+    except (ImportError, RuntimeError):
         return False
 
 
