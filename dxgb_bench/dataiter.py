@@ -508,8 +508,8 @@ class LoadIterStrip(IterImpl):
         self._is_valid = is_valid
         self._test_ratio = test_size
 
-        self.X = Strip("X", loadfrom)
-        self.y = Strip("y", loadfrom)
+        self.X = Strip("X", dirs=loadfrom, fmt=None, device=device)
+        self.y = Strip("y", dirs=loadfrom, fmt=None, device=device)
 
         self.pinfo = self.X.list_file_info()
 
