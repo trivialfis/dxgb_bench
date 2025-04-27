@@ -26,7 +26,7 @@ class Opts:
     on_the_fly: bool
     validation: bool
     device: str
-    mr: str
+    mr: str | None
     target_type: str
 
 

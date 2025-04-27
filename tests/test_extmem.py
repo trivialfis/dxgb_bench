@@ -53,4 +53,5 @@ def test_qdm_train(device: Device, fmt: str) -> None:
     assert booster.num_features() == n_features
     assert booster.num_boosted_rounds() == 8
 
-    print(timer)
+    assert timer["ExtQdm"]["train (sec)"] > 0
+    assert timer["ExtQdm"]["DMatrix-Train (sec)"] > 0
