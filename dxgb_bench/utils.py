@@ -227,7 +227,7 @@ def add_data_params(
     parser.add_argument("--n_batches", type=int, default=1)
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
-    parser.add_argument("--fmt", choices=["auto", "npy", "npz", "kvi"], default="auto")
+    parser.add_argument("--fmt", choices=["auto", "npy", "npz", "kio"], default="auto")
     parser = add_target_type(parser)
     return parser
 
@@ -244,7 +244,12 @@ def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
 
 
 def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-    parser.add_argument("--mr", choices=["arena", "binning", "pool"], default="arena")
+    parser.add_argument(
+        "--mr",
+        choices=["arena", "binning", "pool"],
+        default="arena",
+        help="Name of the RMM memory resource.",
+    )
     return parser
 
 

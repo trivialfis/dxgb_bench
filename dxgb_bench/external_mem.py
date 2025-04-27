@@ -1,6 +1,6 @@
+"""Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved."""
 from __future__ import annotations
 
-import argparse
 from dataclasses import dataclass
 from typing import Any
 

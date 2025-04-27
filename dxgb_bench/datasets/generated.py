@@ -176,7 +176,7 @@ def make_dense_binary_classification(
 
 
 def _save_array(X: np.ndarray | sparse.csr_matrix, fmt: str, path: str) -> None:
-    assert fmt in ("npy", "npz", "kvi"), f"Unsupported format: {fmt}"
+    assert fmt in ("npy", "npz", "kio"), f"Unsupported format: {fmt}"
     fprint("saveto:", os.path.abspath(path))
 
     if isinstance(X, sparse.csr_matrix):
@@ -199,7 +199,7 @@ def save_Xy(X: np.ndarray, y: np.ndarray, i: int, fmt: str, saveto: list[str]) -
     partitions.
 
     """
-    assert fmt in ("npy", "npz", "kvi"), f"Unsupported format: {fmt}"
+    assert fmt in ("npy", "npz", "kio"), f"Unsupported format: {fmt}"
 
     n_dirs = len(saveto)
     n_samples_per_batch = max(X.shape[0] // n_dirs, 1)

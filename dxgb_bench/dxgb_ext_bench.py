@@ -69,7 +69,11 @@ def cli_main() -> None:
 
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--task", choices=["ext-sp", "ext-qdm"], required=True
+        "--task", choices=["ext-sp", "ext-qdm"], required=True,
+        help="""
+ext-sp: Use the sparse DMatrix (the DMatrix class in Python).
+ext-qdm: Use the ExtMemQuantileDMatrix.
+        """
     )
     parser = add_rmm_param(parser)
     parser = add_device_param(parser)
