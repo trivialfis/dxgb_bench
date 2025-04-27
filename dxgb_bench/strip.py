@@ -62,7 +62,7 @@ class Backend:
         begin:
             Optional beginning sample idx.
         end:
-            Optional end sample idx, Exlusive.
+            Optional end sample idx, Exclusive.
         shard_size:
             Number of samples in this shard.
         """
@@ -269,7 +269,7 @@ def get_shard_ids(
     indptr: npt.NDArray[np.int64], begin: int, end: int
 ) -> tuple[int, int, int, int]:
     n_samples = indptr[-1]
-    # assert end < n_samples
+    assert end < n_samples + 1
 
     # The first shard within range
     beg_idx: int = bisect_right(indptr, begin) - 1
