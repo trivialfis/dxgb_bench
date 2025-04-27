@@ -31,7 +31,9 @@ def devices() -> list[Device]:
 
 
 def formats() -> list[str]:
-    return ["npy", "kio"]
+    if has_cuda():
+        return ["npy", "kio"]
+    return ["npy"]
 
 
 def assert_array_allclose(
