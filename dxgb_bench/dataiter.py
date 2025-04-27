@@ -21,7 +21,7 @@ from .datasets.generated import (
     make_dense_regression,
     make_sparse_regression,
 )
-from .strip import PathInfo, Strip
+from .strip import PathInfo, make_strips
 from .utils import TEST_SIZE, Timer, fprint
 
 if TYPE_CHECKING:
@@ -128,8 +128,7 @@ def load_batches(
     loadfrom: list[str], device: str
 ) -> tuple[list[np.ndarray] | list[sparse.csr_matrix], list[np.ndarray]]:
     """Load all batches."""
-    X_fd = Strip("X", dirs=loadfrom, fmt=None, device=device)
-    y_fd = Strip("y", dirs=loadfrom, fmt=None, device=device)
+    X_fd, y_fd = make_strips(["X", "y"], dirs=loadfrom, fmt=None, device=device)
 
     with Timer("load-batches", "load"):
         Xs, ys = [], []
@@ -487,8 +486,7 @@ class LoadIterStrip(IterImpl):
         self._is_valid = is_valid
         self._test_ratio = test_size
 
-        self.X = Strip("X", dirs=loadfrom, fmt=None, device=device)
-        self.y = Strip("y", dirs=loadfrom, fmt=None, device=device)
+        self.X, self.y = make_strips(["X", "y"], dirs=loadfrom, fmt=None, device=device)
 
         self.pinfo = self.X.list_file_info()
 
@@ -506,10 +504,10 @@ class LoadIterStrip(IterImpl):
         Xinfo = self.X.batch_key[i]
 
         n_samples = Xinfo.n_samples
-        n_train, _ = get_valid_sizes(n_samples, self._test_ratio)
 
         if self._test_ratio is not None:
-            if self.is_valid:
+            n_train, _ = get_valid_sizes(n_samples, self._test_ratio)
+            if self._is_valid:
                 # This is the validation dataset.
                 # similar to X_i[n_train:]
                 X = self.X.read(i, n_train, n_samples)
@@ -521,8 +519,8 @@ class LoadIterStrip(IterImpl):
                 y = self.y.read(i, 0, n_train)
         else:
             # Read the full batch
-            X = self.X.read(i)
-            y = self.y.read(i)
+            X = self.X.read(i, None, None)
+            y = self.y.read(i, None, None)
         return X, y
 
 
@@ -571,7 +569,7 @@ class SynIterImpl(IterImpl):
                 n_features=self.n_features,
                 random_state=self._seed(i),
             )
-            print("seed:", self._seed(i))
+            fprint("seed:", self._seed(i))
             if len(self.sizes) != self._n_batches:
                 self.sizes.append(X.size)
             return X, y
@@ -632,7 +630,7 @@ class BenchIter(xgb.DataIter):
         if self._it == self._impl.n_batches:
             return False
 
-        print("Next:", self._it, flush=True)
+        fprint("Next:", self._it)
         gc.collect()
         with Timer("BenchIter", "GetValid" if self._is_eval else "GetTrain"):
             X, y = self._impl.get(self._it)
@@ -642,6 +640,6 @@ class BenchIter(xgb.DataIter):
         return True
 
     def reset(self) -> None:
-        print("Reset:", flush=True)
+        fprint("Reset")
         self._it = 0
         gc.collect()

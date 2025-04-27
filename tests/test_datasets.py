@@ -13,16 +13,15 @@ from xgboost.compat import concat
 
 from dxgb_bench.dataiter import (
     BenchIter,
-    LoadIterImpl,
+    LoadIterStrip,
     SynIterImpl,
-    get_file_paths,
     get_valid_sizes,
     load_all,
 )
 from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
 from dxgb_bench.dxgb_bench import datagen
 from dxgb_bench.strip import make_file_name, make_strips
-from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, has_cuda, formats
+from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, formats, has_cuda
 
 
 def test_sparse_regressioin() -> None:
@@ -84,7 +83,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb,
             n_features,
             n_batches,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
@@ -99,7 +98,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb * n_batches,
             n_features,
             1,
-            False,
+            assparse=False,
             target_type="reg",
             sparsity=0.0,
             device=device,
@@ -240,10 +239,7 @@ def test_deterministic(device: str) -> None:
 
 @pytest.mark.parametrize("device", devices())
 def test_cv(device: str) -> None:
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path0 = os.path.join(tmpdir, "data0")
-        path1 = os.path.join(tmpdir, "data1")
-
+    with TmpDir(2, True) as outdirs:
         # Within batch read
         n_features = 2
         n_batches = 4
@@ -257,27 +253,26 @@ def test_cv(device: str) -> None:
             target_type="reg",
             sparsity=0.0,
             device=device,
-            outdirs=[path0, path1],
+            outdirs=outdirs,
             fmt="npy",
         )
         n_train, n_valid = get_valid_sizes(n_samples=nspb * n_batches)
         assert n_valid == 6
 
-        files = get_file_paths([path0, path1])
-        impl = LoadIterImpl(list(zip(files[0], files[1])), True, False, device)
-        assert len(impl.X_shards) == n_batches
+        # files = get_file_paths(outdirs)
+        # impl = LoadIterImpl(list(zip(files[0], files[1])), True, False, device)
+        impl = LoadIterStrip(
+            outdirs, is_valid=False, test_size=0.2, device=device
+        )
+        # assert len(impl.X_shards) == n_batches
 
-        X, y = load_all([path0, path1], device)
+        X, y = load_all(outdirs, device)
 
         prev = 0
         for i in range(impl.n_batches):
             X_i, y_i = impl.get(i)
-            if isinstance(X_i, cp.ndarray):
-                assert_allclose = cp.testing.assert_allclose
-            else:
-                assert_allclose = np.testing.assert_allclose
-            assert_allclose(X[prev + 1 : prev + nspb], X_i)
-            assert_allclose(y[prev + 1 : prev + nspb], y_i)
+            assert_array_allclose(X[prev : prev + nspb - 1], X_i)
+            assert_array_allclose(y[prev : prev + nspb - 1], y_i)
             prev += nspb
 
 
