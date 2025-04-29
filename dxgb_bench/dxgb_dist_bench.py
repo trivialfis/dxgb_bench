@@ -17,6 +17,7 @@ from .dataiter import BenchIter, SynIterImpl
 from .utils import (
     Opts,
     Timer,
+    GlobalTimer,
     add_data_params,
     add_device_param,
     add_hyper_param,
@@ -51,7 +52,7 @@ def train(
     rs: int,
     log_cb: EvaluationMonitor,
     verbosity: int,
-) -> xgboost.Booster:
+) -> tuple[xgboost.Booster, GlobalTimer]:
     if opts.device == "cuda":
         setup_rmm("arena")
     it_impl = SynIterImpl(
@@ -100,7 +101,9 @@ def train(
                     verbose_eval=False,
                     callbacks=[log_cb],
                 )
-    return booster
+
+    timer = Timer.global_timer()
+    return booster, timer
 
 
 def bench(

@@ -1,15 +1,20 @@
-# Copyright (c) 2020-2024, Jiaming Yuan.  All rights reserved.
+# Copyright (c) 2020-2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import argparse
 import math
 import os
 import shutil
+import subprocess
 import sys
 import time
 import warnings
 from dataclasses import dataclass
+from io import StringIO
 from typing import Any, Callable, Dict, TypeAlias, Union
+
+import pandas as pd
+from typing_extensions import Self
 
 try:
     import nvtx
@@ -127,7 +132,7 @@ class Timer:
         self.range_id = None
         self.logger = logger
 
-    def __enter__(self) -> "Timer":
+    def __enter__(self) -> Self:
         if nvtx is not None:
             self.range_id = nvtx.start_range(self.name + "-" + self.proc)
         self.start = time.time()
@@ -320,6 +325,9 @@ def setup_rmm(mr_name: str) -> None:
     from cuda.bindings import runtime as cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
 
+    t = rmm.mr.get_current_device_resource_type()
+    assert t is rmm.mr.CudaMemoryResource, "Found existing rmm mr."
+
     cp = import_cupy()
 
     status, free, total = cudart.cudaMemGetInfo()
@@ -353,6 +361,7 @@ def setup_rmm(mr_name: str) -> None:
 
     mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
     rmm.mr.set_current_device_resource(mr)
+    # Set for cupy.
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
 
@@ -373,3 +382,56 @@ class Opts:
     device: str
     mr: str | None
     target_type: str
+
+
+def query_gpu() -> dict:
+    def call(cmd: list[str]) -> tuple[str, str]:
+        completed = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        if completed.returncode != 0:
+            raise ValueError(f"Failed to run: {cmd}")
+        stdout = completed.stdout.decode("utf-8")
+        stderr = completed.stderr.decode("utf-8")
+        return stdout, stderr
+
+    smi = "nvidia-smi"
+    stdout, stderr = call([smi, "--version"])
+
+    split = stdout.split("\n")
+    ver = None
+    for line in split:
+        print(line)
+        if line.startswith("CUDA Version"):
+            ver = line.split(":")[1].strip()
+            break
+    assert ver is not None
+
+    queries = [
+        "name",
+        "c2c.mode",
+        "memory.total",
+        "driver_version",
+        "pcie.link.gen.gpucurrent",
+        "pcie.link.width.max",
+    ]
+    arg = ",".join(queries)
+    stdout, stderr = call(
+        [
+            smi,
+            f"--query-gpu={arg}",
+            "--format=csv",
+        ]
+    )
+
+    with StringIO(initial_value=stdout) as fd:
+        pdres = pd.read_csv(fd, sep=",")
+    assert pdres.shape[1] == len(queries), pdres.columns
+    res = pdres.to_dict()
+    res["CUDA version"] = ver
+
+    return res
+
+
+def save_results(
+    args: argparse.Namespace, timer: GlobalTimer, evaluation: dict
+) -> dict[str, Any]:
+    pass
