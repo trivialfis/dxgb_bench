@@ -187,8 +187,13 @@ def cli_main() -> None:
     parser = add_data_params(parser, required=True)
     args = parser.parse_args()
 
+    if args.fly:
+        n_samples_per_batch = args.n_samples_per_batch
+    else:
+        n_samples_per_batch = 0
+
     opts = Opts(
-        n_samples_per_batch=args.n_samples_per_batch,
+        n_samples_per_batch=n_samples_per_batch,
         n_features=args.n_features,
         n_batches=args.n_batches,
         sparsity=args.sparsity,

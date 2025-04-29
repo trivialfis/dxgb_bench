@@ -23,16 +23,21 @@ from .utils import (
 
 
 def main(args: argparse.Namespace) -> None:
+    if args.target_type == "bin" and args.fly is not True:
+        raise NotImplementedError(
+            "`--fly` must be true for binary classification target."
+        )
+
     n_batches = args.n_batches
 
     if args.fly:
-        n = args.n_samples_per_batch * n_batches
+        n_samples_per_batch = args.n_samples_per_batch
     else:
-        n = 0
+        n_samples_per_batch = 0
 
     n_features = args.n_features
     opts = Opts(
-        n_samples_per_batch=n // n_batches,
+        n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
         n_batches=n_batches,
         sparsity=args.sparsity,
@@ -93,10 +98,9 @@ ext-qdm: Use the ExtMemQuantileDMatrix.
     parser.add_argument("--valid", action="store_true")
 
     args = parser.parse_args()
-    if args.target_type == "bin" and args.fly is not True:
-        raise NotImplementedError(
-            "`--fly` must be true for binary classification target."
-        )
 
-    with xgb.config_context(verbosity=args.verbosity, use_rmm=True):
-        main(args)
+    try:
+        with xgb.config_context(verbosity=args.verbosity, use_rmm=True):
+            main(args)
+    except Exception as e:
+        print("Error:", e)
