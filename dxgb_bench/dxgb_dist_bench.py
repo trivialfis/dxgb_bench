@@ -19,6 +19,7 @@ from .utils import (
     Timer,
     add_data_params,
     add_device_param,
+    add_rmm_param,
     add_hyper_param,
     fprint,
     make_params_from_args,
@@ -181,8 +182,12 @@ def cli_main() -> None:
     parser.add_argument(
         "--sched", type=str, help="path the to schedule config.", required=False
     )
+    parser.add_argument(
+        "--valid", action="store_true", help="Split for the validation dataset."
+    )
 
     parser = add_device_param(parser)
+    parser = add_rmm_param(parser)
     parser = add_hyper_param(parser)
     parser = add_data_params(parser, required=True)
     args = parser.parse_args()
