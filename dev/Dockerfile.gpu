@@ -32,9 +32,9 @@ RUN --mount=type=cache,target=/opt/conda/pkgs mamba env update -n base -f ws/xgb
 
 RUN \
     cd /ws && \
-    git clone --recursive  https://github.com/dmlc/xgboost.git && \
+    git clone --recursive  https://github.com/trivialfis/xgboost.git && \
     cd xgboost && \
-    git checkout f41be2cef10eaaa450271016355c41e3a9125502 && \
+    git checkout 7045bc794 && \
     cd /
 
 RUN \
