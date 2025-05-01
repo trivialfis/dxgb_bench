@@ -34,7 +34,7 @@ RUN \
     cd /ws && \
     git clone --recursive  https://github.com/trivialfis/xgboost.git && \
     cd xgboost && \
-    git checkout 7045bc794 && \
+    git checkout 0dcce99be && \
     git submodule update && \
     cd /
 
