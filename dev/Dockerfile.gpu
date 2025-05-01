@@ -46,7 +46,8 @@ RUN \
     cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DUSE_CUDA=ON \
 	  -DUSE_NCCL=ON \
-	  -DUSE_DLOPEN_NCCL=ON \
+	  -DBUILD_WITH_SHARED_NCCL=ON \
+	  -DUSE_DLOPEN_NCCL=OFF \
 	  -DUSE_OPENMP=ON \
 	  -DUSE_NVTX=ON \
 	  -DPLUGIN_RMM=ON \
