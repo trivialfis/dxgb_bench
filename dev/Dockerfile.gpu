@@ -51,15 +51,12 @@ RUN \
 	  -DUSE_OPENMP=ON \
 	  -DUSE_NVTX=ON \
 	  -DPLUGIN_RMM=ON \
-	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
-
-RUN \
+	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON && \
     cd /ws/build && \
-    time ninja
-
-RUN \
+    time ninja && \
     cd /ws/xgboost/python-package && \
-    pip install . --no-deps --no-build-isolation
+    pip install . --no-deps --no-build-isolation && \
+    rm -rf /ws/build && rm -rf /ws/xgboost
 
 COPY dxgb_bench ws/dxgb_bench
 
