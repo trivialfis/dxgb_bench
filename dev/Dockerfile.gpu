@@ -63,3 +63,10 @@ COPY dxgb_bench ws/dxgb_bench
 RUN \
     cd /ws/ && \
     ./build_dxgb_bench.sh
+
+COPY dxgb_bench/dev/test-cuda-alloc.cc ws/test-cuda-alloc.cc
+
+RUN \
+    cd /ws/ && \
+    g++ -isystem /usr/local/cuda/include ./test-cuda-alloc.cc  -L/usr/local/cuda/lib64/ -lcuda -lcudart -o test-cuda-alloc && \
+    cp ./test-cuda-alloc /usr/local/bin/
