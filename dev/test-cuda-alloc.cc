@@ -1,4 +1,14 @@
 // g++ -isystem /usr/local/cuda/include ./test-cuda-alloc.cc  -L/usr/local/cuda/lib64/ -lcuda -lcudart -o test-cuda-alloc && ./test-cuda-alloc
+/**
+cudaHostAlloc:	0
+cudaMallocHost:	0
+cudaHostRegister:	0
+cudaMalloc:	1
+cudaMallocManaged:	0
+mem_pool_ptr:	1
+minimum granularity:	2097152
+mem_create_ptr:	1
+ */
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <iostream>
