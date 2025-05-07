@@ -21,6 +21,7 @@ dependencies:
 - nccl
 - kvikio
 - rmm
+- nvcomp>=4.2
 # python local
 - python==3.12
 - pip
