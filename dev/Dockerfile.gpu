@@ -68,5 +68,5 @@ COPY dxgb_bench/dev/test-cuda-alloc.cc ws/test-cuda-alloc.cc
 
 RUN \
     cd /ws/ && \
-    g++ -isystem /usr/local/cuda/include ./test-cuda-alloc.cc  -L/usr/local/cuda/lib64/ -lcuda -lcudart -o test-cuda-alloc && \
+    g++ -isystem /opt/conda/targets/sbsa-linux/include/ ./test-cuda-alloc.cc  -L/usr/local/cuda/lib64/ -L/usr/local/cuda/compat/ -lcuda -lcudart -o test-cuda-alloc && \
     cp ./test-cuda-alloc /usr/local/bin/
