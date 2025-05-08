@@ -59,6 +59,12 @@ void test_cuda_malloc() {
   //   std::cout << test_ptr(a) << std::endl;
   // }
   {
+    char* ptr = static_cast<char*>(std::malloc(1024));
+    cudaPointerAttributes attrs;
+    CUDA_CHECK(cudaPointerGetAttributes(&attrs, ptr));
+    std::cout << "malloc:\t" << attrs.type << std::endl;
+  }
+  {
 
     // pinned memory (through cudaHostAlloc)
     char* pinned_ptr;
