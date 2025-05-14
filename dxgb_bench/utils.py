@@ -1,4 +1,4 @@
-# Copyright (c) 2020-2024, Jiaming Yuan.  All rights reserved.
+# Copyright (c) 2020-2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
 import argparse
@@ -9,7 +9,7 @@ import sys
 import time
 import warnings
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, TypeAlias, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, TypeAlias, Union
 
 try:
     import nvtx
@@ -22,9 +22,8 @@ import tqdm
 import xgboost as xgb
 from xgboost.compat import import_cupy
 
-try:
+if TYPE_CHECKING:
     import cudf
-    import dask_cudf
     from dask import array as da
     from dask import dataframe as dd
 
@@ -41,16 +40,6 @@ try:
         dd.DataFrame,
         dd.Series,
     ]
-
-except (ImportError, AttributeError):
-    da = None
-    dd = None
-    cudf = None
-    dask_cudf = None
-
-    DC: TypeAlias = Any
-    ID: TypeAlias = Any
-    DType: TypeAlias = Any
 
 
 def fprint(*args: Any, **kwargs: Any) -> None:
@@ -74,6 +63,8 @@ def read_csv(
     blocksize=None,
 ) -> DType:
     if backend == "dask_cudf":
+        import dask_cudf
+
         df = dask_cudf.read_csv(
             path, delimiter=sep, dtype=dtype, header=None, names=names
         )
@@ -91,6 +82,8 @@ def read_csv(
             header=header,
         )
     elif backend == "cudf":
+        import cudf
+
         df = cudf.read_csv(path, delimiter=sep, dtype=dtype, header=None, names=names)
     else:
         df = None
