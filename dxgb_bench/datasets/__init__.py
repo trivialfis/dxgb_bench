@@ -5,11 +5,11 @@ if TYPE_CHECKING:
     from .dataset import DataSet
 
 
-def factory(name: str, args: argparse.Namespace) -> Tuple[DataSet, str]:
+def factory(name: str, args: argparse.Namespace) -> Tuple["DataSet", str]:
     if name.startswith("mortgage"):
         from .mortgage import Mortgage
 
-        d: DataSet = Mortgage(args)
+        d: "DataSet" = Mortgage(args)
         return d, d.task
     elif name == "taxi":
         from .taxi import Taxi
