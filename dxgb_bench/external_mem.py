@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import xgboost as xgb
+from packaging.version import parse as parse_version
 
 from .dataiter import (
     TEST_SIZE,
@@ -141,24 +142,29 @@ def qdm_train(
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
-        Xy_train = xgb.ExtMemQuantileDMatrix(
-            it_train,
-            max_bin=params["max_bin"],
-            max_quantile_batches=32,
-            cache_host_ratio=opts.cache_host_ratio,
-        )
+        dargs = {
+            "data": it_train,
+            "max_bin": params["max_bin"],
+            "max_quantile_batches": 32,
+        }
+        if parse_version(xgb.__version__) >= parse_version("3.0.0"):
+            dargs["cache_host_ratio"] = opts.cache_host_ratio
+
+        Xy_train = xgb.ExtMemQuantileDMatrix(**dargs)
 
     watches = [(Xy_train, "Train")]
 
     if it_valid is not None:
         with Timer("ExtQdm", "DMatrix-Valid"):
             # cache_host_ratio is not used here, but set it anyway.
-            Xy_valid = xgb.ExtMemQuantileDMatrix(
-                it_valid,
-                max_bin=params["max_bin"],
-                ref=Xy_train,
-                cache_host_ratio=opts.cache_host_ratio,
-            )
+            dargs = {
+                "data": it_valid,
+                "max_bin": params["max_bin"],
+                "ref": Xy_train,
+            }
+            if parse_version(xgb.__version__) >= parse_version("3.0.0"):
+                dargs["cache_host_ratio"] = opts.cache_host_ratio
+            Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
             watches.append((Xy_valid, "Valid"))
 
     with Timer("ExtQdm", "train"):
