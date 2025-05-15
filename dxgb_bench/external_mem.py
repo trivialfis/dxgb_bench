@@ -161,7 +161,7 @@ def qdm_train(
                 "max_bin": params["max_bin"],
                 "ref": Xy_train,
             }
-            if parse_version(xgb.__version__) > parse_version("3.0.0"):
+            if has_chr():
                 dargs["cache_host_ratio"] = opts.cache_host_ratio
             Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
             watches.append((Xy_valid, "Valid"))
