@@ -90,6 +90,7 @@ def train(
                     max_quantile_batches=32,
                     nthread=n_threads,
                     max_bin=params["max_bin"],
+                    cache_host_ratio=opts.cache_host_ratio,
                 )
 
             with Timer("Distributed", "Train", logger=log_fn):
@@ -202,6 +203,7 @@ def cli_main() -> None:
         device=args.device,
         mr=args.mr,
         target_type=args.target_type,
+        cache_host_ratio=args.cache_host_ratio,
     )
     params = make_params_from_args(args)
 

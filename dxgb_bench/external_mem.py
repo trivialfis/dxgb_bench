@@ -142,15 +142,22 @@ def qdm_train(
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
         Xy_train = xgb.ExtMemQuantileDMatrix(
-            it_train, max_bin=params["max_bin"], max_quantile_batches=32
+            it_train,
+            max_bin=params["max_bin"],
+            max_quantile_batches=32,
+            cache_host_ratio=opts.cache_host_ratio,
         )
 
     watches = [(Xy_train, "Train")]
 
     if it_valid is not None:
         with Timer("ExtQdm", "DMatrix-Valid"):
+            # cache_host_ratio is not used here, but set it anyway.
             Xy_valid = xgb.ExtMemQuantileDMatrix(
-                it_valid, max_bin=params["max_bin"], ref=Xy_train
+                it_valid,
+                max_bin=params["max_bin"],
+                ref=Xy_train,
+                cache_host_ratio=opts.cache_host_ratio,
             )
             watches.append((Xy_valid, "Valid"))
 
