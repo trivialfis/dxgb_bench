@@ -94,6 +94,7 @@ def train(
                 }
                 if parse_version(xgboost.__version__) > parse_version("3.0.0"):
                     dargs["cache_host_ratio"] = opts.cache_host_ratio
+                print("dargs:", dargs, parse_version(xgboost.__version__), xgboost.__version__, parse_version(xgboost.__version__) > parse_version("3.0.0"), parse_version("3.0.0"))
                 Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
 
             with Timer("Distributed", "Train", logger=log_fn):
