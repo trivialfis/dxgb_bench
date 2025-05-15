@@ -9,7 +9,10 @@ import sys
 import time
 import warnings
 from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING, Any, Callable, Dict, TypeAlias, Union
+
+from packaging.version import parse as parse_version
 
 try:
     import nvtx
@@ -369,3 +372,9 @@ class Opts:
     mr: str | None
     target_type: str
     cache_host_ratio: float | None
+
+
+@cache
+def has_chr() -> bool:
+    ver = parse_version(xgb.__version__)
+    return (ver.major == 3 and ver.minor > 0) or ver.major > 3

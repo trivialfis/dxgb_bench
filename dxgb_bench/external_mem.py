@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import xgboost as xgb
-from packaging.version import parse as parse_version
 
 from .dataiter import (
     TEST_SIZE,
@@ -14,7 +13,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import Opts, Timer, setup_rmm
+from .utils import Opts, Timer, has_chr, setup_rmm
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -147,7 +146,7 @@ def qdm_train(
             "max_bin": params["max_bin"],
             "max_quantile_batches": 32,
         }
-        if parse_version(xgb.__version__) > parse_version("3.0.0"):
+        if has_chr():
             dargs["cache_host_ratio"] = opts.cache_host_ratio
 
         Xy_train = xgb.ExtMemQuantileDMatrix(**dargs)

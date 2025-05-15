@@ -8,7 +8,6 @@ from typing import Any
 
 import xgboost
 from distributed import Client, LocalCluster, SSHCluster, get_worker, worker_client
-from packaging.version import parse as parse_version
 from xgboost import collective as coll
 from xgboost import dask as dxgb
 from xgboost.callback import EvaluationMonitor
@@ -16,6 +15,7 @@ from xgboost.testing.dask import get_client_workers
 
 from .dataiter import BenchIter, SynIterImpl
 from .utils import (
+    has_chr,
     Opts,
     Timer,
     add_data_params,
@@ -92,9 +92,8 @@ def train(
                     "max_quantile_batches": 32,
                     "nthread": n_threads,
                 }
-                if parse_version(xgboost.__version__) > parse_version("3.0.0"):
+                if has_chr():
                     dargs["cache_host_ratio"] = opts.cache_host_ratio
-                print("dargs:", dargs, parse_version(xgboost.__version__), xgboost.__version__, parse_version(xgboost.__version__) > parse_version("3.0.0"), parse_version("3.0.0"))
                 Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
 
             with Timer("Distributed", "Train", logger=log_fn):
