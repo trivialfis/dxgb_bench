@@ -22,6 +22,7 @@ def test_dist(device: Device) -> None:
         device=device,
         target_type="reg",
         mr=None,
+        cache_host_ratio=None,
     )
 
     with local_cluster(device=device, n_workers=2) as cluster:

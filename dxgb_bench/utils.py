@@ -9,7 +9,10 @@ import sys
 import time
 import warnings
 from dataclasses import dataclass
+from functools import cache
 from typing import TYPE_CHECKING, Any, Callable, Dict, TypeAlias, Union
+
+from packaging.version import parse as parse_version
 
 try:
     import nvtx
@@ -272,6 +275,8 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--min_child_weight", type=float, default=None)
     parser.add_argument("--reg_lambda", type=float, default=None)
     parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
+    # DMatrix
+    parser.add_argument("--cache_host_ratio", type=float, required=False)
     return parser
 
 
@@ -366,3 +371,10 @@ class Opts:
     device: str
     mr: str | None
     target_type: str
+    cache_host_ratio: float | None
+
+
+@cache
+def has_chr() -> bool:
+    ver = parse_version(xgb.__version__)
+    return (ver.major == 3 and ver.minor > 0) or ver.major > 3

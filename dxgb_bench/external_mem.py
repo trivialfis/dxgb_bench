@@ -13,7 +13,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import Opts, Timer, setup_rmm
+from .utils import Opts, Timer, has_chr, setup_rmm
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -141,17 +141,29 @@ def qdm_train(
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     with Timer("ExtQdm", "DMatrix-Train"):
-        Xy_train = xgb.ExtMemQuantileDMatrix(
-            it_train, max_bin=params["max_bin"], max_quantile_batches=32
-        )
+        dargs = {
+            "data": it_train,
+            "max_bin": params["max_bin"],
+            "max_quantile_batches": 32,
+        }
+        if has_chr():
+            dargs["cache_host_ratio"] = opts.cache_host_ratio
+
+        Xy_train = xgb.ExtMemQuantileDMatrix(**dargs)
 
     watches = [(Xy_train, "Train")]
 
     if it_valid is not None:
         with Timer("ExtQdm", "DMatrix-Valid"):
-            Xy_valid = xgb.ExtMemQuantileDMatrix(
-                it_valid, max_bin=params["max_bin"], ref=Xy_train
-            )
+            # cache_host_ratio is not used here, but set it anyway.
+            dargs = {
+                "data": it_valid,
+                "max_bin": params["max_bin"],
+                "ref": Xy_train,
+            }
+            if has_chr():
+                dargs["cache_host_ratio"] = opts.cache_host_ratio
+            Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
             watches.append((Xy_valid, "Valid"))
 
     with Timer("ExtQdm", "train"):

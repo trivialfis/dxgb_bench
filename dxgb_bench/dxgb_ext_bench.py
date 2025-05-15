@@ -41,6 +41,7 @@ def main(args: argparse.Namespace) -> None:
         device=args.device,
         mr=args.mr,
         target_type=args.target_type,
+        cache_host_ratio=args.cache_host_ratio,
     )
     assert opts.mr is not None
     loadfrom = split_path(args.loadfrom)

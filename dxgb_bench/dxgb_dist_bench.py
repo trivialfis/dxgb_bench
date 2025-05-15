@@ -22,6 +22,7 @@ from .utils import (
     add_hyper_param,
     add_rmm_param,
     fprint,
+    has_chr,
     make_params_from_args,
     setup_rmm,
 )
@@ -85,12 +86,15 @@ def train(
                     _get_logger().info(msg)
 
             with Timer("Distributed", "ExtMemQdm", logger=log_fn):
-                Xy = xgboost.ExtMemQuantileDMatrix(
-                    it,
-                    max_quantile_batches=32,
-                    nthread=n_threads,
-                    max_bin=params["max_bin"],
-                )
+                dargs = {
+                    "data": it,
+                    "max_bin": params["max_bin"],
+                    "max_quantile_batches": 32,
+                    "nthread": n_threads,
+                }
+                if has_chr():
+                    dargs["cache_host_ratio"] = opts.cache_host_ratio
+                Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
 
             with Timer("Distributed", "Train", logger=log_fn):
                 booster = xgboost.train(
@@ -202,6 +206,7 @@ def cli_main() -> None:
         device=args.device,
         mr=args.mr,
         target_type=args.target_type,
+        cache_host_ratio=args.cache_host_ratio,
     )
     params = make_params_from_args(args)
 
