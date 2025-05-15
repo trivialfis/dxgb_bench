@@ -92,7 +92,7 @@ def train(
                     "max_quantile_batches": 32,
                     "nthread": n_threads,
                 }
-                if parse_version(xgboost.__version__) >= parse_version("3.0.0"):
+                if parse_version(xgboost.__version__) > parse_version("3.0.0"):
                     dargs["cache_host_ratio"] = opts.cache_host_ratio
                 Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
 
