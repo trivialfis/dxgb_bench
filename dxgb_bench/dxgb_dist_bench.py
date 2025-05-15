@@ -15,7 +15,6 @@ from xgboost.testing.dask import get_client_workers
 
 from .dataiter import BenchIter, SynIterImpl
 from .utils import (
-    has_chr,
     Opts,
     Timer,
     add_data_params,
@@ -23,6 +22,7 @@ from .utils import (
     add_hyper_param,
     add_rmm_param,
     fprint,
+    has_chr,
     make_params_from_args,
     setup_rmm,
 )
