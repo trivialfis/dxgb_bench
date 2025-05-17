@@ -2,21 +2,23 @@
 
 set -euox pipefail
 
-URL_ARM="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_2/nsight-systems-cli-2025.2.1_2025.2.1.130-1_arm64.deb"
-URL_X86="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_2/NsightSystems-linux-cli-public-2025.2.1.130-3569061.deb"
+DEB_ARM = "nsight-systems-2025.3.1_2025.3.1.90-1_arm64.deb"
+DEB_X86 = "nsight-systems-2025.3.1_2025.3.1.90-1_amd64.deb"
+URL_ARM="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_3/${DEB_ARM}"
+URL_X86="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_3/${DEB_X86}"
 
 arch=$1
 
 case $arch in
     aarch)
 	wget $URL_ARM
-	echo "a1d3e95fd8f1c52791d0b9f97a99d09fdb41a2d1d58db8dc8b493e1ad90278e9  ./nsight-systems-cli-2025.2.1_2025.2.1.130-1_arm64.deb"  | shasum -a 256 --check
-	apt install ./nsight-systems-cli-2025.2.1_2025.2.1.130-1_arm64.deb -y
+	echo "02b078c20d0aad765f2695fdbcc33ba3d2152fae9d0c994ae8ea3ce9a9278c5b  ./${DEB_ARM}" | shasum -a 256 --check
+	apt install ./${DEB_ARM} -y
 	;;
     x86)
 	wget $URL_X86
-	echo "e36f4d1f02a4cc9eae7f2b978416064ccd4c083638e3741abf9c34a7ad15f9f0  ./NsightSystems-linux-cli-public-2025.2.1.130-3569061.deb" | shasum -a 256 --check
-	apt install ./NsightSystems-linux-cli-public-2025.2.1.130-3569061.deb -y
+	echo "43b9b97a050ac6cfbd2dc70df60eab6809d5055b222971638a555c9d9da8a1c9  ./${DEB_X86}" | shasum -a 256 --check
+	apt install ./${DEB_X86} -y
 	;;
     *)
 	echo "Invalid option. Expected [aarch|x86]."
