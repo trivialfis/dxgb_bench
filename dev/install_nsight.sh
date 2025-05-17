@@ -2,8 +2,8 @@
 
 set -euox pipefail
 
-DEB_ARM = "nsight-systems-2025.3.1_2025.3.1.90-1_arm64.deb"
-DEB_X86 = "nsight-systems-2025.3.1_2025.3.1.90-1_amd64.deb"
+DEB_ARM="nsight-systems-2025.3.1_2025.3.1.90-1_arm64.deb"
+DEB_X86="nsight-systems-2025.3.1_2025.3.1.90-1_amd64.deb"
 URL_ARM="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_3/${DEB_ARM}"
 URL_X86="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_3/${DEB_X86}"
 
