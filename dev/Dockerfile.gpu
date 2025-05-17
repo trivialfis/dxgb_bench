@@ -34,7 +34,7 @@ RUN \
     cd /ws && \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
     cd xgboost && \
-    git checkout f161bb882a7fed03bd9ce2356fe01ffb9265eb5a && \
+    git checkout 94bb1da0422a4f6ba7e34dd5cbee951d26403b67 && \
     cd /
 
 RUN \
