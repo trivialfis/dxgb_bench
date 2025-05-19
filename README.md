@@ -18,6 +18,14 @@ with 1024 samples for each batch should produce the exact same result as generat
 single batch with 2048 samples. When compiled with CUDA, CPU and GPU output should match
 each other.
 
+Container image
+---------------
+One level above the `dxgb_bench` directory, run
+
+``` sh
+python ./dxgb_bench/dev/build_image.py --target=gpu --arch=x86 --sm=89 --install-xgboost
+```
+
 Examples
 --------
 

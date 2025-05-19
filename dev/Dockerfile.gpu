@@ -45,21 +45,14 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
     esac
 
 COPY dxgb_bench/dev/clone_xgboost.sh ws/clone_xgboost.sh
+COPY dxgb_bench/dev/install_xgboost.sh ws/install_xgboost.sh
 COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
-    ./dxgb_bench/dev/clone_xgboost.sh ${INSTALL_XGBOOST}
+    /ws/clone_xgboost.sh ${INSTALL_XGBOOST}
 
 RUN \
-    ./dxgb_bench/dev/install_xgboost.sh ${INSTALL_XGBOOST}
-
-RUN \
-    cd /ws/build && \
-    time ninja
-
-RUN \
-    cd /ws/xgboost/python-package && \
-    pip install . --no-deps --no-build-isolation
+    /ws/install_xgboost.sh ${INSTALL_XGBOOST}
 
 COPY dxgb_bench ws/dxgb_bench
 

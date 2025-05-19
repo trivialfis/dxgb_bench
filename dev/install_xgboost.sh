@@ -13,4 +13,9 @@ if [[ -n ${INSTALL_XGBOOST} ]]; then
 	  -DUSE_NVTX=ON \
 	  -DPLUGIN_RMM=ON \
 	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
+
+    cd /ws/build && time ninja
+
+    cd /ws/xgboost/python-package
+    pip install . --no-deps --no-build-isolation
 fi
