@@ -354,6 +354,31 @@ def setup_rmm(mr_name: str) -> None:
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
 
+def peak_rmm_memory_bytes(path: str = "rmm_log.dev0") -> int:
+    import pandas as pd
+
+    current = 0  # current memory usge
+    peak = 0  # peak memory usage
+
+    # The pointers that are currently in use
+    recs: dict[str, int] = {}
+
+    df = pd.read_csv(path)
+
+    for i in range(df.shape[0]):
+        row = df.iloc[i, :]
+        if row.loc["Action"] == "allocate":
+            current += row["Size"]
+            assert row["Pointer"] not in recs
+            recs[row["Pointer"]] = i
+        elif row.loc["Action"] == "free":
+            current -= row["Size"]
+            recs.pop(row["Pointer"])
+        if current > peak:
+            peak = current
+    return peak
+
+
 def mkdirs(outdirs: list[str]) -> None:
     for d in outdirs:
         if not os.path.exists(d):
