@@ -45,7 +45,7 @@ jobs:
         submodules: 'fales'
     - uses: conda-incubator/setup-miniconda@v3
       with:
-        environment-file: conda/xgboost_aarch_dev.yml
+        environment-file: dev/xgboost_aarch_dev.yml
         miniforge-version: latest
         activate-environment: xgboost_dev
     - name: Install XGBoost
