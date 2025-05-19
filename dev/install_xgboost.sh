@@ -6,10 +6,10 @@ SM=$2
 echo "CONDA_ENV ${CONDA_PREFIX}"
 
 if [[ -n ${INSTALL_XGBOOST} ]]; then
-    cd /ws && \
-    rm -rf ./build && \
-    mkdir build && \
-    cd build && \
+    cd /ws
+    rm -rf ./build
+    mkdir build
+    cd build
     cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	  -DUSE_CUDA=ON \
 	  -DUSE_NCCL=ON \
