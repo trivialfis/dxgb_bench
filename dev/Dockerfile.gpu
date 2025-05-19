@@ -43,7 +43,7 @@ RUN \
 RUN \
     cd /ws/ && \
     echo "CONDA_ENV ${CONDA_PREFIX}" && \
-    ./install_xgboost.sh ${INSTALL_XGBOOST}
+    ./install_xgboost.sh ${INSTALL_XGBOOST} ${SM}
 
 COPY dxgb_bench ws/dxgb_bench
 
