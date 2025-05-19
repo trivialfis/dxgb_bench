@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 
-set -euox pipefail
-
 INSTALL_XGBOOST=$1
 SM=$2
+
+echo "CONDA_ENV ${CONDA_PREFIX}"
 
 if [[ -n ${INSTALL_XGBOOST} ]]; then
     cd /ws && \
