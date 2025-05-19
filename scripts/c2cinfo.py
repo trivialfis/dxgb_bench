@@ -2,6 +2,9 @@
 
 import pynvml as nm  # mamba install nvidia-ml-py -c rapidsai -c nvidia
 
+# Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
+
+# This script uses nvml to do the same thing.
 nm.nvmlInit()
 drv = nm.nvmlSystemGetDriverVersion()
 print("Driver:", drv)
