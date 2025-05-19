@@ -28,31 +28,22 @@ RUN \
     ./install_nsight.sh $ARCH && \
     cd -
 
-RUN --mount=type=cache,target=/opt/conda/pkgs \
-    case $ARCH in \
-	aarch) \
-            echo "Build x86 conda environment." \
-	    mamba env update -n base -f ws/xgboost_aarch_dev.yml -v && mamba clean --all --yes \
-	    ;; \
-	x86) \
-            echo "Build aarch64 conda environment." \
-	    mamba env update -n base -f ws/xgboost_dev.yml -v && mamba clean --all --yes \
-	    ;; \
-	*) \
-	    echo "Invalid option. Expected [aarch|x86]."\
-	    exit -1 \
-	    ;; \
-    esac
+COPY dxgb_bench/dev/build_conda_env.sh ws/build_conda_env.sh
+
+RUN --mount=type=cache,target=/opt/conda/pkgs /ws/build_conda_env.sh $ARCH
 
 COPY dxgb_bench/dev/clone_xgboost.sh ws/clone_xgboost.sh
 COPY dxgb_bench/dev/install_xgboost.sh ws/install_xgboost.sh
 COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
-    /ws/clone_xgboost.sh ${INSTALL_XGBOOST}
+    cd /ws/ && \
+    ./clone_xgboost.sh ${INSTALL_XGBOOST}
 
 RUN \
-    /ws/install_xgboost.sh ${INSTALL_XGBOOST}
+    cd /ws/ && \
+    echo "CONDA_ENV ${CONDA_PREFIX}" && \
+    ./install_xgboost.sh ${INSTALL_XGBOOST}
 
 COPY dxgb_bench ws/dxgb_bench
 

@@ -1,4 +1,8 @@
+#!/usr/bin/env bash
+
 INSTALL_XGBOOST=$1
+
+echo "CONDA_ENV ${CONDA_PREFIX}"
 
 if [[ -n ${INSTALL_XGBOOST} ]]; then
     cd /ws && \

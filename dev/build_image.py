@@ -16,6 +16,7 @@ def main(args: argparse.Namespace) -> None:
     cmd = [
         "docker",
         "build",
+        "--progress=plain",
         ".",
         "-t",
         f"dxgb-bench-{args.target}-{args.arch}-{args.sm}:latest",
