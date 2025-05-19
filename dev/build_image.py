@@ -24,6 +24,8 @@ def main(args: argparse.Namespace) -> None:
         "--build-arg",
         f"ARCH={args.arch}",
     ]
+    if args.install_xgboost:
+        cmd.extend(["--build-arg", "INSTALL_XGBOOST=1"])
     if build_args is not None:
         build_args_lst: list[str] = build_args.split(";")
         for kv in build_args_lst:
@@ -54,6 +56,7 @@ Examples:
         help=";separated list of docker build arguments.",
         required=False,
     )
+    parser.add_argument("--install-xgboost", action="store_true")
     parser.add_argument("--target", choices=["cpu", "gpu"], default="gpu")
     args = parser.parse_args()
     main(args)

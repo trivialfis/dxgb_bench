@@ -2,6 +2,7 @@
 FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
 ARG ARCH
 ARG SM
+ARG INSTALL_XGBOOST
 
 ENV DEBIAN_FRONTEND noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -21,7 +22,6 @@ RUN mkdir ws
 COPY dxgb_bench/dev/xgboost_dev.yml ws/xgboost_dev.yml
 COPY dxgb_bench/dev/xgboost_aarch_dev.yml ws/xgboost_aarch_dev.yml
 COPY dxgb_bench/dev/install_nsight.sh ws/install_nsight.sh
-COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
     cd ws && \
@@ -44,26 +44,14 @@ RUN --mount=type=cache,target=/opt/conda/pkgs \
 	    ;; \
     esac
 
-RUN \
-    cd /ws && \
-    git clone --recursive  https://github.com/dmlc/xgboost.git && \
-    cd xgboost && \
-    git checkout 94bb1da0422a4f6ba7e34dd5cbee951d26403b67 && \
-    cd /
+COPY dxgb_bench/dev/clone_xgboost.sh ws/clone_xgboost.sh
+COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
-    cd /ws && \
-    rm -rf ./build && \
-    mkdir build && \
-    cd build && \
-    cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
-	  -DUSE_CUDA=ON \
-	  -DUSE_NCCL=ON \
-	  -DUSE_DLOPEN_NCCL=ON \
-	  -DUSE_OPENMP=ON \
-	  -DUSE_NVTX=ON \
-	  -DPLUGIN_RMM=ON \
-	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
+    ./dxgb_bench/dev/clone_xgboost.sh ${INSTALL_XGBOOST}
+
+RUN \
+    ./dxgb_bench/dev/install_xgboost.sh ${INSTALL_XGBOOST}
 
 RUN \
     cd /ws/build && \

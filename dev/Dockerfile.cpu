@@ -7,6 +7,8 @@ COPY --chown=$MAMBA_USER:$MAMBA_USER dxgb_bench/conda/xgboost_aarch_dev.yml /tmp
 
 RUN --mount=type=cache,target=/opt/mambaforge/pkgs micromamba install -y -n base -f /tmp/xgboost_dev.yml -v
 ARG MAMBA_DOCKERFILE_ACTIVATE=1
+ARG INSTALL_XGBOOST
+
 
 RUN \
     git clone --recursive  https://github.com/dmlc/xgboost.git && \
