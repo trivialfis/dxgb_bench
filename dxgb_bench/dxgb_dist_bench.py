@@ -235,6 +235,7 @@ def bench(
         assert all(b[0].num_boosted_rounds() == n_rounds for b in boosters)
 
     timers = [t["timer"] for _, t in boosters]
+    evals = boosters[0][1]["evals"]
     client_timer = Timer.global_timer()
 
     max_timer: dict[str, dict[str, float]] = {}
@@ -253,7 +254,12 @@ def bench(
     opts_dict = merge_opts(opts, params)
     opts_dict["n_rounds"] = n_rounds
     opts_dict["n_workers"] = n_workers
-    results = {"opts": opts_dict, "timer": max_timer, "machine": machine}
+    results = {
+        "opts": opts_dict,
+        "timer": max_timer,
+        "machine": machine,
+        "evals": evals,
+    }
     save_results(results)
     return boosters[0][0]
 

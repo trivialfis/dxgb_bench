@@ -24,13 +24,13 @@ from .utils import (
     DFT_OUT,
     Timer,
     add_data_params,
-    peak_rmm_memory_bytes,
     add_device_param,
     add_hyper_param,
     add_target_type,
     machine_info,
     make_params_from_args,
     mkdirs,
+    peak_rmm_memory_bytes,
     split_path,
 )
 
