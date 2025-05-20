@@ -25,6 +25,7 @@ from .utils import (
     fprint,
     has_chr,
     make_params_from_args,
+    save_results,
     setup_rmm,
     split_path,
 )
@@ -97,7 +98,7 @@ def train(
                 if coll.get_rank() == 0:
                     _get_logger().info(msg)
 
-            with Timer("Distributed", "ExtMemQdm", logger=log_fn):
+            with Timer("Train", "DMatrix-Train", logger=log_fn):
                 dargs = {
                     "data": it,
                     "max_bin": params["max_bin"],
@@ -108,7 +109,7 @@ def train(
                     dargs["cache_host_ratio"] = opts.cache_host_ratio
                 Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
 
-            with Timer("Distributed", "Train", logger=log_fn):
+            with Timer("Train", "Train", logger=log_fn):
                 booster = xgboost.train(
                     params,
                     Xy,
@@ -163,11 +164,23 @@ def bench(
         assert len(boosters) == n_workers
         assert all(b[0].num_boosted_rounds() == n_rounds for b in boosters)
 
-    timers = [t for _, t in boosters]
+    timers = [t["timer"] for _, t in boosters]
     client_timer = Timer.global_timer()
-    print(timers[0])
-    print(client_timer)
 
+    max_timer: dict[str, dict[str, float]] = {}
+    for timer in timers:
+        for k, v in timer.items():
+            assert isinstance(v, dict)
+            if k not in max_timer:
+                max_timer[k] = {}
+            for k1, v1 in v.items():
+                if k1 not in max_timer[k]:
+                    max_timer[k][k1] = 0
+                max_timer[k][k1] = max(max_timer[k][k1], v1)
+
+    assert "Train" in max_timer
+    max_timer["Train"]["Total"] = client_timer["Train"]["Total"]
+    save_results(max_timer)
     return boosters[0][0]
 
 

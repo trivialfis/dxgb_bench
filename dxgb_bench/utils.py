@@ -4,7 +4,7 @@ from __future__ import annotations
 import argparse
 import math
 import os
-import shutil
+import json
 import sys
 import time
 import warnings
@@ -388,3 +388,16 @@ class Opts:
 def has_chr() -> bool:
     ver = parse_version(xgb.__version__)
     return (ver.major == 3 and ver.minor > 0) or ver.major > 3
+
+
+def save_results(results: dict[str, Any]) -> None:
+    prefix = "results"
+
+    k = 0
+    path = prefix + f"-{k}.json"
+    while os.path.exists(path):
+        k += 1
+        path = prefix + f"-{k}.json"
+
+    with open(path, "w") as fd:
+        json.dump(results, fd, indent=2)
