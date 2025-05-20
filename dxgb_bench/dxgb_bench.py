@@ -49,6 +49,8 @@ def datagen(
 ) -> None:
     if assparse and fmt == "auto":
         fmt = "npz"
+    if fmt == "auto":
+        fmt = "kio"
 
     if target_type != "reg":
         raise NotImplementedError()
