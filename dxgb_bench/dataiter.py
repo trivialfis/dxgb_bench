@@ -239,9 +239,7 @@ class SynIterImpl(IterImpl):
         self.rs = rs
 
         for i in range(self._n_batches):
-            size = (
-                self.n_samples_per_batch * (self.n_features + 1) * np.float32().itemsize
-            )
+            size = self.n_samples_per_batch * self.n_features
             self.sizes.append(size)
 
     @property
@@ -284,7 +282,7 @@ class SynIterImpl(IterImpl):
                 sparsity=self.sparsity,
                 random_state=self._seed(i),
             )
-        assert self.sizes[i] == X.size
+        assert self.sizes[i] == X.size, (self.sizes[i], X.size)
         return X, y
 
 
