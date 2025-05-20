@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from dataclasses import asdict
 from typing import Any
 
 import xgboost
@@ -180,7 +181,8 @@ def bench(
 
     assert "Train" in max_timer
     max_timer["Train"]["Total"] = client_timer["Train"]["Total"]
-    save_results(max_timer)
+    results = {"opts": asdict(opts), "timer": max_timer}
+    save_results(results)
     return boosters[0][0]
 
 
