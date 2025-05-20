@@ -46,9 +46,9 @@ def test_bench_qdm(device: Device, fmt: str) -> None:
             device=device,
         )
         timer = Timer.global_timer()
-        assert timer["Qdm"]["Train-DMatrix (sec)"] > 0
-        assert timer["Qdm"]["Valid-DMatrix (sec)"] > 0
-        assert timer["Qdm"]["train (sec)"] > 0
+        assert timer["Qdm"]["Train-DMatrix"] > 0
+        assert timer["Qdm"]["Valid-DMatrix"] > 0
+        assert timer["Qdm"]["train"] > 0
 
 
 @pytest.mark.parametrize("device,fmt", product(devices(), formats()))
@@ -66,6 +66,6 @@ def test_bench_iter(device: Device, fmt: str) -> None:
             device=device,
         )
         timer = Timer.global_timer()
-        assert timer["Qdm"]["Train-DMatrix-Iter (sec)"] > 0
-        assert timer["Qdm"]["Valid-DMatrix-Iter (sec)"] > 0
-        assert timer["Qdm"]["train (sec)"] > 0
+        assert timer["Qdm"]["Train-DMatrix-Iter"] > 0
+        assert timer["Qdm"]["Valid-DMatrix-Iter"] > 0
+        assert timer["Qdm"]["train"] > 0

@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import os
-import shutil
+import platform
+import subprocess
 import sys
 import time
 import warnings
@@ -119,7 +121,7 @@ class Timer:
     def __init__(self, name: str, proc: str, logger: Callable = fprint) -> None:
         self.name = name
         self.proc = proc
-        self.proc_name = proc + " (sec)"
+        self.proc_name = proc
         self.range_id = None
         self.logger = logger
 
@@ -153,20 +155,6 @@ class Timer:
     def reset() -> None:
         global global_timer
         global_timer = {}
-
-
-class TemporaryDirectory:
-    def __init__(self, path: str) -> None:
-        self.path = path
-
-    def __enter__(self):
-        if os.path.exists(self.path):
-            shutil.rmtree(self.path)
-        os.mkdir(self.path)
-
-    def __exit__(self, *args):
-        if os.path.exists(self.path):
-            shutil.rmtree(self.path)
 
 
 class Progress(xgb.callback.TrainingCallback):
@@ -378,6 +366,66 @@ def peak_rmm_memory_bytes(path: str = "rmm_log.dev0") -> int:
     return peak
 
 
+def c2cinfo() -> int | None:
+    import pynvml as nm  # mamba install nvidia-ml-py -c rapidsai -c nvidia
+
+    # Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
+    # This script uses nvml to do the same thing.
+    nm.nvmlInit()
+    drv = nm.nvmlSystemGetDriverVersion()
+    print("Driver:", drv)
+
+    hdl = nm.nvmlDeviceGetHandleByIndex(0)
+    try:
+        info = nm.nvmlDeviceGetC2cModeInfoV1(hdl)
+    except nm.NVMLError_NotSupported:
+        info = None
+
+    # NVML_FI_DEV_C2C_LINK_GET_MAX_BW: C2C Link Speed in MBps for active links.
+    if info is not None and info.isC2cEnabled == 1:
+        lc, bw = nm.nvmlDeviceGetFieldValues(
+            hdl, [nm.NVML_FI_DEV_C2C_LINK_COUNT, nm.NVML_FI_DEV_C2C_LINK_GET_MAX_BW]
+        )
+        print("Link count:", lc.value.siVal, "Bandwidth:", bw.value.sllVal)
+    else:
+        lc, bw = None, None
+
+    nm.nvmlShutdown()
+
+    return lc
+
+
+def machine_info(device: str) -> dict:
+    system = platform.system()
+    machine = platform.machine()
+    cpus = os.cpu_count()
+    assert cpus
+
+    info: dict[str, Any] = {"system": system, "arch": machine, "cpus": cpus}
+
+    def query_smi(what: str) -> list[str]:
+        # We can query mutiple fields in one go, but I don't want to parse csv files.
+        r = subprocess.run(
+            f"nvidia-smi --query-gpu={what} --format=csv".split(" "),
+            stdout=subprocess.PIPE,
+        )
+        assert r.returncode == 0, r.stdout
+        lines = r.stdout.decode("utf-8").splitlines()
+        assert lines[0] == what
+        return lines[1:]
+
+    if device != "cpu":
+        info["gpus"] = query_smi("name")
+        info["drivers"] = query_smi("driver_version")
+        info["c2c"] = c2cinfo()
+    else:
+        info["gpus"] = None
+        info["drivers"] = None
+        info["c2c"] = None
+
+    return info
+
+
 def mkdirs(outdirs: list[str]) -> None:
     for d in outdirs:
         if not os.path.exists(d):
@@ -402,3 +450,17 @@ class Opts:
 def has_chr() -> bool:
     ver = parse_version(xgb.__version__)
     return (ver.major == 3 and ver.minor > 0) or ver.major > 3
+
+
+def save_results(results: dict[str, Any]) -> None:
+    prefix = "results"
+
+    k = 0
+    path = prefix + f"-{k}.json"
+    while os.path.exists(path):
+        k += 1
+        path = prefix + f"-{k}.json"
+
+    print(f"saving results to: {path}")
+    with open(path, "w") as fd:
+        json.dump(results, fd, indent=2)

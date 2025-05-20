@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import logging
 import os
+from dataclasses import asdict
 from typing import Any
 
 import xgboost
@@ -24,7 +25,9 @@ from .utils import (
     add_rmm_param,
     fprint,
     has_chr,
+    machine_info,
     make_params_from_args,
+    save_results,
     setup_rmm,
     split_path,
 )
@@ -56,11 +59,13 @@ def train(
     rs: int,
     log_cb: EvaluationMonitor,
     verbosity: int,
-) -> xgboost.Booster:
+) -> tuple[xgboost.Booster, dict[str, Any]]:
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
     worker = get_worker()
+
+    results: dict[str, Any] = {}
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
         n_threads = dxgb.get_n_threads(params, worker)
@@ -68,7 +73,6 @@ def train(
         with xgboost.config_context(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
-
             if opts.on_the_fly:
                 it_impl: IterImpl = SynIterImpl(
                     n_samples_per_batch=opts.n_samples_per_batch,
@@ -96,7 +100,7 @@ def train(
                 if coll.get_rank() == 0:
                     _get_logger().info(msg)
 
-            with Timer("Distributed", "ExtMemQdm", logger=log_fn):
+            with Timer("Train", "DMatrix-Train", logger=log_fn):
                 dargs = {
                     "data": it,
                     "max_bin": params["max_bin"],
@@ -107,7 +111,7 @@ def train(
                     dargs["cache_host_ratio"] = opts.cache_host_ratio
                 Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
 
-            with Timer("Distributed", "Train", logger=log_fn):
+            with Timer("Train", "Train", logger=log_fn):
                 booster = xgboost.train(
                     params,
                     Xy,
@@ -116,7 +120,8 @@ def train(
                     verbose_eval=False,
                     callbacks=[log_cb],
                 )
-    return booster
+    results["timer"] = Timer.global_timer()
+    return booster, results
 
 
 def bench(
@@ -133,11 +138,12 @@ def bench(
     assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
     log_cb = ForwardLoggingMonitor(client)
+    machine = machine_info(opts.device)
 
     n_batches_per_worker = opts.n_batches // n_workers
     assert n_batches_per_worker > 1
 
-    with Timer("Distributed", "Total", logger=lambda msg: _get_logger().info(msg)):
+    with Timer("Train", "Total", logger=lambda msg: _get_logger().info(msg)):
         futures = []
         for worker_id, worker in enumerate(workers):
             n_batches_prev = worker_id * n_batches_per_worker
@@ -157,11 +163,37 @@ def bench(
             )
             n_batches_prev += n_batches
             futures.append(fut)
-        boosters = client.gather(futures)
+        boosters: list[tuple[xgboost.Booster, dict[str, Any]]] = client.gather(futures)
         assert len(boosters) == n_workers
-        assert all(b.num_boosted_rounds() == n_rounds for b in boosters)
+        assert all(b[0].num_boosted_rounds() == n_rounds for b in boosters)
 
-    return boosters[0]
+    timers = [t["timer"] for _, t in boosters]
+    client_timer = Timer.global_timer()
+
+    max_timer: dict[str, dict[str, float]] = {}
+    for timer in timers:
+        for k, v in timer.items():
+            assert isinstance(v, dict)
+            if k not in max_timer:
+                max_timer[k] = {}
+            for k1, v1 in v.items():
+                if k1 not in max_timer[k]:
+                    max_timer[k][k1] = 0
+                max_timer[k][k1] = max(max_timer[k][k1], v1)
+
+    assert "Train" in max_timer
+    max_timer["Train"]["Total"] = client_timer["Train"]["Total"]
+    opts_dict = asdict(opts)
+    # merge with checks.
+    for k, v in params.items():
+        if k in opts_dict:
+            assert v == opts_dict[k]
+        else:
+            opts_dict[k] = v
+    opts_dict["n_rounds"] = n_rounds
+    results = {"opts": opts_dict, "timer": max_timer, "machine": machine}
+    save_results(results)
+    return boosters[0][0]
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:
