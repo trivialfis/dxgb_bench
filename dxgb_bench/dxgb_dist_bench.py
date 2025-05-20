@@ -4,7 +4,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-from dataclasses import asdict
 from typing import Any
 
 import xgboost
@@ -27,6 +26,7 @@ from .utils import (
     has_chr,
     machine_info,
     make_params_from_args,
+    merge_opts,
     save_results,
     setup_rmm,
     split_path,
@@ -183,14 +183,9 @@ def bench(
 
     assert "Train" in max_timer
     max_timer["Train"]["Total"] = client_timer["Train"]["Total"]
-    opts_dict = asdict(opts)
-    # merge with checks.
-    for k, v in params.items():
-        if k in opts_dict:
-            assert v == opts_dict[k]
-        else:
-            opts_dict[k] = v
+    opts_dict = merge_opts(opts, params)
     opts_dict["n_rounds"] = n_rounds
+    opts_dict["n_workers"] = n_workers
     results = {"opts": opts_dict, "timer": max_timer, "machine": machine}
     save_results(results)
     return boosters[0][0]
