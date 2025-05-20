@@ -10,7 +10,7 @@ import subprocess
 import sys
 import time
 import warnings
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from functools import cache
 from typing import TYPE_CHECKING, Any, Callable, Dict, TypeAlias, Union
 
@@ -372,8 +372,6 @@ def c2cinfo() -> int | None:
     # Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
     # This script uses nvml to do the same thing.
     nm.nvmlInit()
-    drv = nm.nvmlSystemGetDriverVersion()
-    print("Driver:", drv)
 
     hdl = nm.nvmlDeviceGetHandleByIndex(0)
     try:
@@ -408,6 +406,7 @@ def machine_info(device: str) -> dict:
         r = subprocess.run(
             f"nvidia-smi --query-gpu={what} --format=csv".split(" "),
             stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
         )
         assert r.returncode == 0, r.stdout
         lines = r.stdout.decode("utf-8").splitlines()
@@ -444,6 +443,17 @@ class Opts:
     mr: str | None
     target_type: str
     cache_host_ratio: float | None
+
+
+def merge_opts(opts: Opts, params: dict[str, Any]) -> dict[str, Any]:
+    opts_dict = asdict(opts)
+    # merge with checks.
+    for k, v in params.items():
+        if k in opts_dict:
+            assert v == opts_dict[k]
+        else:
+            opts_dict[k] = v
+    return opts_dict
 
 
 @cache

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 from typing import Any
 
@@ -26,8 +27,10 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     add_target_type,
+    machine_info,
     make_params_from_args,
     mkdirs,
+    peak_rmm_memory_bytes,
     split_path,
 )
 
@@ -165,6 +168,16 @@ def cli_main() -> None:
     subsparsers = parser.add_subparsers(dest="command")
     dg_parser = subsparsers.add_parser("datagen")
     bh_parser = subsparsers.add_parser("bench")
+    mi_parser = subsparsers.add_parser("mi", description="Print machine information.")
+    rmm_peak_parser = subsparsers.add_parser(
+        "rmmpeak", description="Get the peak memory usage from a RMM log."
+    )
+
+    # machine info parser
+    mi_parser = add_device_param(mi_parser)
+
+    # rmm peak parser
+    rmm_peak_parser.add_argument("--path", type=str, required=True)
 
     # Datagen parser
     dg_parser = add_data_params(dg_parser, True)
@@ -187,7 +200,7 @@ def cli_main() -> None:
     )
     bh_parser.add_argument(
         "--task",
-        choices=["qdm", "qdm-iter"],
+        choices=["qdm", "qdm-iter", "machine"],
         help=(
             "qdm is to use the `QuantileDMatrix` with a single blob of data, "
             + "whereas the `qdm-iter` uses the `QuantileDMatrix` with an iterator."
@@ -215,6 +228,14 @@ def cli_main() -> None:
             outdirs=saveto,
             fmt=args.fmt,
         )
+    elif args.command == "mi":
+        mi = machine_info(device=args.device)
+        print(json.dumps(mi, indent=2))
+    elif args.command == "rmmpeak":
+        path = os.path.expanduser(args.path)
+        assert os.path.exists(path)
+        peak = peak_rmm_memory_bytes(path)
+        print("Peak memory usage:", peak)
     else:
         assert args.command == "bench"
         loadfrom = split_path(args.loadfrom)
