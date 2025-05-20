@@ -5,6 +5,8 @@ import argparse
 import json
 import math
 import os
+import platform
+import subprocess
 import sys
 import time
 import warnings
@@ -362,6 +364,64 @@ def peak_rmm_memory_bytes(path: str = "rmm_log.dev0") -> int:
         if current > peak:
             peak = current
     return peak
+
+
+def c2cinfo() -> int | None:
+    import pynvml as nm  # mamba install nvidia-ml-py -c rapidsai -c nvidia
+
+    # Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
+    # This script uses nvml to do the same thing.
+    nm.nvmlInit()
+    drv = nm.nvmlSystemGetDriverVersion()
+    print("Driver:", drv)
+
+    hdl = nm.nvmlDeviceGetHandleByIndex(0)
+    try:
+        info = nm.nvmlDeviceGetC2cModeInfoV1(hdl)
+    except nm.NVMLError_NotSupported:
+        info = None
+
+    # NVML_FI_DEV_C2C_LINK_GET_MAX_BW: C2C Link Speed in MBps for active links.
+    if info is not None and info.isC2cEnabled == 1:
+        lc, bw = nm.nvmlDeviceGetFieldValues(
+            hdl, [nm.NVML_FI_DEV_C2C_LINK_COUNT, nm.NVML_FI_DEV_C2C_LINK_GET_MAX_BW]
+        )
+        print("Link count:", lc.value.siVal, "Bandwidth:", bw.value.sllVal)
+    else:
+        lc, bw = None, None
+
+    nm.nvmlShutdown()
+
+    return lc
+
+
+def machine_info(device: str) -> dict:
+    system = platform.system()
+    machine = platform.machine()
+
+    info: dict[str, Any] = {"system": system, "arch": machine}
+
+    def query_smi(what: str) -> list[str]:
+        # We can query mutiple fields in one go, but I don't want to parse csv files.
+        r = subprocess.run(
+            f"nvidia-smi --query-gpu={what} --format=csv".split(" "),
+            stdout=subprocess.PIPE,
+        )
+        assert r.returncode == 0, r.stdout
+        lines = r.stdout.decode("utf-8").splitlines()
+        assert lines[0] == what
+        return lines[1:]
+
+    if device != "cpu":
+        info["gpus"] = query_smi("name")
+        info["drivers"] = query_smi("driver_version")
+        info["c2c"] = c2cinfo()
+    else:
+        info["gpus"] = None
+        info["drivers"] = None
+        info["c2c"] = None
+
+    return info
 
 
 def mkdirs(outdirs: list[str]) -> None:
