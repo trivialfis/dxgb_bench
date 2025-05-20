@@ -398,8 +398,10 @@ def c2cinfo() -> int | None:
 def machine_info(device: str) -> dict:
     system = platform.system()
     machine = platform.machine()
+    cpus = os.cpu_count()
+    assert cpus
 
-    info: dict[str, Any] = {"system": system, "arch": machine}
+    info: dict[str, Any] = {"system": system, "arch": machine, "cpus": cpus}
 
     def query_smi(what: str) -> list[str]:
         # We can query mutiple fields in one go, but I don't want to parse csv files.
