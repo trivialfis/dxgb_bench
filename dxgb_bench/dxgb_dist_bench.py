@@ -25,6 +25,7 @@ from .utils import (
     add_rmm_param,
     fprint,
     has_chr,
+    machine_info,
     make_params_from_args,
     save_results,
     setup_rmm,
@@ -137,6 +138,7 @@ def bench(
     assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
     log_cb = ForwardLoggingMonitor(client)
+    machine = machine_info(opts.device)
 
     n_batches_per_worker = opts.n_batches // n_workers
     assert n_batches_per_worker > 1
@@ -181,7 +183,15 @@ def bench(
 
     assert "Train" in max_timer
     max_timer["Train"]["Total"] = client_timer["Train"]["Total"]
-    results = {"opts": asdict(opts), "timer": max_timer}
+    opts_dict = asdict(opts)
+    # merge with checks.
+    for k, v in params.items():
+        if k in opts_dict:
+            assert v == opts_dict[k]
+        else:
+            opts_dict[k] = v
+    opts_dict["n_rounds"] = n_rounds
+    results = {"opts": opts_dict, "timer": max_timer, "machine": machine}
     save_results(results)
     return boosters[0][0]
 

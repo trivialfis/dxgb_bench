@@ -459,5 +459,6 @@ def save_results(results: dict[str, Any]) -> None:
         k += 1
         path = prefix + f"-{k}.json"
 
+    print(f"saving results to: {path}")
     with open(path, "w") as fd:
         json.dump(results, fd, indent=2)
