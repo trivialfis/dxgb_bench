@@ -238,8 +238,13 @@ class SynIterImpl(IterImpl):
         self.sizes: list[int] = []
         self.rs = rs
 
+        for i in range(self._n_batches):
+            size = self.n_samples_per_batch * self.n_features
+            self.sizes.append(size)
+
     @property
     def n_batches(self) -> int:
+        assert len(self.sizes) == self._n_batches
         return self._n_batches
 
     def _seed(self, i: int) -> int:
@@ -259,8 +264,7 @@ class SynIterImpl(IterImpl):
                 random_state=self._seed(i),
             )
             fprint("seed:", self._seed(i))
-            if len(self.sizes) != self._n_batches:
-                self.sizes.append(X.size)
+            assert self.sizes[i] == X.size
             return X, y
         if self.assparse:
             assert i == 0, "not implemented"
@@ -278,8 +282,7 @@ class SynIterImpl(IterImpl):
                 sparsity=self.sparsity,
                 random_state=self._seed(i),
             )
-        if len(self.sizes) != self._n_batches:
-            self.sizes.append(X.size)
+        assert self.sizes[i] == X.size, (self.sizes[i], X.size)
         return X, y
 
 
@@ -331,4 +334,47 @@ class BenchIter(xgb.DataIter):
     def reset(self) -> None:
         fprint("Reset")
         self._it = 0
+        gc.collect()
+
+
+class StridedIter(xgb.DataIter):
+    """An iterator for loading data with strided iteration."""
+
+    def __init__(
+        self,
+        it: IterImpl,
+        *,
+        start: int,
+        stride: int,
+        is_ext: bool,
+        is_valid: bool,
+        device: str,
+    ) -> None:
+        self._start = start
+        self._stride = stride
+        self._impl = it
+        self._is_eval = is_valid
+
+        self._it = start
+
+        if is_ext:
+            super().__init__(cache_prefix="cache", on_host=True)
+        else:
+            super().__init__()
+
+    def next(self, input_data: Callable) -> bool:
+        if self._it >= self._impl.n_batches:
+            return False
+
+        gc.collect()
+        with Timer("BenchIter", "GetValid" if self._is_eval else "GetTrain"):
+            X, y = self._impl.get(self._it)
+        input_data(data=X, label=y)
+
+        self._it += self._stride
+        return True
+
+    def reset(self) -> None:
+        fprint("Reset")
+        self._it = self._start
         gc.collect()

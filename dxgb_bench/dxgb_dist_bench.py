@@ -13,8 +13,9 @@ from xgboost import dask as dxgb
 from xgboost.callback import EvaluationMonitor
 from xgboost.testing.dask import get_client_workers
 
-from .dataiter import BenchIter, SynIterImpl
+from .dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
 from .utils import (
+    DFT_OUT,
     Opts,
     Timer,
     add_data_params,
@@ -25,6 +26,7 @@ from .utils import (
     has_chr,
     make_params_from_args,
     setup_rmm,
+    split_path,
 )
 
 
@@ -48,30 +50,16 @@ def train(
     opts: Opts,
     n_rounds: int,
     rabit_args: dict[str, Any],
-    n_batches: int,
+    n_worker_batches: int,
     params: dict[str, Any],
+    loadfrom: list[str],
     rs: int,
     log_cb: EvaluationMonitor,
     verbosity: int,
 ) -> xgboost.Booster:
-    if opts.device == "cuda":
-        setup_rmm("arena")
-    it_impl = SynIterImpl(
-        n_samples_per_batch=opts.n_samples_per_batch,
-        n_features=opts.n_features,
-        n_batches=n_batches,
-        sparsity=opts.sparsity,
-        assparse=False,
-        target_type=opts.target_type,
-        device=opts.device,
-        rs=rs,
-    )
-    it = BenchIter(
-        it_impl,
-        is_ext=True,
-        is_valid=False,
-        device=opts.device,
-    )
+    if opts.device == "cuda" and opts.mr is not None:
+        setup_rmm(opts.mr)
+
     worker = get_worker()
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
@@ -80,6 +68,29 @@ def train(
         with xgboost.config_context(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
+
+            if opts.on_the_fly:
+                it_impl: IterImpl = SynIterImpl(
+                    n_samples_per_batch=opts.n_samples_per_batch,
+                    n_features=opts.n_features,
+                    n_batches=n_worker_batches,
+                    sparsity=opts.sparsity,
+                    assparse=False,
+                    target_type=opts.target_type,
+                    device=opts.device,
+                    rs=rs,
+                )
+            else:
+                it_impl = LoadIterStrip(loadfrom, False, 0.0, opts.device)
+
+            it = StridedIter(
+                it_impl,
+                start=coll.get_rank(),
+                stride=coll.get_world_size(),
+                is_ext=True,
+                is_valid=False,
+                device=opts.device,
+            )
 
             def log_fn(msg: str) -> None:
                 if coll.get_rank() == 0:
@@ -109,16 +120,18 @@ def train(
 
 
 def bench(
-    client: Client, n_rounds: int, opts: Opts, params: dict[str, Any], verbosity: int
+    client: Client,
+    n_rounds: int,
+    opts: Opts,
+    params: dict[str, Any],
+    loadfrom: list[str],
+    verbosity: int,
 ) -> xgboost.Booster:
     workers = get_client_workers(client)
     fprint(f"workers: {workers}")
     n_workers = len(workers)
     assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
-    if not opts.on_the_fly:
-        raise NotImplementedError("--fly must be specified.")
-
     log_cb = ForwardLoggingMonitor(client)
 
     n_batches_per_worker = opts.n_batches // n_workers
@@ -137,6 +150,7 @@ def bench(
                 rabit_args,
                 n_batches,
                 params,
+                loadfrom,
                 rs,
                 log_cb,
                 verbosity,
@@ -174,6 +188,7 @@ def cli_main() -> None:
         action="store_true",
         help="Generate data on the fly instead of loading it from the disk.",
     )
+    parser.add_argument("--loadfrom", type=str, default=DFT_OUT)
     parser.add_argument(
         "--cluster_type", choices=["local", "ssh", "sched"], required=True
     )
@@ -208,17 +223,18 @@ def cli_main() -> None:
         target_type=args.target_type,
         cache_host_ratio=args.cache_host_ratio,
     )
+    loadfrom = split_path(args.loadfrom)
     params = make_params_from_args(args)
 
     if args.cluster_type == "local":
         with local_cluster(device=args.device, n_workers=args.n_workers) as cluster:
             with Client(cluster) as client:
-                bench(client, args.n_rounds, opts, params, args.verbosity)
+                bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
     elif args.cluster_type == "sched":
         sched = args.sched
         assert sched is not None
         with Client(scheduler_file=sched) as client:
-            bench(client, args.n_rounds, opts, params, args.verbosity)
+            bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
     else:
         hosts = args.hosts.split(";")
         rpy = args.rpy
@@ -232,7 +248,7 @@ def cli_main() -> None:
         ) as cluster:
             cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
-                bench(client, args.n_rounds, opts, params, args.verbosity)
+                bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
             logs = cluster.get_logs()
             for k, v in logs.items():
                 fprint(f"{k}\n{v}")
