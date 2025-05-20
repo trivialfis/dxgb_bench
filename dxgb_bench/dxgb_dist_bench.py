@@ -207,15 +207,22 @@ def bench(
     log_cb = ForwardLoggingMonitor(client)
     machine = machine_info(opts.device)
 
-    n_batches_per_worker = opts.n_batches // n_workers
-    assert n_batches_per_worker > 1
+    if opts.on_the_fly:
+        n_batches_per_worker = opts.n_batches // n_workers
+        assert n_batches_per_worker > 1
+    else:
+        n_batches_per_worker = 0
 
     with Timer("Train", "Total", logger=lambda msg: _get_logger().info(msg)):
         futures = []
         for worker_id, worker in enumerate(workers):
             n_batches_prev = worker_id * n_batches_per_worker
-            rs = n_batches_prev * opts.n_samples_per_batch * opts.n_features
-            n_batches = min(n_batches_per_worker, opts.n_batches - n_batches_prev)
+            if opts.on_the_fly:
+                rs = n_batches_prev * opts.n_samples_per_batch * opts.n_features
+                n_batches = min(n_batches_per_worker, opts.n_batches - n_batches_prev)
+            else:
+                rs = 0
+                n_batches = -1
             fut = client.submit(
                 train,
                 opts,
@@ -227,6 +234,8 @@ def bench(
                 rs,
                 log_cb,
                 verbosity,
+                workers=[workers[worker_id]],
+                pure=False,
             )
             n_batches_prev += n_batches
             futures.append(fut)
@@ -308,7 +317,7 @@ def cli_main() -> None:
     parser = add_device_param(parser)
     parser = add_rmm_param(parser)
     parser = add_hyper_param(parser)
-    parser = add_data_params(parser, required=True)
+    parser = add_data_params(parser, required=False)
     args = parser.parse_args()
 
     opts = Opts(
@@ -328,6 +337,7 @@ def cli_main() -> None:
 
     if args.cluster_type == "local":
         with local_cluster(device=args.device, n_workers=args.n_workers) as cluster:
+            print("dashboard:", cluster.dashboard_link)
             with Client(cluster) as client:
                 bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
     elif args.cluster_type == "sched":
