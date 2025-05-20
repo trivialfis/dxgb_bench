@@ -95,7 +95,7 @@ def test_strided_syn_iter(device: Device) -> None:
     strided_iter(device, n_batches, it_impl, stride)
 
 
-@pytest.mark.parametrize("device", ["cpu"])
+@pytest.mark.parametrize("device", devices())
 def test_strided_load_iter(device: Device) -> None:
     n_samples_per_batch = 256
     n_features = 16
