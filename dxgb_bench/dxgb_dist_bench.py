@@ -13,9 +13,10 @@ from xgboost import dask as dxgb
 from xgboost.callback import EvaluationMonitor
 from xgboost.testing.dask import get_client_workers
 
-from .dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
+from .dataiter import BenchIter, IterImpl, LoadIterStrip, StridedIter, SynIterImpl
 from .utils import (
     DFT_OUT,
+    TEST_SIZE,
     Opts,
     Timer,
     add_data_params,
@@ -49,6 +50,76 @@ class ForwardLoggingMonitor(EvaluationMonitor):
         super().__init__(logger=lambda msg: _get_logger().info(msg.strip()))
 
 
+def make_iter(
+    opts: Opts, loadfrom: list[str], n_worker_batches: int, rs: int
+) -> tuple[StridedIter, StridedIter | None]:
+    if opts.on_the_fly:
+        if opts.validation:
+            n_train_samples = int(opts.n_samples_per_batch * (1.0 - TEST_SIZE))
+            n_valid_samples = opts.n_samples_per_batch - n_train_samples
+            it_train_impl: IterImpl = SynIterImpl(
+                n_samples_per_batch=n_train_samples,
+                n_features=opts.n_features,
+                n_batches=n_worker_batches,
+                sparsity=opts.sparsity,
+                assparse=False,
+                target_type=opts.target_type,
+                device=opts.device,
+                rs=rs,
+            )
+            it_valid_impl: IterImpl | None = SynIterImpl(
+                n_samples_per_batch=n_valid_samples,
+                n_features=opts.n_features,
+                n_batches=n_worker_batches,
+                sparsity=opts.sparsity,
+                assparse=False,
+                target_type=opts.target_type,
+                device=opts.device,
+                rs=rs + (n_train_samples * opts.n_features * n_worker_batches),
+            )
+        else:
+            it_train_impl = SynIterImpl(
+                n_samples_per_batch=opts.n_samples_per_batch,
+                n_features=opts.n_features,
+                n_batches=n_worker_batches,
+                sparsity=opts.sparsity,
+                assparse=False,
+                target_type=opts.target_type,
+                device=opts.device,
+                rs=rs,
+            )
+            it_valid_impl = None
+    else:
+        if opts.validation:
+            it_train_impl = LoadIterStrip(loadfrom, False, TEST_SIZE, opts.device)
+            it_valid_impl = LoadIterStrip(loadfrom, True, TEST_SIZE, opts.device)
+        else:
+            it_train_impl = LoadIterStrip(loadfrom, False, None, opts.device)
+            it_valid_impl = None
+
+    it_train = StridedIter(
+        it_train_impl,
+        start=coll.get_rank(),
+        stride=coll.get_world_size(),
+        is_ext=True,
+        is_valid=False,
+        device=opts.device,
+    )
+    if it_valid_impl is not None:
+        it_valid = StridedIter(
+            it_valid_impl,
+            start=coll.get_rank(),
+            stride=coll.get_world_size(),
+            is_ext=True,
+            is_valid=True,
+            device=opts.device,
+        )
+    else:
+        it_valid = None
+
+    return it_train, it_valid
+
+
 def train(
     opts: Opts,
     n_rounds: int,
@@ -64,8 +135,11 @@ def train(
         setup_rmm(opts.mr)
 
     worker = get_worker()
-
     results: dict[str, Any] = {}
+
+    def log_fn(msg: str) -> None:
+        if coll.get_rank() == 0:
+            _get_logger().info(msg)
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
         n_threads = dxgb.get_n_threads(params, worker)
@@ -73,54 +147,47 @@ def train(
         with xgboost.config_context(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
-            if opts.on_the_fly:
-                it_impl: IterImpl = SynIterImpl(
-                    n_samples_per_batch=opts.n_samples_per_batch,
-                    n_features=opts.n_features,
-                    n_batches=n_worker_batches,
-                    sparsity=opts.sparsity,
-                    assparse=False,
-                    target_type=opts.target_type,
-                    device=opts.device,
-                    rs=rs,
-                )
-            else:
-                it_impl = LoadIterStrip(loadfrom, False, 0.0, opts.device)
-
-            it = StridedIter(
-                it_impl,
-                start=coll.get_rank(),
-                stride=coll.get_world_size(),
-                is_ext=True,
-                is_valid=False,
-                device=opts.device,
-            )
-
-            def log_fn(msg: str) -> None:
-                if coll.get_rank() == 0:
-                    _get_logger().info(msg)
+            it_train, it_valid = make_iter(opts, loadfrom, n_worker_batches, rs)
 
             with Timer("Train", "DMatrix-Train", logger=log_fn):
                 dargs = {
-                    "data": it,
+                    "data": it_train,
                     "max_bin": params["max_bin"],
                     "max_quantile_batches": 32,
                     "nthread": n_threads,
                 }
                 if has_chr():
                     dargs["cache_host_ratio"] = opts.cache_host_ratio
-                Xy = xgboost.ExtMemQuantileDMatrix(**dargs)
+                Xy_train = xgboost.ExtMemQuantileDMatrix(**dargs)
 
+            watches = [(Xy_train, "Train")]
+
+            if it_valid is not None:
+                with Timer("Train", "DMatrix-Valid"):
+                    # cache_host_ratio is not used here, but set it anyway.
+                    dargs = {
+                        "data": it_valid,
+                        "max_bin": params["max_bin"],
+                        "ref": Xy_train,
+                    }
+                    if has_chr():
+                        dargs["cache_host_ratio"] = opts.cache_host_ratio
+                    Xy_valid = xgboost.ExtMemQuantileDMatrix(**dargs)
+                    watches.append((Xy_valid, "Valid"))
+
+            evals_result: dict[str, dict[str, float]] = {}
             with Timer("Train", "Train", logger=log_fn):
                 booster = xgboost.train(
                     params,
-                    Xy,
-                    evals=[(Xy, "Train")],
+                    Xy_train,
+                    evals=watches,
                     num_boost_round=n_rounds,
                     verbose_eval=False,
                     callbacks=[log_cb],
+                    evals_result=evals_result,
                 )
     results["timer"] = Timer.global_timer()
+    results["evals"] = evals_result
     return booster, results
 
 
@@ -133,7 +200,7 @@ def bench(
     verbosity: int,
 ) -> xgboost.Booster:
     workers = get_client_workers(client)
-    fprint(f"workers: {workers}")
+    fprint(f"Workers: {workers}")
     n_workers = len(workers)
     assert n_workers > 0
     rabit_args = client.sync(dxgb._get_rabit_args, client, n_workers)
@@ -215,6 +282,9 @@ def cli_main() -> None:
         action="store_true",
         help="Generate data on the fly instead of loading it from the disk.",
     )
+    parser.add_argument(
+        "--valid", action="store_true", help="Split for the validation dataset."
+    )
     parser.add_argument("--loadfrom", type=str, default=DFT_OUT)
     parser.add_argument(
         "--cluster_type", choices=["local", "ssh", "sched"], required=True
@@ -227,9 +297,6 @@ def cli_main() -> None:
     parser.add_argument("--username", type=str, help="SSH username.", required=False)
     parser.add_argument(
         "--sched", type=str, help="path the to schedule config.", required=False
-    )
-    parser.add_argument(
-        "--valid", action="store_true", help="Split for the validation dataset."
     )
 
     parser = add_device_param(parser)
