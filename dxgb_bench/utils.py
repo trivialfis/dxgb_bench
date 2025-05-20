@@ -119,7 +119,7 @@ class Timer:
     def __init__(self, name: str, proc: str, logger: Callable = fprint) -> None:
         self.name = name
         self.proc = proc
-        self.proc_name = proc + " (sec)"
+        self.proc_name = proc
         self.range_id = None
         self.logger = logger
 
@@ -153,20 +153,6 @@ class Timer:
     def reset() -> None:
         global global_timer
         global_timer = {}
-
-
-class TemporaryDirectory:
-    def __init__(self, path: str) -> None:
-        self.path = path
-
-    def __enter__(self):
-        if os.path.exists(self.path):
-            shutil.rmtree(self.path)
-        os.mkdir(self.path)
-
-    def __exit__(self, *args):
-        if os.path.exists(self.path):
-            shutil.rmtree(self.path)
 
 
 class Progress(xgb.callback.TrainingCallback):

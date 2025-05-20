@@ -56,11 +56,13 @@ def train(
     rs: int,
     log_cb: EvaluationMonitor,
     verbosity: int,
-) -> xgboost.Booster:
+) -> tuple[xgboost.Booster, dict[str, Any]]:
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
     worker = get_worker()
+
+    results: dict[str, Any] = {}
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
         n_threads = dxgb.get_n_threads(params, worker)
@@ -68,7 +70,6 @@ def train(
         with xgboost.config_context(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
-
             if opts.on_the_fly:
                 it_impl: IterImpl = SynIterImpl(
                     n_samples_per_batch=opts.n_samples_per_batch,
@@ -116,7 +117,8 @@ def train(
                     verbose_eval=False,
                     callbacks=[log_cb],
                 )
-    return booster
+    results["timer"] = Timer.global_timer()
+    return booster, results
 
 
 def bench(
@@ -137,7 +139,7 @@ def bench(
     n_batches_per_worker = opts.n_batches // n_workers
     assert n_batches_per_worker > 1
 
-    with Timer("Distributed", "Total", logger=lambda msg: _get_logger().info(msg)):
+    with Timer("Train", "Total", logger=lambda msg: _get_logger().info(msg)):
         futures = []
         for worker_id, worker in enumerate(workers):
             n_batches_prev = worker_id * n_batches_per_worker
@@ -157,11 +159,16 @@ def bench(
             )
             n_batches_prev += n_batches
             futures.append(fut)
-        boosters = client.gather(futures)
+        boosters: list[tuple[xgboost.Booster, dict[str, Any]]] = client.gather(futures)
         assert len(boosters) == n_workers
-        assert all(b.num_boosted_rounds() == n_rounds for b in boosters)
+        assert all(b[0].num_boosted_rounds() == n_rounds for b in boosters)
 
-    return boosters[0]
+    timers = [t for _, t in boosters]
+    client_timer = Timer.global_timer()
+    print(timers[0])
+    print(client_timer)
+
+    return boosters[0][0]
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:
