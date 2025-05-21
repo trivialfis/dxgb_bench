@@ -7,7 +7,8 @@ from itertools import product
 import pytest
 
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.external_mem import Opts, qdm_train
+from dxgb_bench.dxgb_ext_bench import qdm_train
+from dxgb_bench.external_mem import Opts
 from dxgb_bench.testing import Device, TmpDir, devices, formats
 from dxgb_bench.utils import Timer
 
@@ -49,10 +50,11 @@ def test_qdm_train(device: Device, fmt: str) -> None:
             fmt=fmt,
         )
 
-        booster = qdm_train(opts, params, 8, outdirs)
+        booster, results = qdm_train(opts, params, 8, outdirs)
 
     assert booster.num_features() == n_features
     assert booster.num_boosted_rounds() == 8
 
-    assert timer["ExtQdm"]["train"] > 0
-    assert timer["ExtQdm"]["DMatrix-Train"] > 0
+    assert timer["Train"]["Train"] > 0
+    assert timer["Train"]["DMatrix-Train"] > 0
+    assert "opts" in results

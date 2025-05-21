@@ -129,21 +129,14 @@ def spdm_train(
     return booster
 
 
-def qdm_train(
-    opts: Opts,
-    params: dict[str, Any],
-    n_rounds: int,
-    loadfrom: list[str],
-) -> xgb.Booster:
-    """Train with the ExtMemQuantileDMatrix."""
-    if opts.device == "cuda" and opts.mr is not None:
-        setup_rmm(opts.mr)
-
-    it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
-    with Timer("ExtQdm", "DMatrix-Train"):
+def make_extmem_qdms(
+    opts: Opts, max_bin: int, it_train: xgb.DataIter, it_valid: xgb.DataIter | None
+) -> tuple[xgb.ExtMemQuantileDMatrix, list[tuple[xgb.ExtMemQuantileDMatrix, str]]]:
+    """Create `ExtMemQuantileDMatrix`."""
+    with Timer("Train", "DMatrix-Train"):
         dargs = {
             "data": it_train,
-            "max_bin": params["max_bin"],
+            "max_bin": max_bin,
             "max_quantile_batches": 32,
         }
         if has_chr():
@@ -154,24 +147,15 @@ def qdm_train(
     watches = [(Xy_train, "Train")]
 
     if it_valid is not None:
-        with Timer("ExtQdm", "DMatrix-Valid"):
+        with Timer("Train", "DMatrix-Valid"):
             # cache_host_ratio is not used here, but set it anyway.
             dargs = {
                 "data": it_valid,
-                "max_bin": params["max_bin"],
+                "max_bin": max_bin,
                 "ref": Xy_train,
             }
             if has_chr():
                 dargs["cache_host_ratio"] = opts.cache_host_ratio
             Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
             watches.append((Xy_valid, "Valid"))
-
-    with Timer("ExtQdm", "train"):
-        booster = xgb.train(
-            params,
-            Xy_train,
-            num_boost_round=n_rounds,
-            evals=watches,
-            verbose_eval=True,
-        )
-    return booster
+    return Xy_train, watches

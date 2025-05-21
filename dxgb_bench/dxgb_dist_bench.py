@@ -13,7 +13,8 @@ from xgboost import dask as dxgb
 from xgboost.callback import EvaluationMonitor
 from xgboost.testing.dask import get_client_workers
 
-from .dataiter import BenchIter, IterImpl, LoadIterStrip, StridedIter, SynIterImpl
+from .dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
+from .external_mem import make_extmem_qdms
 from .utils import (
     DFT_OUT,
     TEST_SIZE,
@@ -24,7 +25,6 @@ from .utils import (
     add_hyper_param,
     add_rmm_param,
     fprint,
-    has_chr,
     machine_info,
     make_params_from_args,
     merge_opts,
@@ -148,32 +148,9 @@ def train(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
             it_train, it_valid = make_iter(opts, loadfrom, n_worker_batches, rs)
-
-            with Timer("Train", "DMatrix-Train", logger=log_fn):
-                dargs = {
-                    "data": it_train,
-                    "max_bin": params["max_bin"],
-                    "max_quantile_batches": 32,
-                    "nthread": n_threads,
-                }
-                if has_chr():
-                    dargs["cache_host_ratio"] = opts.cache_host_ratio
-                Xy_train = xgboost.ExtMemQuantileDMatrix(**dargs)
-
-            watches = [(Xy_train, "Train")]
-
-            if it_valid is not None:
-                with Timer("Train", "DMatrix-Valid"):
-                    # cache_host_ratio is not used here, but set it anyway.
-                    dargs = {
-                        "data": it_valid,
-                        "max_bin": params["max_bin"],
-                        "ref": Xy_train,
-                    }
-                    if has_chr():
-                        dargs["cache_host_ratio"] = opts.cache_host_ratio
-                    Xy_valid = xgboost.ExtMemQuantileDMatrix(**dargs)
-                    watches.append((Xy_valid, "Valid"))
+            Xy_train, watches = make_extmem_qdms(
+                opts, params["max_bin"], it_train, it_valid
+            )
 
             evals_result: dict[str, dict[str, float]] = {}
             with Timer("Train", "Train", logger=log_fn):
@@ -198,7 +175,7 @@ def bench(
     params: dict[str, Any],
     loadfrom: list[str],
     verbosity: int,
-) -> xgboost.Booster:
+) -> tuple[xgboost.Booster, dict[str, Any]]:
     workers = get_client_workers(client)
     fprint(f"Workers: {workers}")
     n_workers = len(workers)
@@ -266,11 +243,11 @@ def bench(
     results = {
         "opts": opts_dict,
         "timer": max_timer,
-        "machine": machine,
         "evals": evals,
+        "machine": machine,
     }
-    save_results(results)
-    return boosters[0][0]
+    save_results(results, "dist")
+    return boosters[0][0], results
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import os
 import shutil
-from functools import cache
-from typing import Any, Literal, SupportsFloat
+from functools import cache, wraps
+from typing import Any, Callable, Literal, ParamSpec, SupportsFloat, TypeVar
 
 import numpy as np
 
@@ -78,3 +78,33 @@ class TmpDir:
         if self.delete:
             cleanup_tmp(self.outdirs)
             del self.outdirs
+
+
+P = ParamSpec("P")
+R = TypeVar("R")
+
+
+def chdir(path: str) -> Callable:
+    """Decorator for changing directory temporarily."""
+
+    def chdir(func: Callable[P, R]) -> Callable[P, R]:
+        @wraps(func)
+        def inner(*args: P.args, **kwargs: P.kwargs) -> R:
+            with Chdir(path):
+                return func(*args, **kwargs)
+
+        return inner
+
+    return chdir
+
+
+class Chdir:
+    def __init__(self, path: str) -> None:
+        self.path = path
+        self.curdir = os.path.normpath(os.path.abspath(os.path.curdir))
+
+    def __enter__(self) -> None:
+        os.chdir(self.path)
+
+    def __exit__(self, *args: Any) -> None:
+        os.chdir(self.curdir)
