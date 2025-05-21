@@ -50,3 +50,9 @@ COPY dxgb_bench ws/dxgb_bench
 RUN \
     cd /ws/ && \
     ./build_dxgb_bench.sh
+
+COPY dxgb_bench/dev/install_cgmemtime.sh /ws/install_cgmemtime.sh
+
+RUN \
+    cd /ws/ && \
+    ./install_cgmemtime.sh
