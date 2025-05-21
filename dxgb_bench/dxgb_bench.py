@@ -120,13 +120,13 @@ def bench(
                 X_train, X_test, y_train, y_test = train_test_split(
                     X, y, test_size=TEST_SIZE, random_state=2024
                 )
-                with Timer("Qdm", "Train-DMatrix"):
+                with Timer("Train", "DMatrix-Train"):
                     Xy = QuantileDMatrix(X_train, y_train)
-                with Timer("Qdm", "Valid-DMatrix"):
+                with Timer("Train", "DMatrix-Valid"):
                     Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
                 watches = [(Xy, "Train"), (Xy_valid, "Valid")]
             else:
-                with Timer("Qdm", "Train-DMatrix"):
+                with Timer("Train", "DMatrix-Train"):
                     Xy = QuantileDMatrix(X, y)
                     Xy_valid = None
                 watches = [(Xy, "Train")]
