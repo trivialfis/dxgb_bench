@@ -7,8 +7,8 @@ from itertools import product
 import pytest
 
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.external_mem import Opts
 from dxgb_bench.dxgb_ext_bench import qdm_train
+from dxgb_bench.external_mem import Opts
 from dxgb_bench.testing import Device, TmpDir, devices, formats
 from dxgb_bench.utils import Timer
 
