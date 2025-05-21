@@ -1,6 +1,8 @@
 # Copyright (c) 2025, Jiaming Yuan.  All rights reserved.
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 from distributed import Client
@@ -9,7 +11,8 @@ from xgboost.compat import concat
 from dxgb_bench.dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
 from dxgb_bench.dxgb_bench import datagen
 from dxgb_bench.dxgb_dist_bench import bench, local_cluster
-from dxgb_bench.testing import Device, TmpDir, devices
+from dxgb_bench.dxgb_ext_bench import qdm_train
+from dxgb_bench.testing import Chdir, Device, TmpDir, devices
 from dxgb_bench.utils import Opts
 
 
@@ -31,7 +34,7 @@ def test_dist(device: Device) -> None:
 
     with local_cluster(device=device, n_workers=2) as cluster:
         with Client(cluster) as client:
-            booster = bench(client, 8, opts, params, loadfrom=[], verbosity=1)
+            booster, _ = bench(client, 8, opts, params, loadfrom=[], verbosity=1)
             assert booster.num_features() == opts.n_features
             assert booster.num_boosted_rounds() == 8
 
@@ -123,4 +126,52 @@ def test_strided_load_iter(device: Device) -> None:
         strided_iter(device, n_batches, it_impl, stride)
 
 
-def test_output_json() -> None:
+@pytest.mark.parametrize("device", devices())
+def test_output_json(device: Device) -> None:
+    params = {"device": device, "max_bin": 8, "max_depth": 2, "eta": 0.1}
+    opts = Opts(
+        n_samples_per_batch=256,
+        n_features=128,
+        n_batches=8,
+        sparsity=0.0,
+        on_the_fly=True,
+        validation=False,
+        device=device,
+        target_type="reg",
+        mr=None,
+        cache_host_ratio=None,
+    )
+
+    with TmpDir(n_dirs=1, delete=True) as tmpdirs, Chdir(tmpdirs[0]):
+        booster_0, results_0 = qdm_train(opts, params, 8, [])
+
+        with local_cluster(device=device, n_workers=2) as cluster:
+            with Client(cluster) as client:
+                booster_1, results_1 = bench(
+                    client, 8, opts, params, loadfrom=[], verbosity=1
+                )
+
+        def get_keys(results: dict) -> list[str]:
+            stack = [results]
+            keys = []
+            while len(stack) != 0:
+                obj = stack.pop()
+                for k, v in obj.items():
+                    if isinstance(v, dict):
+                        stack.append(v)
+                    else:
+                        keys.append(k)
+            return keys
+
+        keys_0 = get_keys(results_0)
+        keys_1 = get_keys(results_1)
+        assert keys_0 == keys_1
+
+        with open("extmem-0.json", "r") as fd:
+            results_0 = json.load(fd)
+        with open("dist-0.json", "r") as fd:
+            results_1 = json.load(fd)
+
+        keys_0 = get_keys(results_0)
+        keys_1 = get_keys(results_1)
+        assert keys_0 == keys_1

@@ -175,7 +175,7 @@ def bench(
     params: dict[str, Any],
     loadfrom: list[str],
     verbosity: int,
-) -> xgboost.Booster:
+) -> tuple[xgboost.Booster, dict[str, Any]]:
     workers = get_client_workers(client)
     fprint(f"Workers: {workers}")
     n_workers = len(workers)
@@ -247,7 +247,7 @@ def bench(
         "machine": machine,
     }
     save_results(results, "dist")
-    return boosters[0][0]
+    return boosters[0][0], results
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:
