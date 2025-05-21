@@ -304,7 +304,12 @@ def train_test_split(
         return X_train, X_test, y_train, y_test
 
 
-class BenchIter(xgb.DataIter):
+class DxgbIter(xgb.DataIter):
+    @abstractproperty
+    def n_batches(self) -> int: ...
+
+
+class BenchIter(DxgbIter):
     """A custom iterator for profiling."""
 
     def __init__(self, it: IterImpl, is_ext: bool, is_valid: bool, device: str) -> None:
@@ -317,6 +322,11 @@ class BenchIter(xgb.DataIter):
             super().__init__(cache_prefix="cache", on_host=True)
         else:
             super().__init__()
+
+    @override
+    @property
+    def n_batches(self) -> int:
+        return self._impl.n_batches
 
     def next(self, input_data: Callable) -> bool:
         if self._it == self._impl.n_batches:
@@ -337,7 +347,7 @@ class BenchIter(xgb.DataIter):
         gc.collect()
 
 
-class StridedIter(xgb.DataIter):
+class StridedIter(DxgbIter):
     """An iterator for loading data with strided iteration."""
 
     def __init__(
@@ -361,6 +371,12 @@ class StridedIter(xgb.DataIter):
             super().__init__(cache_prefix="cache", on_host=True)
         else:
             super().__init__()
+
+    @override
+    @property
+    def n_batches(self) -> int:
+        n_total_batches = self._impl.n_batches
+        return n_total_batches // self._stride
 
     def next(self, input_data: Callable) -> bool:
         if self._it >= self._impl.n_batches:

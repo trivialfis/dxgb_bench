@@ -126,13 +126,39 @@ def test_strided_load_iter(device: Device) -> None:
         strided_iter(device, n_batches, it_impl, stride)
 
 
+def get_keys(results: dict, opts: Opts) -> list[str]:
+    stack = [results]
+    keys = []
+    while len(stack) != 0:
+        obj = stack.pop()
+        for k, v in obj.items():
+            if isinstance(v, dict):
+                stack.append(v)
+            else:
+                keys.append(k)
+            if k == "n_samples_per_batch":
+                assert v == opts.n_samples_per_batch
+            elif k == "n_features":
+                assert v == opts.n_features
+            elif k == "n_batches":
+                assert v == opts.n_batches
+            elif k == "sparsity":
+                assert np.allclose(v, opts.sparsity, rtol=1e-2)
+    return keys
+
+
 @pytest.mark.parametrize("device", devices())
-def test_output_json(device: Device) -> None:
+def test_syn_json(device: Device) -> None:
     params = {"device": device, "max_bin": 8, "max_depth": 2, "eta": 0.1}
+
+    n_samples_per_batch = 256
+    n_features = 128
+    n_batches = 8
+
     opts = Opts(
-        n_samples_per_batch=256,
-        n_features=128,
-        n_batches=8,
+        n_samples_per_batch=n_samples_per_batch,
+        n_features=n_features,
+        n_batches=n_batches,
         sparsity=0.0,
         on_the_fly=True,
         validation=False,
@@ -153,20 +179,8 @@ def test_output_json(device: Device) -> None:
                     client, 8, opts, params, loadfrom=[], verbosity=1
                 )
 
-        def get_keys(results: dict) -> list[str]:
-            stack = [results]
-            keys = []
-            while len(stack) != 0:
-                obj = stack.pop()
-                for k, v in obj.items():
-                    if isinstance(v, dict):
-                        stack.append(v)
-                    else:
-                        keys.append(k)
-            return keys
-
-        keys_0 = get_keys(results_0)
-        keys_1 = get_keys(results_1)
+        keys_0 = get_keys(results_0, opts)
+        keys_1 = get_keys(results_1, opts)
         assert keys_0 == keys_1
 
         with open("extmem-0.json", "r") as fd:
@@ -174,6 +188,65 @@ def test_output_json(device: Device) -> None:
         with open("dist-0.json", "r") as fd:
             results_1 = json.load(fd)
 
-        keys_0 = get_keys(results_0)
-        keys_1 = get_keys(results_1)
+        keys_0 = get_keys(results_0, opts)
+        keys_1 = get_keys(results_1, opts)
+        assert keys_0 == keys_1
+
+
+@pytest.mark.parametrize("device", devices())
+def test_load_json(device: Device) -> None:
+    params = {"device": device, "max_bin": 8, "max_depth": 2, "eta": 0.1}
+
+    n_samples_per_batch = 256
+    n_features = 128
+    n_batches = 8
+    sparsity = 0.3
+
+    with TmpDir(n_dirs=2, delete=True) as tmpdirs, Chdir(tmpdirs[0]):
+        datagen(
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            n_batches=n_batches,
+            assparse=False,
+            target_type="reg",
+            sparsity=sparsity,
+            device=device,
+            outdirs=tmpdirs,
+            fmt="npy",
+        )
+
+        opts = Opts(
+            n_samples_per_batch=n_samples_per_batch,
+            n_features=n_features,
+            n_batches=n_batches,
+            sparsity=sparsity,
+            on_the_fly=True,
+            validation=False,
+            device=device,
+            target_type="reg",
+            mr=None,
+            cache_host_ratio=None,
+        )
+
+        Timer.reset()
+        booster_0, results_0 = qdm_train(opts, params, 8, tmpdirs)
+
+        Timer.reset()
+        with local_cluster(device=device, n_workers=2) as cluster:
+            with Client(cluster) as client:
+                booster_1, results_1 = bench(
+                    client, 8, opts, params, loadfrom=[], verbosity=1
+                )
+
+        keys_0 = get_keys(results_0, opts)
+        keys_1 = get_keys(results_1, opts)
+        assert keys_0 == keys_1
+
+        with open("extmem-0.json", "r") as fd:
+            results_0 = json.load(fd)
+        with open("dist-0.json", "r") as fd:
+            results_1 = json.load(fd)
+
+        keys_0 = get_keys(results_0, opts)
+        keys_1 = get_keys(results_1, opts)
         assert keys_0 == keys_1

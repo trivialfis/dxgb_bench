@@ -22,15 +22,20 @@ from .datasets.generated import make_dense_regression, make_sparse_regression
 from .strip import make_strips
 from .utils import (
     DFT_OUT,
+    EvalsLog,
+    Opts,
     Timer,
     add_data_params,
     add_device_param,
     add_hyper_param,
     add_target_type,
+    fill_opts_shape,
     machine_info,
     make_params_from_args,
+    merge_opts,
     mkdirs,
     peak_rmm_memory_bytes,
+    save_results,
     split_path,
 )
 
@@ -108,61 +113,105 @@ def bench(
     for d in loadfrom:
         assert os.path.exists(d)
 
-    if task == "qdm":
-        X, y = load_all(loadfrom, device)
-        if valid:
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=TEST_SIZE, random_state=2024
-            )
-            with Timer("Qdm", "Train-DMatrix"):
-                Xy = QuantileDMatrix(X_train, y_train)
-            with Timer("Qdm", "Valid-DMatrix"):
-                Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
-            watches = [(Xy, "Train"), (Xy_valid, "Valid")]
+    with Timer("Train", "Total"):
+        if task == "qdm":
+            X, y = load_all(loadfrom, device)
+            if valid:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=TEST_SIZE, random_state=2024
+                )
+                with Timer("Train", "DMatrix-Train"):
+                    Xy = QuantileDMatrix(X_train, y_train)
+                with Timer("Train", "DMatrix-Valid"):
+                    Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
+                watches = [(Xy, "Train"), (Xy_valid, "Valid")]
+            else:
+                with Timer("Train", "DMatrix-Train"):
+                    Xy = QuantileDMatrix(X, y)
+                    Xy_valid = None
+                watches = [(Xy, "Train")]
+
+            with Timer("Train", "Train"):
+                booster = xgb.train(
+                    params,
+                    Xy,
+                    num_boost_round=n_rounds,
+                    evals=watches,
+                    verbose_eval=True,
+                )
         else:
-            with Timer("Qdm", "Train-DMatrix"):
-                Xy = QuantileDMatrix(X, y)
-                Xy_valid = None
-            watches = [(Xy, "Train")]
-    else:
-        assert task == "qdm-iter"
-        if valid:
-            it_impl = LoadIterStrip(
-                loadfrom, test_size=TEST_SIZE, is_valid=False, device=device
+            assert task == "qdm-iter"
+            if valid:
+                it_impl = LoadIterStrip(
+                    loadfrom, test_size=TEST_SIZE, is_valid=False, device=device
+                )
+                it_train = BenchIter(
+                    it_impl, is_ext=False, is_valid=False, device=device
+                )
+
+                it_impl = LoadIterStrip(
+                    loadfrom, test_size=TEST_SIZE, is_valid=True, device=device
+                )
+                it_valid = BenchIter(
+                    it_impl, is_ext=False, is_valid=True, device=device
+                )
+            else:
+                it_impl = LoadIterStrip(
+                    loadfrom, test_size=None, is_valid=False, device=device
+                )
+                it_train = BenchIter(
+                    it_impl, is_ext=False, is_valid=False, device=device
+                )
+                it_valid = None
+
+            with Timer("Train", "DMatrix-Train"):
+                Xy = QuantileDMatrix(it_train)
+                watches = [(Xy, "Train")]
+            if valid:
+                with Timer("Train", "DMatrix-Valid"):
+                    Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
+                    watches.append((Xy_valid, "Valid"))
+
+            evals_result: EvalsLog = {}
+            with Timer("Train", "Train"):
+                booster = xgb.train(
+                    params,
+                    Xy,
+                    num_boost_round=n_rounds,
+                    evals=watches,
+                    verbose_eval=True,
+                    evals_result=evals_result,
+                )
+
+            assert booster.num_boosted_rounds() == n_rounds
+            print(f"Trained for {n_rounds} iterations.")
+            print(Timer.global_timer())
+
+            opts = Opts(
+                n_samples_per_batch=-1,
+                n_features=-1,
+                n_batches=-1,
+                sparsity=-1.0,
+                on_the_fly=False,
+                validation=valid,
+                device=device,
+                mr=None,
+                target_type="reg",
+                cache_host_ratio=None,
             )
-            it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
+            opts = fill_opts_shape(opts, Xy, Xy_valid, it_impl.n_batches)
 
-            it_impl = LoadIterStrip(
-                loadfrom, test_size=TEST_SIZE, is_valid=True, device=device
-            )
-            it_valid = BenchIter(it_impl, is_ext=False, is_valid=True, device=device)
-        else:
-            it_impl = LoadIterStrip(
-                loadfrom, test_size=None, is_valid=False, device=device
-            )
-            it_train = BenchIter(it_impl, is_ext=False, is_valid=False, device=device)
-            it_valid = None
-
-        with Timer("Qdm", "Train-DMatrix-Iter"):
-            Xy = QuantileDMatrix(it_train)
-            watches = [(Xy, "Train")]
-        if valid:
-            with Timer("Qdm", "Valid-DMatrix-Iter"):
-                Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
-                watches.append((Xy_valid, "Valid"))
-
-    with Timer("Qdm", "train"):
-        booster = xgb.train(
-            params,
-            Xy,
-            num_boost_round=n_rounds,
-            evals=watches,
-            verbose_eval=True,
-        )
-
-    assert booster.num_boosted_rounds() == n_rounds
-    print(f"Trained for {n_rounds} iterations.")
-    print(Timer.global_timer())
+            machine = machine_info(opts.device)
+            opts_dict = merge_opts(opts, params)
+            opts_dict["n_rounds"] = n_rounds
+            opts_dict["n_workers"] = 1
+            results = {
+                "opts": opts_dict,
+                "timer": Timer.global_timer(),
+                "evals": evals_result,
+                "machine": machine,
+            }
+            save_results(results, "incore")
 
 
 def cli_main() -> None:
@@ -242,6 +291,7 @@ def cli_main() -> None:
         assert args.command == "bench"
         loadfrom = split_path(args.loadfrom)
         params = make_params_from_args(args)
+
         bench(args.task, loadfrom, params, args.n_rounds, args.valid, args.device)
 
 

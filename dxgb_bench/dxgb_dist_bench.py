@@ -24,6 +24,7 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     add_rmm_param,
+    fill_opts_shape,
     fprint,
     machine_info,
     make_params_from_args,
@@ -51,7 +52,7 @@ class ForwardLoggingMonitor(EvaluationMonitor):
 
 
 def make_iter(
-    opts: Opts, loadfrom: list[str], n_worker_batches: int, rs: int
+    opts: Opts, loadfrom: list[str]
 ) -> tuple[StridedIter, StridedIter | None]:
     if opts.on_the_fly:
         if opts.validation:
@@ -60,33 +61,30 @@ def make_iter(
             it_train_impl: IterImpl = SynIterImpl(
                 n_samples_per_batch=n_train_samples,
                 n_features=opts.n_features,
-                n_batches=n_worker_batches,
+                n_batches=opts.n_batches,
                 sparsity=opts.sparsity,
                 assparse=False,
                 target_type=opts.target_type,
                 device=opts.device,
-                rs=rs,
             )
             it_valid_impl: IterImpl | None = SynIterImpl(
                 n_samples_per_batch=n_valid_samples,
                 n_features=opts.n_features,
-                n_batches=n_worker_batches,
+                n_batches=opts.n_batches,
                 sparsity=opts.sparsity,
                 assparse=False,
                 target_type=opts.target_type,
                 device=opts.device,
-                rs=rs + (n_train_samples * opts.n_features * n_worker_batches),
             )
         else:
             it_train_impl = SynIterImpl(
                 n_samples_per_batch=opts.n_samples_per_batch,
                 n_features=opts.n_features,
-                n_batches=n_worker_batches,
+                n_batches=opts.n_batches,
                 sparsity=opts.sparsity,
                 assparse=False,
                 target_type=opts.target_type,
                 device=opts.device,
-                rs=rs,
             )
             it_valid_impl = None
     else:
@@ -124,13 +122,11 @@ def train(
     opts: Opts,
     n_rounds: int,
     rabit_args: dict[str, Any],
-    n_worker_batches: int,
     params: dict[str, Any],
     loadfrom: list[str],
-    rs: int,
     log_cb: EvaluationMonitor,
     verbosity: int,
-) -> tuple[xgboost.Booster, dict[str, Any]]:
+) -> tuple[xgboost.Booster, dict[str, Any], Opts]:
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
@@ -147,7 +143,7 @@ def train(
         with xgboost.config_context(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
-            it_train, it_valid = make_iter(opts, loadfrom, n_worker_batches, rs)
+            it_train, it_valid = make_iter(opts, loadfrom)
             Xy_train, watches = make_extmem_qdms(
                 opts, params["max_bin"], it_train, it_valid
             )
@@ -163,9 +159,13 @@ def train(
                     callbacks=[log_cb],
                     evals_result=evals_result,
                 )
+    if len(watches) >= 2:
+        opts = fill_opts_shape(opts, Xy_train, watches[1][0], it_train.n_batches)
+    else:
+        opts = fill_opts_shape(opts, Xy_train, None, it_train.n_batches)
     results["timer"] = Timer.global_timer()
     results["evals"] = evals_result
-    return booster, results
+    return booster, results, opts
 
 
 def bench(
@@ -187,43 +187,61 @@ def bench(
     if opts.on_the_fly:
         n_batches_per_worker = opts.n_batches // n_workers
         assert n_batches_per_worker > 1
-    else:
-        n_batches_per_worker = 0
 
     with Timer("Train", "Total", logger=lambda msg: _get_logger().info(msg)):
         futures = []
         for worker_id, worker in enumerate(workers):
-            n_batches_prev = worker_id * n_batches_per_worker
-            if opts.on_the_fly:
-                rs = n_batches_prev * opts.n_samples_per_batch * opts.n_features
-                n_batches = min(n_batches_per_worker, opts.n_batches - n_batches_prev)
-            else:
-                rs = 0
-                n_batches = -1
             fut = client.submit(
                 train,
                 opts,
                 n_rounds,
                 rabit_args,
-                n_batches,
                 params,
                 loadfrom,
-                rs,
                 log_cb,
                 verbosity,
                 workers=[workers[worker_id]],
                 pure=False,
             )
-            n_batches_prev += n_batches
             futures.append(fut)
-        boosters: list[tuple[xgboost.Booster, dict[str, Any]]] = client.gather(futures)
-        assert len(boosters) == n_workers
-        assert all(b[0].num_boosted_rounds() == n_rounds for b in boosters)
+        train_results: list[tuple[xgboost.Booster, dict[str, Any], Opts]] = (
+            client.gather(futures)
+        )
+        assert len(train_results) == n_workers
+        assert all(b[0].num_boosted_rounds() == n_rounds for b in train_results)
 
-    timers = [t["timer"] for _, t in boosters]
-    evals = boosters[0][1]["evals"]
+    boosters, w_results, w_opts = zip(*train_results)
+    timers = [t["timer"] for t in w_results]
+    evals = w_results[0]["evals"]
+
+    n_total_batches = 0
+    sparsity = 0.0
+    n_features = 0
+    n_samples_per_batch = 0
+    for o in w_opts:
+        n_total_batches += o.n_batches
+        n_features = o.n_features
+        n_samples_per_batch = o.n_samples_per_batch
+        sparsity += o.sparsity
+    sparsity /= n_workers
+
     client_timer = Timer.global_timer()
 
+    # Merge the inferred opts
+    opts.sparsity = sparsity
+    if opts.on_the_fly:
+        assert opts.n_batches == n_total_batches, (opts.n_batches, n_total_batches)
+        assert n_features == opts.n_features, (n_features, opts.n_features)
+        assert opts.n_samples_per_batch == n_samples_per_batch, (
+            opts.n_samples_per_batch,
+            n_samples_per_batch,
+        )
+    else:
+        opts.n_batches = n_total_batches
+        opts.n_features = n_features
+        opts.n_samples_per_batch = n_samples_per_batch
+
+    # Merge timers
     max_timer: dict[str, dict[str, float]] = {}
     for timer in timers:
         for k, v in timer.items():
@@ -247,7 +265,7 @@ def bench(
         "machine": machine,
     }
     save_results(results, "dist")
-    return boosters[0][0], results
+    return boosters[0], results
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:

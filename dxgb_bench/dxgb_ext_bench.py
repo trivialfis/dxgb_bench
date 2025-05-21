@@ -20,6 +20,7 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     add_rmm_param,
+    fill_opts_shape,
     machine_info,
     make_params_from_args,
     merge_opts,
@@ -57,7 +58,11 @@ def qdm_train(
                 verbose_eval=True,
                 evals_result=evals_result,
             )
-
+    if len(watches) >= 2:
+        assert watches[1][1] == "Valid"
+        opts = fill_opts_shape(opts, Xy_train, watches[1][0], it_train.n_batches)
+    else:
+        opts = fill_opts_shape(opts, Xy_train, None, it_train.n_batches)
     opts_dict = merge_opts(opts, params)
     opts_dict["n_rounds"] = n_rounds
     opts_dict["n_workers"] = 1
