@@ -129,6 +129,38 @@ def spdm_train(
     return booster
 
 
+def make_extmem_qdms(
+    opts: Opts, max_bin: int, it_train: xgb.DataIter, it_valid: xgb.DataIter | None
+) -> tuple[xgb.ExtMemQuantileDMatrix, list[tuple[xgb.ExtMemQuantileDMatrix, str]]]:
+    """Create `ExtMemQuantileDMatrix`."""
+    with Timer("Train", "DMatrix-Train"):
+        dargs = {
+            "data": it_train,
+            "max_bin": max_bin,
+            "max_quantile_batches": 32,
+        }
+        if has_chr():
+            dargs["cache_host_ratio"] = opts.cache_host_ratio
+
+        Xy_train = xgb.ExtMemQuantileDMatrix(**dargs)
+
+    watches = [(Xy_train, "Train")]
+
+    if it_valid is not None:
+        with Timer("Train", "DMatrix-Valid"):
+            # cache_host_ratio is not used here, but set it anyway.
+            dargs = {
+                "data": it_valid,
+                "max_bin": max_bin,
+                "ref": Xy_train,
+            }
+            if has_chr():
+                dargs["cache_host_ratio"] = opts.cache_host_ratio
+            Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
+            watches.append((Xy_valid, "Valid"))
+    return Xy_train, watches
+
+
 def qdm_train(
     opts: Opts,
     params: dict[str, Any],
@@ -140,33 +172,9 @@ def qdm_train(
         setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
-    with Timer("ExtQdm", "DMatrix-Train"):
-        dargs = {
-            "data": it_train,
-            "max_bin": params["max_bin"],
-            "max_quantile_batches": 32,
-        }
-        if has_chr():
-            dargs["cache_host_ratio"] = opts.cache_host_ratio
+    Xy_train, watches = make_extmem_qdms(opts, params["max_bin"], it_train, it_valid)
 
-        Xy_train = xgb.ExtMemQuantileDMatrix(**dargs)
-
-    watches = [(Xy_train, "Train")]
-
-    if it_valid is not None:
-        with Timer("ExtQdm", "DMatrix-Valid"):
-            # cache_host_ratio is not used here, but set it anyway.
-            dargs = {
-                "data": it_valid,
-                "max_bin": params["max_bin"],
-                "ref": Xy_train,
-            }
-            if has_chr():
-                dargs["cache_host_ratio"] = opts.cache_host_ratio
-            Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
-            watches.append((Xy_valid, "Valid"))
-
-    with Timer("ExtQdm", "train"):
+    with Timer("Train", "train"):
         booster = xgb.train(
             params,
             Xy_train,
