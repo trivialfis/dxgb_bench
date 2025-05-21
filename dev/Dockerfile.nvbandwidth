@@ -1,0 +1,36 @@
+FROM nvcr.io/nvidia/cuda:12.8.0-devel-ubuntu24.04 AS build
+
+ENV DEBIAN_FRONTEND noninteractive
+SHELL ["/bin/bash", "-c"]
+
+RUN \
+    apt-get update && apt-get upgrade -y
+
+RUN \
+    apt-get install cmake libboost-program-options-dev ninja-build git -y
+
+RUN \
+    mkdir ws
+
+RUN \
+    cd /ws && \
+    git clone https://github.com/NVIDIA/nvbandwidth && \
+    cd nvbandwidth && \
+    git checkout v0.8
+
+RUN \
+    cd /ws/nvbandwidth && \
+    mkdir build && cd build && \
+    cmake .. -GNinja && \
+    time ninja && \
+    cp ./nvbandwidth /usr/bin/nvbandwidth
+
+FROM nvcr.io/nvidia/cuda:12.8.0-base-ubuntu24.04
+
+RUN \
+    apt-get update && apt-get upgrade -y
+
+RUN \
+    apt-get install libboost-program-options-dev libnvidia-ml-dev -y
+
+COPY --from=build /usr/bin/nvbandwidth /usr/bin/nvbandwidth
