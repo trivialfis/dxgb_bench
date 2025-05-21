@@ -472,3 +472,26 @@ def save_results(results: dict[str, Any], prefix: str) -> None:
     print(f"saving results to: {path}")
     with open(path, "w") as fd:
         json.dump(results, fd, indent=2)
+
+
+def fill_opts_shape(
+    opts: Opts, Xy: xgb.DMatrix, Xy_valid: xgb.DMatrix | None, n_batches: int
+) -> Opts:
+    def get_valid(field: str) -> int:
+        if Xy_valid is not None:
+            v = getattr(Xy_valid, field)()
+        else:
+            v = 0
+        return v
+
+    n_samples = Xy.num_row() + get_valid("num_row")
+    assert n_samples % n_batches == 0
+    density = (Xy.num_nonmissing() + get_valid("num_nonmissing")) / (
+        n_samples * Xy.num_col()
+    )
+    sparsity = 1.0 - density
+    opts.n_samples_per_batch = n_samples // n_batches
+    opts.n_features = Xy.num_col()
+    opts.sparsity = sparsity
+    opts.n_batches = n_batches
+    return opts

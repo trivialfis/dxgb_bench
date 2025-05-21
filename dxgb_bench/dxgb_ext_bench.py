@@ -26,6 +26,7 @@ from .utils import (
     save_results,
     setup_rmm,
     split_path,
+    fill_opts_shape,
 )
 
 
@@ -57,7 +58,9 @@ def qdm_train(
                 verbose_eval=True,
                 evals_result=evals_result,
             )
-
+    if len(watches) >= 2:
+        assert watches[1][1] == "Valid"
+        opts = fill_opts_shape(opts, Xy_train, watches[1][0], it_train.n_batches)
     opts_dict = merge_opts(opts, params)
     opts_dict["n_rounds"] = n_rounds
     opts_dict["n_workers"] = 1

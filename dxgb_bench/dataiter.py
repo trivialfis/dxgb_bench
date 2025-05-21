@@ -304,7 +304,12 @@ def train_test_split(
         return X_train, X_test, y_train, y_test
 
 
-class BenchIter(xgb.DataIter):
+class DxgbIter(xgb.DataIter):
+    @abstractproperty
+    def n_batches(self) -> int: ...
+
+
+class BenchIter(DxgbIter):
     """A custom iterator for profiling."""
 
     def __init__(self, it: IterImpl, is_ext: bool, is_valid: bool, device: str) -> None:
@@ -337,7 +342,7 @@ class BenchIter(xgb.DataIter):
         gc.collect()
 
 
-class StridedIter(xgb.DataIter):
+class StridedIter(DxgbIter):
     """An iterator for loading data with strided iteration."""
 
     def __init__(
