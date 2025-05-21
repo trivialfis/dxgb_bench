@@ -231,15 +231,14 @@ def bench(
     opts.sparsity = sparsity
     if opts.on_the_fly:
         assert opts.n_batches == n_total_batches, (opts.n_batches, n_total_batches)
+        assert n_features == opts.n_features, (n_features, opts.n_features)
+        assert opts.n_samples_per_batch == n_samples_per_batch, (
+            opts.n_samples_per_batch,
+            n_samples_per_batch,
+        )
     else:
         opts.n_batches = n_total_batches
-    if opts.on_the_fly:
-        assert n_features == opts.n_features
-    else:
         opts.n_features = n_features
-    if opts.on_the_fly:
-        assert opts.n_samples_per_batch == n_samples_per_batch
-    else:
         opts.n_samples_per_batch = n_samples_per_batch
 
     # Merge timers
