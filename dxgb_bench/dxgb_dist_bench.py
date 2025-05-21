@@ -24,6 +24,7 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     add_rmm_param,
+    fill_opts_shape,
     fprint,
     machine_info,
     make_params_from_args,
@@ -163,6 +164,10 @@ def train(
                     callbacks=[log_cb],
                     evals_result=evals_result,
                 )
+    if len(watches) >= 2:
+        opts = fill_opts_shape(opts, Xy_train, watches[1][0], it_train.n_batches)
+    else:
+        opts = fill_opts_shape(opts, Xy_train, None, it_train.n_batches)
     results["timer"] = Timer.global_timer()
     results["evals"] = evals_result
     return booster, results

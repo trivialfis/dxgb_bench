@@ -323,6 +323,11 @@ class BenchIter(DxgbIter):
         else:
             super().__init__()
 
+    @override
+    @property
+    def n_batches(self) -> int:
+        return self._impl.n_batches
+
     def next(self, input_data: Callable) -> bool:
         if self._it == self._impl.n_batches:
             return False
@@ -366,6 +371,12 @@ class StridedIter(DxgbIter):
             super().__init__(cache_prefix="cache", on_host=True)
         else:
             super().__init__()
+
+    @override
+    @property
+    def n_batches(self) -> int:
+        n_total_batches = self._impl.n_batches
+        return n_total_batches // self._stride
 
     def next(self, input_data: Callable) -> bool:
         if self._it >= self._impl.n_batches:
