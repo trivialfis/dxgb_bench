@@ -50,3 +50,6 @@ COPY dxgb_bench ws/dxgb_bench
 RUN \
     cd /ws/ && \
     ./build_dxgb_bench.sh
+
+RUN \
+    apt-get install time -y
