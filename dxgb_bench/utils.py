@@ -390,7 +390,9 @@ def c2cinfo() -> int | None:
 
     nm.nvmlShutdown()
 
-    return int(lc.value.siVal)
+    if lc is not None:
+        return int(lc.value.siVal)
+    return lc
 
 
 def machine_info(device: str) -> dict:
