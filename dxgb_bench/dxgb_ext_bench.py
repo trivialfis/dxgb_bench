@@ -12,6 +12,7 @@ from .external_mem import (
 )
 from .utils import (
     Opts,
+    merge_opts,
     Timer,
     add_data_params,
     add_device_param,
@@ -57,13 +58,24 @@ def main(args: argparse.Namespace) -> None:
             loadfrom=loadfrom,
         )
     elif args.task == "ext-qdm":
-        booster, results = qdm_train(
-            opts,
-            params=make_params_from_args(args),
-            n_rounds=args.n_rounds,
-            loadfrom=loadfrom,
-        )
-        results["machine"] = machine
+        params = make_params_from_args(args)
+        with Timer("Train", "Total"):
+            booster, evals = qdm_train(
+                opts,
+                params=params,
+                n_rounds=args.n_rounds,
+                loadfrom=loadfrom,
+            )
+
+        opts_dict = merge_opts(opts, params)
+        opts_dict["n_rounds"] = args.n_rounds
+        opts_dict["n_workers"] = 1
+        results = {
+            "opts": opts_dict,
+            "timer": Timer.global_timer(),
+            "evals": evals,
+            "machine": machine,
+        }
         save_results(results, "extmem")
     else:
         raise ValueError(f"Invalid task: {args.task}")

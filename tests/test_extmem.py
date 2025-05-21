@@ -49,10 +49,10 @@ def test_qdm_train(device: Device, fmt: str) -> None:
             fmt=fmt,
         )
 
-        booster = qdm_train(opts, params, 8, outdirs)
+        booster, evals = qdm_train(opts, params, 8, outdirs)
 
     assert booster.num_features() == n_features
     assert booster.num_boosted_rounds() == 8
 
-    assert timer["Train"]["train"] > 0
+    assert timer["Train"]["Train"] > 0
     assert timer["Train"]["DMatrix-Train"] > 0

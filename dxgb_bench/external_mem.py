@@ -13,7 +13,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import EvalsLog, Opts, Timer, has_chr, merge_opts, setup_rmm
+from .utils import EvalsLog, Opts, Timer, has_chr, setup_rmm
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -166,7 +166,7 @@ def qdm_train(
     params: dict[str, Any],
     n_rounds: int,
     loadfrom: list[str],
-) -> tuple[xgb.Booster, dict[str, Any]]:
+) -> tuple[xgb.Booster, EvalsLog]:
     """Train with the ExtMemQuantileDMatrix."""
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
@@ -185,11 +185,4 @@ def qdm_train(
             evals_result=evals_result,
         )
 
-    results: dict[str, Any] = {}
-    opts_dict = merge_opts(opts, params)
-    opts_dict["n_rounds"] = n_rounds
-    opts_dict["n_workers"] = 1
-    results["opts"] = opts_dict
-    results["timer"] = Timer.global_timer()
-    results["evals"] = evals_result
-    return booster, results
+    return booster, evals_result

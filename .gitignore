@@ -17,4 +17,4 @@ rmm_log*
 .gdb_history
 _tdata*
 .aider.chat.history.md
-results-*.json
+*-*.json
