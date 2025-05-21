@@ -3,16 +3,18 @@
 
 import argparse
 import os
+from typing import Any
 
 import xgboost as xgb
 
 from .external_mem import (
-    qdm_train,
+    make_extmem_qdms,
+    make_iter,
     spdm_train,
 )
 from .utils import (
+    EvalsLog,
     Opts,
-    merge_opts,
     Timer,
     add_data_params,
     add_device_param,
@@ -20,9 +22,54 @@ from .utils import (
     add_rmm_param,
     machine_info,
     make_params_from_args,
+    merge_opts,
     save_results,
+    setup_rmm,
     split_path,
 )
+
+
+def qdm_train(
+    opts: Opts,
+    params: dict[str, Any],
+    n_rounds: int,
+    loadfrom: list[str],
+) -> tuple[xgb.Booster, dict[str, Any]]:
+    """Train with the ExtMemQuantileDMatrix."""
+    if opts.device == "cuda" and opts.mr is not None:
+        setup_rmm(opts.mr)
+
+    machine = machine_info(opts.device)
+
+    with Timer("Train", "Total"):
+        it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
+        Xy_train, watches = make_extmem_qdms(
+            opts, params["max_bin"], it_train, it_valid
+        )
+        evals_result: EvalsLog = {}
+
+        with Timer("Train", "Train"):
+            booster = xgb.train(
+                params,
+                Xy_train,
+                num_boost_round=n_rounds,
+                evals=watches,
+                verbose_eval=True,
+                evals_result=evals_result,
+            )
+
+    opts_dict = merge_opts(opts, params)
+    opts_dict["n_rounds"] = n_rounds
+    opts_dict["n_workers"] = 1
+    results = {
+        "opts": opts_dict,
+        "timer": Timer.global_timer(),
+        "evals": evals_result,
+        "machine": machine,
+    }
+    save_results(results, "extmem")
+
+    return booster, results
 
 
 def main(args: argparse.Namespace) -> None:
@@ -48,7 +95,6 @@ def main(args: argparse.Namespace) -> None:
     )
     assert opts.mr is not None
     loadfrom = split_path(args.loadfrom)
-    machine = machine_info(opts.device)
 
     if args.task == "ext-sp":
         spdm_train(
@@ -59,24 +105,7 @@ def main(args: argparse.Namespace) -> None:
         )
     elif args.task == "ext-qdm":
         params = make_params_from_args(args)
-        with Timer("Train", "Total"):
-            booster, evals = qdm_train(
-                opts,
-                params=params,
-                n_rounds=args.n_rounds,
-                loadfrom=loadfrom,
-            )
-
-        opts_dict = merge_opts(opts, params)
-        opts_dict["n_rounds"] = args.n_rounds
-        opts_dict["n_workers"] = 1
-        results = {
-            "opts": opts_dict,
-            "timer": Timer.global_timer(),
-            "evals": evals,
-            "machine": machine,
-        }
-        save_results(results, "extmem")
+        qdm_train(opts, params, args.n_rounds, loadfrom)
     else:
         raise ValueError(f"Invalid task: {args.task}")
 

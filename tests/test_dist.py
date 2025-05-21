@@ -121,3 +121,6 @@ def test_strided_load_iter(device: Device) -> None:
         it_impl = LoadIterStrip(outdirs, False, 0.0, device)
 
         strided_iter(device, n_batches, it_impl, stride)
+
+
+def test_output_json() -> None:
