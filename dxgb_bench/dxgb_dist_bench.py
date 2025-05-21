@@ -266,7 +266,7 @@ def bench(
         "machine": machine,
     }
     save_results(results, "dist")
-    return boosters[0][0], results
+    return boosters[0], results
 
 
 def local_cluster(device: str, n_workers: int, **kwargs: Any) -> LocalCluster:
