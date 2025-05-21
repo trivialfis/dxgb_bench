@@ -13,7 +13,7 @@ from dxgb_bench.dxgb_bench import datagen
 from dxgb_bench.dxgb_dist_bench import bench, local_cluster
 from dxgb_bench.dxgb_ext_bench import qdm_train
 from dxgb_bench.testing import Chdir, Device, TmpDir, devices
-from dxgb_bench.utils import Opts
+from dxgb_bench.utils import Opts, Timer
 
 
 @pytest.mark.parametrize("device", devices())
@@ -143,8 +143,10 @@ def test_output_json(device: Device) -> None:
     )
 
     with TmpDir(n_dirs=1, delete=True) as tmpdirs, Chdir(tmpdirs[0]):
+        Timer.reset()
         booster_0, results_0 = qdm_train(opts, params, 8, [])
 
+        Timer.reset()
         with local_cluster(device=device, n_workers=2) as cluster:
             with Client(cluster) as client:
                 booster_1, results_1 = bench(
