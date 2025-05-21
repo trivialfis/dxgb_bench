@@ -220,7 +220,6 @@ def bench(
     n_samples_per_batch = 0
     for o in w_opts:
         n_total_batches += o.n_batches
-        print("n_total_batches:", n_total_batches)
         n_features = o.n_features
         n_samples_per_batch = o.n_samples_per_batch
         sparsity += o.sparsity
