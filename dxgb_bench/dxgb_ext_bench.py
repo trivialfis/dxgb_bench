@@ -17,7 +17,9 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     add_rmm_param,
+    machine_info,
     make_params_from_args,
+    save_results,
     split_path,
 )
 
@@ -45,6 +47,7 @@ def main(args: argparse.Namespace) -> None:
     )
     assert opts.mr is not None
     loadfrom = split_path(args.loadfrom)
+    machine = machine_info(opts.device)
 
     if args.task == "ext-sp":
         spdm_train(
@@ -54,12 +57,14 @@ def main(args: argparse.Namespace) -> None:
             loadfrom=loadfrom,
         )
     elif args.task == "ext-qdm":
-        qdm_train(
+        booster, results = qdm_train(
             opts,
             params=make_params_from_args(args),
             n_rounds=args.n_rounds,
             loadfrom=loadfrom,
         )
+        results["machine"] = machine
+        save_results(results, "extmem")
     else:
         raise ValueError(f"Invalid task: {args.task}")
 

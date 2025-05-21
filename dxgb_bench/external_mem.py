@@ -13,7 +13,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import Opts, Timer, has_chr, setup_rmm
+from .utils import EvalsLog, Opts, Timer, has_chr, merge_opts, setup_rmm
 
 
 def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
@@ -166,20 +166,30 @@ def qdm_train(
     params: dict[str, Any],
     n_rounds: int,
     loadfrom: list[str],
-) -> xgb.Booster:
+) -> tuple[xgb.Booster, dict[str, Any]]:
     """Train with the ExtMemQuantileDMatrix."""
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
     Xy_train, watches = make_extmem_qdms(opts, params["max_bin"], it_train, it_valid)
+    evals_result: EvalsLog = {}
 
-    with Timer("Train", "train"):
+    with Timer("Train", "Train"):
         booster = xgb.train(
             params,
             Xy_train,
             num_boost_round=n_rounds,
             evals=watches,
             verbose_eval=True,
+            evals_result=evals_result,
         )
-    return booster
+
+    results: dict[str, Any] = {}
+    opts_dict = merge_opts(opts, params)
+    opts_dict["n_rounds"] = n_rounds
+    opts_dict["n_workers"] = 1
+    results["opts"] = opts_dict
+    results["timer"] = Timer.global_timer()
+    results["evals"] = evals_result
+    return booster, results

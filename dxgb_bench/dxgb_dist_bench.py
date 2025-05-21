@@ -243,10 +243,10 @@ def bench(
     results = {
         "opts": opts_dict,
         "timer": max_timer,
-        "machine": machine,
         "evals": evals,
+        "machine": machine,
     }
-    save_results(results)
+    save_results(results, "dist")
     return boosters[0][0]
 
 

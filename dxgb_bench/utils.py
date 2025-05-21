@@ -462,9 +462,7 @@ def has_chr() -> bool:
     return (ver.major == 3 and ver.minor > 0) or ver.major > 3
 
 
-def save_results(results: dict[str, Any]) -> None:
-    prefix = "results"
-
+def save_results(results: dict[str, Any], prefix: str) -> None:
     k = 0
     path = prefix + f"-{k}.json"
     while os.path.exists(path):
