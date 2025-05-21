@@ -143,7 +143,7 @@ def get_keys(results: dict, opts: Opts) -> list[str]:
             elif k == "n_batches":
                 assert v == opts.n_batches
             elif k == "sparsity":
-                assert v == opts.sparsity
+                assert np.allclose(v, opts.sparsity, rtol=1e-2)
     return keys
 
 
@@ -200,6 +200,7 @@ def test_load_json(device: Device) -> None:
     n_samples_per_batch = 256
     n_features = 128
     n_batches = 8
+    sparsity = 0.3
 
     with TmpDir(n_dirs=2, delete=True) as tmpdirs, Chdir(tmpdirs[0]):
         datagen(
@@ -208,7 +209,7 @@ def test_load_json(device: Device) -> None:
             n_batches=n_batches,
             assparse=False,
             target_type="reg",
-            sparsity=0.3,
+            sparsity=sparsity,
             device=device,
             outdirs=tmpdirs,
             fmt="npy",
@@ -218,7 +219,7 @@ def test_load_json(device: Device) -> None:
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
             n_batches=n_batches,
-            sparsity=0.0,
+            sparsity=sparsity,
             on_the_fly=True,
             validation=False,
             device=device,
