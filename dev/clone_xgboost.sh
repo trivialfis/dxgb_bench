@@ -4,6 +4,8 @@ if [[ -n ${INSTALL_XGBOOST} ]]; then
     cd /ws
     git clone --recursive  https://github.com/dmlc/xgboost.git
     cd xgboost
-    git checkout 6234b615a51c67193f001ea698ebcce7edb9d764
+    git remote add jiamingy https://github.com/trivialfis/xgboost.git
+    git fetch jiamingy ext-device-page
+    git checkout ext-device-page
     cd /
 fi
