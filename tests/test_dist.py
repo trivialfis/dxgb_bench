@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from itertools import product
 
 import numpy as np
 import pytest
@@ -16,8 +17,8 @@ from dxgb_bench.testing import Chdir, Device, TmpDir, devices
 from dxgb_bench.utils import Opts, Timer
 
 
-@pytest.mark.parametrize("device", devices())
-def test_dist(device: Device) -> None:
+@pytest.mark.parametrize("device,extmem", product(devices(), [True, False]))
+def test_dist(device: Device, extmem: bool) -> None:
     params = {"device": device, "max_bin": 8, "max_depth": 2, "eta": 0.1}
     opts = Opts(
         n_samples_per_batch=256,
@@ -34,7 +35,9 @@ def test_dist(device: Device) -> None:
 
     with local_cluster(device=device, n_workers=2) as cluster:
         with Client(cluster) as client:
-            booster, _ = bench(client, 8, opts, params, loadfrom=[], verbosity=1)
+            booster, _ = bench(
+                client, 8, opts, params, loadfrom=[], verbosity=1, is_extmem=extmem
+            )
             assert booster.num_features() == opts.n_features
             assert booster.num_boosted_rounds() == 8
 
@@ -176,7 +179,7 @@ def test_syn_json(device: Device) -> None:
         with local_cluster(device=device, n_workers=2) as cluster:
             with Client(cluster) as client:
                 booster_1, results_1 = bench(
-                    client, 8, opts, params, loadfrom=[], verbosity=1
+                    client, 8, opts, params, loadfrom=[], verbosity=1, is_extmem=True
                 )
 
         keys_0 = get_keys(results_0, opts)
@@ -235,7 +238,7 @@ def test_load_json(device: Device) -> None:
         with local_cluster(device=device, n_workers=2) as cluster:
             with Client(cluster) as client:
                 booster_1, results_1 = bench(
-                    client, 8, opts, params, loadfrom=[], verbosity=1
+                    client, 8, opts, params, loadfrom=[], verbosity=1, is_extmem=True
                 )
 
         keys_0 = get_keys(results_0, opts)
