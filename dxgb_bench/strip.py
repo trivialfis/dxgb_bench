@@ -119,6 +119,8 @@ class _Npy(Backend):
 
     @override
     def get(self) -> np.ndarray:
+        if len(self._arrays) == 1:
+            return self._arrays[0]
         if self.device == "cpu":
             return np.concatenate(self._arrays, axis=0)
         else:

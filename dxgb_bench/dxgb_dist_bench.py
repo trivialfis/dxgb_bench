@@ -52,7 +52,7 @@ class ForwardLoggingMonitor(EvaluationMonitor):
 
 
 def make_iter(
-    opts: Opts, loadfrom: list[str]
+    opts: Opts, loadfrom: list[str], is_extmem: bool
 ) -> tuple[StridedIter, StridedIter | None]:
     if opts.on_the_fly:
         if opts.validation:
@@ -99,7 +99,7 @@ def make_iter(
         it_train_impl,
         start=coll.get_rank(),
         stride=coll.get_world_size(),
-        is_ext=True,
+        is_ext=is_extmem,
         is_valid=False,
         device=opts.device,
     )
@@ -108,7 +108,7 @@ def make_iter(
             it_valid_impl,
             start=coll.get_rank(),
             stride=coll.get_world_size(),
-            is_ext=True,
+            is_ext=is_extmem,
             is_valid=True,
             device=opts.device,
         )
@@ -116,6 +116,32 @@ def make_iter(
         it_valid = None
 
     return it_train, it_valid
+
+
+def make_iter_qdms(
+    it_train: xgboost.DataIter, it_valid: xgboost.DataIter | None, max_bin: int
+) -> tuple[xgboost.DMatrix, list[tuple[xgboost.DMatrix, str]]]:
+    with Timer("Train", "DMatrix-Train"):
+        dargs = {
+            "data": it_train,
+            "max_bin": max_bin,
+            "max_quantile_batches": 32,
+        }
+
+        Xy_train: xgboost.DMatrix = xgboost.QuantileDMatrix(**dargs)
+
+    watches = [(Xy_train, "Train")]
+
+    if it_valid is not None:
+        with Timer("Train", "DMatrix-Valid"):
+            dargs = {
+                "data": it_valid,
+                "max_bin": max_bin,
+                "ref": Xy_train,
+            }
+            Xy_valid = xgboost.QuantileDMatrix(**dargs)
+            watches.append((Xy_valid, "Valid"))
+    return Xy_train, watches
 
 
 def train(
@@ -126,6 +152,7 @@ def train(
     loadfrom: list[str],
     log_cb: EvaluationMonitor,
     verbosity: int,
+    is_extmem: bool,
 ) -> tuple[xgboost.Booster, dict[str, Any], Opts]:
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
@@ -143,10 +170,15 @@ def train(
         with xgboost.config_context(
             nthread=n_threads, use_rmm=True, verbosity=verbosity
         ):
-            it_train, it_valid = make_iter(opts, loadfrom)
-            Xy_train, watches = make_extmem_qdms(
-                opts, params["max_bin"], it_train, it_valid
-            )
+            it_train, it_valid = make_iter(opts, loadfrom, is_extmem)
+            if is_extmem:
+                Xy_train, watches = make_extmem_qdms(
+                    opts, params["max_bin"], it_train, it_valid
+                )
+            else:
+                Xy_train, watches = make_iter_qdms(
+                    it_train, it_valid, params["max_bin"]
+                )
 
             evals_result: dict[str, dict[str, float]] = {}
             with Timer("Train", "Train", logger=log_fn):
@@ -175,6 +207,7 @@ def bench(
     params: dict[str, Any],
     loadfrom: list[str],
     verbosity: int,
+    is_extmem: bool,
 ) -> tuple[xgboost.Booster, dict[str, Any]]:
     workers = get_client_workers(client)
     fprint(f"Workers: {workers}")
@@ -200,6 +233,7 @@ def bench(
                 loadfrom,
                 log_cb,
                 verbosity,
+                is_extmem,
                 workers=[workers[worker_id]],
                 pure=False,
             )
@@ -292,6 +326,7 @@ def cli_main() -> None:
         action="store_true",
         help="Generate data on the fly instead of loading it from the disk.",
     )
+    parser.add_argument("--task", choices=["ext", "qdm"], required=True)
     parser.add_argument(
         "--valid", action="store_true", help="Split for the validation dataset."
     )
@@ -329,17 +364,28 @@ def cli_main() -> None:
     )
     loadfrom = split_path(args.loadfrom)
     params = make_params_from_args(args)
+    is_extmem = args.task == "ext"
 
     if args.cluster_type == "local":
         with local_cluster(device=args.device, n_workers=args.n_workers) as cluster:
             print("dashboard:", cluster.dashboard_link)
             with Client(cluster) as client:
-                bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
+                bench(
+                    client,
+                    args.n_rounds,
+                    opts,
+                    params,
+                    loadfrom,
+                    args.verbosity,
+                    is_extmem,
+                )
     elif args.cluster_type == "sched":
         sched = args.sched
         assert sched is not None
         with Client(scheduler_file=sched) as client:
-            bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
+            bench(
+                client, args.n_rounds, opts, params, loadfrom, args.verbosity, is_extmem
+            )
     else:
         hosts = args.hosts.split(";")
         rpy = args.rpy
@@ -353,7 +399,15 @@ def cli_main() -> None:
         ) as cluster:
             cluster.wait_for_workers(n_workers=len(hosts) - 1)
             with Client(cluster) as client:
-                bench(client, args.n_rounds, opts, params, loadfrom, args.verbosity)
+                bench(
+                    client,
+                    args.n_rounds,
+                    opts,
+                    params,
+                    loadfrom,
+                    args.verbosity,
+                    is_extmem,
+                )
             logs = cluster.get_logs()
             for k, v in logs.items():
                 fprint(f"{k}\n{v}")

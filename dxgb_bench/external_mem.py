@@ -131,18 +131,18 @@ def spdm_train(
 
 def make_extmem_qdms(
     opts: Opts, max_bin: int, it_train: xgb.DataIter, it_valid: xgb.DataIter | None
-) -> tuple[xgb.ExtMemQuantileDMatrix, list[tuple[xgb.ExtMemQuantileDMatrix, str]]]:
+) -> tuple[xgb.DMatrix, list[tuple[xgb.DMatrix, str]]]:
     """Create `ExtMemQuantileDMatrix`."""
     with Timer("Train", "DMatrix-Train"):
         dargs = {
             "data": it_train,
             "max_bin": max_bin,
-            "max_quantile_batches": 32,
+            "max_quantile_batches": 4,
         }
         if has_chr():
             dargs["cache_host_ratio"] = opts.cache_host_ratio
 
-        Xy_train = xgb.ExtMemQuantileDMatrix(**dargs)
+        Xy_train: xgb.DMatrix = xgb.ExtMemQuantileDMatrix(**dargs)
 
     watches = [(Xy_train, "Train")]
 
