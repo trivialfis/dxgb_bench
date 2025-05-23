@@ -14,11 +14,13 @@ case $arch in
 	wget $URL_ARM
 	echo "02b078c20d0aad765f2695fdbcc33ba3d2152fae9d0c994ae8ea3ce9a9278c5b  ./${DEB_ARM}" | shasum -a 256 --check
 	apt install ./${DEB_ARM} -y
+	rm ./${DEB_ARM}
 	;;
     x86)
 	wget $URL_X86
 	echo "43b9b97a050ac6cfbd2dc70df60eab6809d5055b222971638a555c9d9da8a1c9  ./${DEB_X86}" | shasum -a 256 --check
 	apt install ./${DEB_X86} -y
+	rm ./${DEB_X86}
 	;;
     *)
 	echo "Invalid option. Expected [aarch|x86]."
