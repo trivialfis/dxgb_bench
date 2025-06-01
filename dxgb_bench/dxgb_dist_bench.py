@@ -157,6 +157,13 @@ def train(
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
+        from dask_cuda.utils import get_cpu_affinity
+
+        devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
+        if devices is not None:
+            firstd = devices.split(",")[0]
+            fprint("CPU Affinity:", get_cpu_affinity(firstd))
+
     worker = get_worker()
     results: dict[str, Any] = {}
 
