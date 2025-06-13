@@ -79,7 +79,10 @@ def datagen(
                     random_state=size,
                 )
                 size_str = psize(X)
-                fprint(f"Batch:{i}, estimated size: {size_str}.")
+                fprint(
+                    f"Batch:{i}, estimated size: {size_str}. {i*100/n_batches:.2f}%",
+                    end="\r",
+                )
 
                 if device == "cuda":
                     import cupy as cp
