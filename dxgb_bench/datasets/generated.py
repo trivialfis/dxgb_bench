@@ -119,7 +119,8 @@ def make_sparse_regression(
     return X, y
 
 
-def psize(X: np.ndarray) -> None:
+def psize(X: np.ndarray) -> str:
+    """Print the size into a string."""
     n_bytes = X.itemsize * X.size
     if n_bytes < 1024:
         size = f"{n_bytes} B"
@@ -129,7 +130,7 @@ def psize(X: np.ndarray) -> None:
         size = f"{n_bytes / 1024 ** 2} MB"
     else:
         size = f"{n_bytes / 1024 ** 3} GB"
-    fprint(f"Estimated Size: {size}")
+    return size
 
 
 def make_dense_regression(
@@ -152,7 +153,6 @@ def make_dense_regression(
         seed=random_state,
         sparsity=sparsity,
     )
-    psize(X)
     return X, y
 
 

@@ -18,7 +18,7 @@ from .dataiter import (
     load_all,
     train_test_split,
 )
-from .datasets.generated import make_dense_regression, make_sparse_regression
+from .datasets.generated import make_dense_regression, make_sparse_regression, psize
 from .strip import make_strips
 from .utils import (
     DFT_OUT,
@@ -30,6 +30,7 @@ from .utils import (
     add_hyper_param,
     add_target_type,
     fill_opts_shape,
+    fprint,
     machine_info,
     make_params_from_args,
     merge_opts,
@@ -77,6 +78,8 @@ def datagen(
                     sparsity=sparsity,
                     random_state=size,
                 )
+                size_str = psize(X)
+                fprint(f"Batch:{i}, estimated size: {size_str}.")
 
                 if device == "cuda":
                     import cupy as cp
