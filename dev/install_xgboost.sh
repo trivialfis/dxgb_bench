@@ -5,7 +5,7 @@ SM=$2
 
 echo "CONDA_ENV ${CONDA_PREFIX}"
 
-if [[ -n ${INSTALL_XGBOOST} ]]; then
+if [[ -n ${INSTALL_XGBOOST} && -n ${SM} ]]; then
     cd /ws
     rm -rf ./build
     mkdir build
