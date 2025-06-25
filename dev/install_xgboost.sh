@@ -17,6 +17,7 @@ if [[ -n ${INSTALL_XGBOOST} && -n ${SM} ]]; then
 	  -DUSE_OPENMP=ON \
 	  -DUSE_NVTX=ON \
 	  -DPLUGIN_RMM=ON \
+	  -DUSE_NVCOMP=ON \
 	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
 
     cd /ws/build && time ninja
