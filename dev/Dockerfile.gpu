@@ -39,7 +39,7 @@ COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
     cd /ws/ && \
-    ./clone_xgboost.sh ${INSTALL_XGBOOST} ${XGBOOST_HASH}
+    ./clone_xgboost.sh ${INSTALL_XGBOOST} ${XGBOOST_CHECKOUT}
 
 RUN \
     cd /ws/ && \
