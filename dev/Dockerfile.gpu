@@ -3,6 +3,7 @@ FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
 ARG ARCH
 ARG SM
 ARG INSTALL_XGBOOST
+ARG XGBOOST_CHECKOUT
 
 ENV DEBIAN_FRONTEND noninteractive
 SHELL ["/bin/bash", "-c"]
@@ -38,7 +39,7 @@ COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
     cd /ws/ && \
-    ./clone_xgboost.sh ${INSTALL_XGBOOST}
+    ./clone_xgboost.sh ${INSTALL_XGBOOST} ${XGBOOST_HASH}
 
 RUN \
     cd /ws/ && \
