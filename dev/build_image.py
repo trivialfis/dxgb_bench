@@ -33,6 +33,10 @@ def main(args: argparse.Namespace) -> None:
         cmd.extend(["--build-arg", "INSTALL_XGBOOST=1"])
     else:
         cmd.extend(["--build-arg", "INSTALL_XGBOOST=''"])
+    if args.xgboost_repo is not None:
+        cmd.extend(["--build-arg", f"XGBOOST_REPO={args.xgboost_repo}"])
+    else:
+        cmd.extend(["--build-arg", "XGBOOST_REPO=''"])
     if args.xgboost_checkout is not None:
         cmd.extend(["--build-arg", f"XGBOOST_CHECKOUT={args.xgboost_checkout}"])
     else:
@@ -69,6 +73,7 @@ Examples:
     )
     parser.add_argument("--install-xgboost", action="store_true")
     parser.add_argument("--xgboost-checkout", default=None, type=str)
+    parser.add_argument("--xgboost-repo", default=None, type=str)
     parser.add_argument("--target", choices=["cpu", "gpu"], default="gpu")
     parser.add_argument("--tag", type=str, default=None)
     args = parser.parse_args()
