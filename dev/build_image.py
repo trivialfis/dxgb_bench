@@ -32,15 +32,15 @@ def main(args: argparse.Namespace) -> None:
     if args.install_xgboost:
         cmd.extend(["--build-arg", "INSTALL_XGBOOST=1"])
     else:
-        cmd.extend(["--build-arg", "INSTALL_XGBOOST=''"])
+        cmd.extend(["--build-arg", "INSTALL_XGBOOST="])
     if args.xgboost_repo is not None:
         cmd.extend(["--build-arg", f"XGBOOST_REPO={args.xgboost_repo}"])
     else:
-        cmd.extend(["--build-arg", "XGBOOST_REPO=''"])
+        cmd.extend(["--build-arg", "XGBOOST_REPO="])
     if args.xgboost_checkout is not None:
         cmd.extend(["--build-arg", f"XGBOOST_CHECKOUT={args.xgboost_checkout}"])
     else:
-        cmd.extend(["--build-arg", "XGBOOST_CHECKOUT=''"])
+        cmd.extend(["--build-arg", "XGBOOST_CHECKOUT="])
     if build_args is not None:
         build_args_lst: list[str] = build_args.split(";")
         for kv in build_args_lst:
