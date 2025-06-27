@@ -25,6 +25,7 @@ from .utils import (
     make_params_from_args,
     merge_opts,
     save_results,
+    set_cpu_affinity,
     setup_rmm,
     split_path,
 )
@@ -78,6 +79,8 @@ def qdm_train(
 
 
 def main(args: argparse.Namespace) -> None:
+    set_cpu_affinity()
+
     n_batches = args.n_batches
 
     if args.fly:
