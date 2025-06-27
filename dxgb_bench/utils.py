@@ -504,6 +504,8 @@ mask_size = 64
 
 
 class BitField64:
+    """A simplified version of the bit field in XGBoost."""
+
     def __init__(self, mask: Sequence) -> None:
         self.mask: list[int] = []
         for m in mask:
