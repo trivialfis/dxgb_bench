@@ -12,8 +12,9 @@ import time
 import warnings
 from dataclasses import asdict, dataclass
 from functools import cache
-from typing import TYPE_CHECKING, Any, Callable, Dict, TypeAlias, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, TypeAlias, Union
 
+import numpy as np
 from packaging.version import parse as parse_version
 
 try:
@@ -29,6 +30,7 @@ from xgboost.compat import import_cupy
 
 if TYPE_CHECKING:
     import cudf
+    from cuda.bindings import runtime as cudart
     from dask import array as da
     from dask import dataframe as dd
 
@@ -309,8 +311,7 @@ def setup_rmm(mr_name: str) -> None:
     cp = import_cupy()
 
     status, free, total = cudart.cudaMemGetInfo()
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
+    _checkcu(status)
     print("Setup rmm, total:", total, "free:", free)
 
     match mr_name:
@@ -499,12 +500,101 @@ def fill_opts_shape(
     return opts
 
 
+mask_size = 64
+
+
+class BitField64:
+    def __init__(self, mask: Sequence) -> None:
+        self.mask: list[int] = []
+        for m in mask:
+            self.mask.append(m)
+
+    @staticmethod
+    def to_bit(i: int) -> tuple[int, int]:
+        int_pos, bit_pos = 0, 0
+        if i == 0:
+            return int_pos, bit_pos
+
+        int_pos = i // mask_size
+        bit_pos = i % mask_size
+        return int_pos, bit_pos
+
+    def check(self, i: int) -> bool:
+        ip, bp = self.to_bit(i)
+        value = self.mask[ip]
+        test_bit = 1 << bp
+        res = value & test_bit
+        return bool(res)
+
+
+def _checkcu(status: "cudart.cudaError_t") -> None:
+    from cuda.bindings import runtime as cudart
+
+    if status != cudart.cudaError_t.cudaSuccess:
+        raise RuntimeError(cudart.cudaGetErrorString(status))
+
+
+def get_uuid(ordinal: int) -> str:
+    from cuda.bindings import runtime as cudart
+
+    status, prop = cudart.cudaGetDeviceProperties(ordinal)
+    dash_pos = {0, 4, 6, 8, 10}
+    uuid = "GPU"
+
+    for i in range(16):
+        if i in dash_pos:
+            uuid += "-"
+        h = hex(0xFF & np.int32(prop.uuid.bytes[i]))
+        assert h[:2] == "0x"
+        h = h[2:]
+
+        while len(h) < 2:
+            h = "0" + h
+        uuid += h
+    return uuid
+
+
+def get_cpu_affinity(ordinal: int) -> list[int]:
+    import pynvml as nm
+
+    cnt = os.cpu_count()
+    assert cnt is not None
+
+    uuid = get_uuid(ordinal)
+    hdl = nm.nvmlDeviceGetHandleByUUID(uuid)
+
+    affinity = nm.nvmlDeviceGetCpuAffinity(
+        hdl,
+        math.ceil(cnt / mask_size),
+    )
+    cpumask = BitField64(affinity)
+
+    ints = []
+    for i, mask in enumerate(affinity):
+        ints.append(mask)
+
+    cpus = []
+    for i in range(cnt):
+        if cpumask.check(i):
+            cpus.append(i)
+
+    return cpus
+
+
+def current_device() -> int:
+    from cuda.bindings import runtime as cudart
+
+    status, ordinal = cudart.cudaGetDevice()
+    _checkcu(status)
+    return ordinal
+
+
 def set_cpu_affinity() -> None:
     import pynvml as nm
 
     nm.nvmlInit()
 
-    hdl = nm.nvmlDeviceGetHandleByIndex(0)
-    nm.nvmlDeviceSetCpuAffinity(hdl)
+    cpus = get_cpu_affinity(current_device())
+    os.sched_setaffinity(0, cpus)
 
     nm.nvmlShutdown()
