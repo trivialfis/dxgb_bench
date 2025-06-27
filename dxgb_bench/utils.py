@@ -535,6 +535,7 @@ def _checkcu(status: "cudart.cudaError_t") -> None:
 
 
 def get_uuid(ordinal: int) -> str:
+    """Construct a string representation of UUID."""
     from cuda.bindings import runtime as cudart
 
     status, prop = cudart.cudaGetDeviceProperties(ordinal)
@@ -557,6 +558,7 @@ def get_uuid(ordinal: int) -> str:
 
 
 def get_cpu_affinity(ordinal: int) -> list[int]:
+    """Get optimal affinity using nvml."""
     import pynvml as nm
 
     cnt = os.cpu_count()
@@ -592,6 +594,7 @@ def current_device() -> int:
 
 
 def set_cpu_affinity() -> None:
+    """Set affinity according to nvml."""
     import pynvml as nm
 
     nm.nvmlInit()
