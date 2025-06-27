@@ -538,6 +538,8 @@ def get_uuid(ordinal: int) -> str:
     from cuda.bindings import runtime as cudart
 
     status, prop = cudart.cudaGetDeviceProperties(ordinal)
+    _checkcu(status)
+
     dash_pos = {0, 4, 6, 8, 10}
     uuid = "GPU"
 
