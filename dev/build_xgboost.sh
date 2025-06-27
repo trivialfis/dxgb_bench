@@ -2,12 +2,7 @@
 
 SM=$1
 
-git clone --recursive  https://github.com/dmlc/xgboost.git
-cd xgboost
-git checkout f41be2cef10eaaa450271016355c41e3a9125502
-cd -
-
-
+cd ws
 mkdir build
 cd build
 cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -16,8 +11,8 @@ cmake -GNinja ../xgboost/ -DCMAKE_BUILD_TYPE=RelWithDebInfo \
       -DUSE_DLOPEN_NCCL=ON \
       -DUSE_OPENMP=ON \
       -DUSE_NVTX=ON \
-      -DPLUGIN_RMM=ON \
       -DUSE_NVCOMP=ON \
+      -DPLUGIN_RMM=ON \
       -DCMAKE_CUDA_ARCHITECTURES=SM -DENABLE_ALL_WARNINGS=ON
 
 time ninja && \
