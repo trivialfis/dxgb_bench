@@ -497,3 +497,14 @@ def fill_opts_shape(
     opts.sparsity = sparsity
     opts.n_batches = n_batches
     return opts
+
+
+def set_cpu_affinity() -> None:
+    import pynvml as nm
+
+    nm.nvmlInit()
+
+    hdl = nm.nvmlDeviceGetHandleByIndex(0)
+    nm.nvmlDeviceSetCpuAffinity(hdl)
+
+    nm.nvmlShutdown()
