@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import numpy as np
 
 import xgboost as xgb
 
@@ -158,4 +159,7 @@ def make_extmem_qdms(
                 dargs["cache_host_ratio"] = opts.cache_host_ratio
             Xy_valid = xgb.ExtMemQuantileDMatrix(**dargs)
             watches.append((Xy_valid, "Valid"))
+    indptr, data = Xy_train.get_quantile_cut()
+    np.save("/bench/indptr.npy", indptr)
+    np.save("/bench/data.npy", data)
     return Xy_train, watches
