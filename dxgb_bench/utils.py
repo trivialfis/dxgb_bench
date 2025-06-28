@@ -12,6 +12,7 @@ import time
 import warnings
 from dataclasses import asdict, dataclass
 from functools import cache
+from inspect import signature
 from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, TypeAlias, Union
 
 import numpy as np
@@ -462,7 +463,14 @@ def merge_opts(opts: Opts, params: dict[str, Any]) -> dict[str, Any]:
 @cache
 def has_chr() -> bool:
     ver = parse_version(xgb.__version__)
-    return (ver.major == 3 and ver.minor > 0) or ver.major > 3
+
+    new_ver = (ver.major == 3 and ver.minor > 0) or ver.major > 3
+    if not new_ver:
+        return False
+
+    sig = signature(xgb.ExtMemQuantileDMatrix)
+    names = [name for name, _ in sig.parameters.items()]
+    return "cache_host_ratio" in names
 
 
 def save_results(results: dict[str, Any], prefix: str) -> None:
