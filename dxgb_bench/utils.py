@@ -239,7 +239,7 @@ def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
 def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--mr",
-        choices=["arena", "binning", "pool"],
+        choices=["arena", "binning", "pool", "async"],
         default="arena",
         help="Name of the RMM memory resource.",
     )
@@ -321,6 +321,12 @@ def setup_rmm(mr_name: str) -> None:
             mr = rmm.mr.CudaMemoryResource()
             mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
             status, free, total = cudart.cudaMemGetInfo()
+        case "async":
+            mr = rmm.mr.CudaAsyncMemoryResource(
+                initial_pool_size=int(total * 0.8),
+                release_threshold=int(total * 0.95),
+                enable_ipc=False,
+            )
         case "binning":
             fprint("Use `BinningMemoryResource`.")
             mr = rmm.mr.CudaAsyncMemoryResource(
