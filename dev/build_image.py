@@ -51,6 +51,10 @@ def main(args: argparse.Namespace) -> None:
     subprocess.check_call(cmd)
     os.remove("Dockerfile")
 
+    if args.push:
+        cmd = ["docker", "push", tag]
+        subprocess.check_call(cmd)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -78,5 +82,6 @@ Examples:
     parser.add_argument("--xgboost-repo", default=None, type=str)
     parser.add_argument("--target", choices=["cpu", "gpu"], default="gpu")
     parser.add_argument("--tag", type=str, default=None)
+    parser.add_argument("--push", action="store_true")
     args = parser.parse_args()
     main(args)
