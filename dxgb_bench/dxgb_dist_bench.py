@@ -173,7 +173,8 @@ def train(
             _get_logger().info(msg)
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
-        fprint(f"[dxgb-bench] {coll.get_rank()} CPU Affinity:", aff)
+        affos = os.sched_getaffinity(0)
+        fprint(f"[dxgb-bench] {coll.get_rank()} CPU Affinity:", aff, " devices:", devices, "\nOS:", affos)
         n_threads = dxgb.get_n_threads(params, worker)
         params.update({"nthread": n_threads})
         with xgboost.config_context(
