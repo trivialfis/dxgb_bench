@@ -154,16 +154,12 @@ def train(
     verbosity: int,
     is_extmem: bool,
 ) -> tuple[xgboost.Booster, dict[str, Any], Opts]:
-    aff = None
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
-        from dask_cuda.utils import get_cpu_affinity
-
         devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
-        if devices is not None:
-            firstd = int(devices.split(",")[0])
-            aff = get_cpu_affinity(firstd)
+    else:
+        devices = None
 
     worker = get_worker()
     results: dict[str, Any] = {}
@@ -173,7 +169,11 @@ def train(
             _get_logger().info(msg)
 
     with worker_client(), coll.CommunicatorContext(**rabit_args):
-        fprint(f"[dxgb-bench] {coll.get_rank()} CPU Affinity:", aff)
+        affos = os.sched_getaffinity(0)
+        fprint(
+            f"[dxgb-bench] {coll.get_rank()}: CPU Affinity: {affos}",
+            f" devices: {devices}",
+        )
         n_threads = dxgb.get_n_threads(params, worker)
         params.update({"nthread": n_threads})
         with xgboost.config_context(

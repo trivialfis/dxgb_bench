@@ -13,6 +13,7 @@ import warnings
 from dataclasses import asdict, dataclass
 from functools import cache
 from inspect import signature
+from types import ModuleType
 from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, TypeAlias, Union
 
 import numpy as np
@@ -313,7 +314,7 @@ def setup_rmm(mr_name: str) -> None:
 
     status, free, total = cudart.cudaMemGetInfo()
     _checkcu(status)
-    print("Setup rmm, total:", total, "free:", free)
+    fprint("Setup rmm, total:", total, "free:", free)
 
     match mr_name:
         case "arena":
@@ -322,13 +323,16 @@ def setup_rmm(mr_name: str) -> None:
             mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
             status, free, total = cudart.cudaMemGetInfo()
         case "async":
+            fprint("Use `CudaAsyncMemoryResource`.")
             mr = rmm.mr.CudaAsyncMemoryResource(
                 initial_pool_size=int(total * 0.8),
                 release_threshold=int(total * 0.95),
                 enable_ipc=False,
             )
         case "binning":
-            fprint("Use `BinningMemoryResource`.")
+            fprint(
+                "Use `BinningMemoryResource` in conjunction with the `CudaAsyncMemoryResource`."
+            )
             mr = rmm.mr.CudaAsyncMemoryResource(
                 initial_pool_size=int(total * 0.8),
                 release_threshold=int(total * 0.95),
@@ -374,29 +378,38 @@ def peak_rmm_memory_bytes(path: str = "rmm_log.dev0") -> int:
     return peak
 
 
+class Nvml:
+    def __enter__(self) -> ModuleType:
+        import pynvml as nm
+
+        self.module = nm
+
+        self.module.nvmlInit()
+        return nm
+
+    def __exit__(self, t: None, value: None, traceback: None) -> None:
+        self.module.nvmlShutdown()
+
+
 def c2cinfo() -> int | None:
-    import pynvml as nm  # mamba install nvidia-ml-py -c rapidsai -c nvidia
+    # mamba install nvidia-ml-py -c rapidsai -c nvidia
+    with Nvml() as nm:
+        # Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
+        # This script uses nvml to do the same thing.
+        hdl = nm.nvmlDeviceGetHandleByIndex(0)
+        try:
+            info = nm.nvmlDeviceGetC2cModeInfoV1(hdl)
+        except nm.NVMLError_NotSupported:
+            info = None
 
-    # Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
-    # This script uses nvml to do the same thing.
-    nm.nvmlInit()
-
-    hdl = nm.nvmlDeviceGetHandleByIndex(0)
-    try:
-        info = nm.nvmlDeviceGetC2cModeInfoV1(hdl)
-    except nm.NVMLError_NotSupported:
-        info = None
-
-    # NVML_FI_DEV_C2C_LINK_GET_MAX_BW: C2C Link Speed in MBps for active links.
-    if info is not None and info.isC2cEnabled == 1:
-        lc, bw = nm.nvmlDeviceGetFieldValues(
-            hdl, [nm.NVML_FI_DEV_C2C_LINK_COUNT, nm.NVML_FI_DEV_C2C_LINK_GET_MAX_BW]
-        )
-        print("Link count:", lc.value.siVal, "Bandwidth:", bw.value.sllVal)
-    else:
-        lc, bw = None, None
-
-    nm.nvmlShutdown()
+        # NVML_FI_DEV_C2C_LINK_GET_MAX_BW: C2C Link Speed in MBps for active links.
+        if info is not None and info.isC2cEnabled == 1:
+            lc, bw = nm.nvmlDeviceGetFieldValues(
+                hdl, [nm.NVML_FI_DEV_C2C_LINK_COUNT, nm.NVML_FI_DEV_C2C_LINK_GET_MAX_BW]
+            )
+            print("Link count:", lc.value.siVal, "Bandwidth:", bw.value.sllVal)
+        else:
+            lc, bw = None, None
 
     if lc is not None:
         return int(lc.value.siVal)
