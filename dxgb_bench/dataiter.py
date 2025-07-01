@@ -309,6 +309,10 @@ class DxgbIter(xgb.DataIter):
     def n_batches(self) -> int: ...
 
 
+def _silent(msg: str) -> None:
+    pass
+
+
 class BenchIter(DxgbIter):
     """A custom iterator for profiling."""
 
@@ -328,13 +332,16 @@ class BenchIter(DxgbIter):
     def n_batches(self) -> int:
         return self._impl.n_batches
 
+    @override
     def next(self, input_data: Callable) -> bool:
         if self._it == self._impl.n_batches:
             return False
 
         fprint("Next:", self._it)
         gc.collect()
-        with Timer("BenchIter", "GetValid" if self._is_eval else "GetTrain"):
+        with Timer(
+            "BenchIter", "GetValid" if self._is_eval else "GetTrain", logger=_silent
+        ):
             X, y = self._impl.get(self._it)
         input_data(data=X, label=y)
 
@@ -378,12 +385,15 @@ class StridedIter(DxgbIter):
         n_total_batches = self._impl.n_batches
         return n_total_batches // self._stride
 
+    @override
     def next(self, input_data: Callable) -> bool:
         if self._it >= self._impl.n_batches:
             return False
 
         gc.collect()
-        with Timer("BenchIter", "GetValid" if self._is_eval else "GetTrain"):
+        with Timer(
+            "BenchIter", "GetValid" if self._is_eval else "GetTrain", logger=_silent
+        ):
             X, y = self._impl.get(self._it)
         input_data(data=X, label=y)
 
