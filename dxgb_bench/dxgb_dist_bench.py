@@ -81,7 +81,8 @@ def bench(
     tracker.start()
     rabit_args = tracker.worker_args()
 
-    machine = machine_info(opts.device)
+    device = opts.device
+    machine = machine_info(device)
 
     if opts.on_the_fly:
         n_batches_per_worker = opts.n_batches // n_workers
@@ -93,22 +94,31 @@ def bench(
         path = os.path.join(tmpdir, f"worker-params-{worker_id}.pkl")
         with open(path, "wb") as wfd:
             pickle.dump(wparams, wfd)
-        nodeid = get_numa_node_id(worker_id)
-        cmd = [
-            "numactl",
-            "--strict",
-            f"--membind={nodeid}",
-            f"--cpunodebind={nodeid}",
-            "_dxgb-dist-impl",
-            "--params",
-            path,
-        ]
-
-        ordinals = [w % n_workers for w in range(worker_id, worker_id + n_workers)]
-        devices = ",".join(map(str, ordinals))
 
         env = os.environ.copy()
-        env["CUDA_VISIBLE_DEVICES"] = devices
+
+        if device == "cuda":
+            nodeid = get_numa_node_id(worker_id)
+            cmd = [
+                "numactl",
+                "--strict",
+                f"--membind={nodeid}",
+                f"--cpunodebind={nodeid}",
+                "_dxgb-dist-impl",
+                "--params",
+                path,
+            ]
+
+            ordinals = [w % n_workers for w in range(worker_id, worker_id + n_workers)]
+            devices = ",".join(map(str, ordinals))
+            env["CUDA_VISIBLE_DEVICES"] = devices
+        else:
+            cmd = [
+                "_dxgb-dist-impl",
+                "--params",
+                path,
+            ]
+
         subprocess.check_call(cmd, env=env)
         path = os.path.join(tmpdir, f"worker-results-{worker_id}.pkl")
         with open(path, "rb") as rfd:
