@@ -50,7 +50,7 @@ jobs:
         activate-environment: xgboost_dev
     - name: System dependencies
       run: |
-        apt install numactl -y
+        sudo apt install numactl -y
     - name: Install XGBoost
       shell: bash -l {0}
       run: |
