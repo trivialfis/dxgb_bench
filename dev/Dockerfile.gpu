@@ -13,7 +13,7 @@ RUN set -x \
     # basic dependencies
     apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
     apt-get update && apt-get upgrade -y && \
-    apt-get install gosu -y
+    apt-get install gosu numactl -y
 
 RUN \
     # mamba installation dependencies
