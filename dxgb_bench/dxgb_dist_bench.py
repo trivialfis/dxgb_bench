@@ -95,6 +95,8 @@ def make_iter(
             it_train_impl = LoadIterStrip(loadfrom, False, None, opts.device)
             it_valid_impl = None
 
+        assert it_train_impl.n_batches % coll.get_world_size() == 0
+
     it_train = StridedIter(
         it_train_impl,
         start=coll.get_rank(),

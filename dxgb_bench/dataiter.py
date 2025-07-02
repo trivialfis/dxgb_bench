@@ -183,7 +183,6 @@ class LoadIterStrip(IterImpl):
         if is_valid:
             if test_size is None:
                 raise ValueError("Must have a size for train test split.")
-            assert test_size is not None
 
     @property
     def n_batches(self) -> int:
