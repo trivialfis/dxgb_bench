@@ -11,6 +11,7 @@ import numpy as np
 import xgboost as xgb
 from scipy import sparse
 from typing_extensions import override
+from xgboost.collective import get_rank
 from xgboost.compat import concat
 
 from .datasets.generated import (
@@ -337,7 +338,7 @@ class BenchIter(DxgbIter):
         if self._it == self._impl.n_batches:
             return False
 
-        fprint("Next:", self._it)
+        fprint(f"Next: {self._it}")
         gc.collect()
         with Timer(
             "BenchIter", "GetValid" if self._is_eval else "GetTrain", logger=_silent
@@ -389,6 +390,9 @@ class StridedIter(DxgbIter):
     def next(self, input_data: Callable) -> bool:
         if self._it >= self._impl.n_batches:
             return False
+
+        if get_rank() == 0:
+            fprint(f"Next: {self._it}")
 
         gc.collect()
         with Timer(
