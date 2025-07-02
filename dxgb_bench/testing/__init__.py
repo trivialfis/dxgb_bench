@@ -54,6 +54,7 @@ def make_tmp(idx: int) -> str:
     if os.path.exists(tmpdir):
         shutil.rmtree(tmpdir)
     os.mkdir(tmpdir)
+    tmpdir = os.path.abspath(tmpdir)
     return tmpdir
 
 

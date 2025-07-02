@@ -6,12 +6,11 @@ from itertools import product
 
 import numpy as np
 import pytest
-from distributed import Client
 from xgboost.compat import concat
 
 from dxgb_bench.dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
 from dxgb_bench.dxgb_bench import datagen
-from dxgb_bench.dxgb_dist_bench import bench, local_cluster
+from dxgb_bench.dxgb_dist_bench import bench
 from dxgb_bench.dxgb_ext_bench import qdm_train
 from dxgb_bench.testing import Chdir, Device, TmpDir, devices
 from dxgb_bench.utils import Opts, Timer
@@ -32,14 +31,19 @@ def test_dist(device: Device, extmem: bool) -> None:
         mr=None,
         cache_host_ratio=None,
     )
-
-    with local_cluster(device=device, n_workers=2) as cluster:
-        with Client(cluster) as client:
-            booster, _ = bench(
-                client, 8, opts, params, loadfrom=[], verbosity=1, is_extmem=extmem
-            )
-            assert booster.num_features() == opts.n_features
-            assert booster.num_boosted_rounds() == 8
+    with TmpDir(1, True) as tmpdir:
+        booster, _ = bench(
+            tmpdir[0],
+            n_rounds=8,
+            opts=opts,
+            params=params,
+            n_workers=2,
+            loadfrom=[],
+            verbosity=1,
+            is_extmem=extmem,
+        )
+    assert booster.num_features() == opts.n_features
+    assert booster.num_boosted_rounds() == 8
 
 
 def strided_iter(
@@ -176,11 +180,16 @@ def test_syn_json(device: Device) -> None:
         booster_0, results_0 = qdm_train(opts, params, 8, [])
 
         Timer.reset()
-        with local_cluster(device=device, n_workers=2) as cluster:
-            with Client(cluster) as client:
-                booster_1, results_1 = bench(
-                    client, 8, opts, params, loadfrom=[], verbosity=1, is_extmem=True
-                )
+        booster_1, results_1 = bench(
+            tmpdirs[0],
+            8,
+            opts,
+            params,
+            n_workers=2,
+            loadfrom=[],
+            verbosity=1,
+            is_extmem=True,
+        )
 
         keys_0 = get_keys(results_0, opts)
         keys_1 = get_keys(results_1, opts)
@@ -235,11 +244,16 @@ def test_load_json(device: Device) -> None:
         booster_0, results_0 = qdm_train(opts, params, 8, tmpdirs)
 
         Timer.reset()
-        with local_cluster(device=device, n_workers=2) as cluster:
-            with Client(cluster) as client:
-                booster_1, results_1 = bench(
-                    client, 8, opts, params, loadfrom=[], verbosity=1, is_extmem=True
-                )
+        booster_1, results_1 = bench(
+            tmpdirs[0],
+            8,
+            opts,
+            params,
+            n_workers=2,
+            loadfrom=[],
+            verbosity=1,
+            is_extmem=True,
+        )
 
         keys_0 = get_keys(results_0, opts)
         keys_1 = get_keys(results_1, opts)
