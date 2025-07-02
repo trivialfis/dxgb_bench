@@ -404,6 +404,7 @@ class StridedIter(DxgbIter):
         return True
 
     def reset(self) -> None:
-        fprint("Reset")
+        if get_rank() == 0:
+            fprint("Reset")
         self._it = self._start
         gc.collect()

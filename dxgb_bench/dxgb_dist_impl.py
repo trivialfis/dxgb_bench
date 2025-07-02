@@ -166,7 +166,7 @@ def train(
                     Xy_train,
                     evals=watches,
                     num_boost_round=n_rounds,
-                    verbose_eval=False,
+                    verbose_eval=True,
                     evals_result=evals_result,
                 )
     if len(watches) >= 2:
