@@ -48,6 +48,9 @@ jobs:
         environment-file: dev/xgboost_dev.yml
         miniforge-version: latest
         activate-environment: xgboost_dev
+    - name: System dependencies
+      run: |
+        apt install numactl -y
     - name: Install XGBoost
       shell: bash -l {0}
       run: |
