@@ -14,7 +14,16 @@ from dataclasses import asdict, dataclass
 from functools import cache
 from inspect import signature
 from types import ModuleType
-from typing import TYPE_CHECKING, Any, Callable, Dict, Sequence, TypeAlias, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    Sequence,
+    TypeAlias,
+    Union,
+)
 
 import numpy as np
 from packaging.version import parse as parse_version
@@ -305,7 +314,7 @@ TEST_SIZE = 0.2  # Emulate to 5-fold CV
 DFT_OUT = os.path.join(os.curdir, "data")
 
 
-def setup_rmm(mr_name: str) -> None:
+def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
     import rmm
     from cuda.bindings import runtime as cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
@@ -348,7 +357,10 @@ def setup_rmm(mr_name: str) -> None:
                 release_threshold=int(total * 0.95),
             )
 
-    mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name="rmm_log")
+    log_file = "rmm_log"
+    if worker_id is not None and worker_id != 0:
+        log_file += f"-{worker_id}"
+    mr = rmm.mr.LoggingResourceAdaptor(mr, log_file_name=log_file)
     rmm.mr.set_current_device_resource(mr)
     cp.cuda.set_allocator(rmm_cupy_allocator)
 
