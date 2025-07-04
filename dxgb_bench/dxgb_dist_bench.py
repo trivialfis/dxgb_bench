@@ -101,7 +101,6 @@ def bench(
             nodeid = get_numa_node_id(worker_id)
             cmd = [
                 "numactl",
-                "--strict",
                 f"--membind={nodeid}",
                 f"--cpunodebind={nodeid}",
                 "_dxgb-dist-impl",
