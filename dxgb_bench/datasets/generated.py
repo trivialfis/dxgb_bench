@@ -8,6 +8,8 @@ import os
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple
 
+import platform
+
 import numpy as np
 from scipy import sparse
 
@@ -16,10 +18,14 @@ from ..utils import div_roundup, fprint
 
 @functools.cache
 def _load_lib() -> ctypes.CDLL:
+    if platform.system() == "Windows":
+        name = "dxgbbench.dll"
+    else:
+        name = "libdxgbbench.so"
     path = os.path.join(
         os.path.normpath(os.path.abspath(os.path.dirname(__file__))),
         os.pardir,
-        "libdxgbbench.so",
+        name,
     )
     lib = ctypes.cdll.LoadLibrary(path)
     return lib
