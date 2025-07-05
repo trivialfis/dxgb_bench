@@ -5,10 +5,9 @@ import ctypes
 import functools
 import gc
 import os
+import platform
 from concurrent.futures import ThreadPoolExecutor
 from typing import Tuple
-
-import platform
 
 import numpy as np
 from scipy import sparse
