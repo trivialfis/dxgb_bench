@@ -334,7 +334,7 @@ def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
         case "async":
             fprint("Use `CudaAsyncMemoryResource`.")
             mr = rmm.mr.CudaAsyncMemoryResource(
-                initial_pool_size=int(total * 0.8),
+                initial_pool_size=int(total * 0.90),
                 release_threshold=int(total * 0.95),
                 enable_ipc=False,
             )
