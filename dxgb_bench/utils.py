@@ -385,6 +385,9 @@ def peak_rmm_memory_bytes(path: str = "rmm_log.dev0") -> int:
         elif row.loc["Action"] == "free":
             current -= row["Size"]
             recs.pop(row["Pointer"])
+        elif row.loc["Action"] == "allocate failure":
+            size = row["Size"]
+            fprint(f"Allocation failed. Current: {current}, attempt: {size}")
         if current > peak:
             peak = current
     return peak
