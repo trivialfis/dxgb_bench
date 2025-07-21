@@ -127,13 +127,13 @@ def bench(
                     X, y, test_size=TEST_SIZE, random_state=2024
                 )
                 with Timer("Train", "DMatrix-Train"):
-                    Xy = QuantileDMatrix(X_train, y_train)
+                    Xy = QuantileDMatrix(X_train, y_train, max_bin=params["max_bin"])
                 with Timer("Train", "DMatrix-Valid"):
                     Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
                 watches = [(Xy, "Train"), (Xy_valid, "Valid")]
             else:
                 with Timer("Train", "DMatrix-Train"):
-                    Xy = QuantileDMatrix(X, y)
+                    Xy = QuantileDMatrix(X, y, max_bin=params["max_bin"])
                     Xy_valid = None
                 watches = [(Xy, "Train")]
 
@@ -171,7 +171,7 @@ def bench(
                 it_valid = None
 
             with Timer("Train", "DMatrix-Train"):
-                Xy = QuantileDMatrix(it_train)
+                Xy = QuantileDMatrix(it_train, max_bin=params["max_bin"])
                 watches = [(Xy, "Train")]
             if valid:
                 with Timer("Train", "DMatrix-Valid"):
