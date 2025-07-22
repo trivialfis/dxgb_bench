@@ -414,7 +414,7 @@ def c2cinfo() -> int | None:
         hdl = nm.nvmlDeviceGetHandleByIndex(0)
         try:
             info = nm.nvmlDeviceGetC2cModeInfoV1(hdl)
-        except nm.NVMLError_NotSupported:
+        except (nm.NVMLError_NotSupported, nm.NVMLError_FunctionNotFound):
             info = None
 
         # NVML_FI_DEV_C2C_LINK_GET_MAX_BW: C2C Link Speed in MBps for active links.
