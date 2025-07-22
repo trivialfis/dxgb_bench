@@ -36,7 +36,7 @@ def test_bench_qdm(device: Device, fmt: str) -> None:
     with TmpDir(2, True) as outdirs:
         make_data(outdirs, device, fmt)
         # Call the bench function with test parameters
-        params = {"device": device}
+        params = {"device": device, "max_bin": 256}
         bench(
             task="qdm",
             loadfrom=outdirs,
@@ -56,7 +56,7 @@ def test_bench_iter(device: Device, fmt: str) -> None:
     with TmpDir(2, True) as outdirs:
         make_data(outdirs, device, fmt)
         # Call the bench function with test parameters
-        params = {"device": device}
+        params = {"device": device, "max_bin": 256}
         bench(
             task="qdm-iter",
             loadfrom=outdirs,
