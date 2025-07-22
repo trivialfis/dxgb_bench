@@ -177,6 +177,8 @@ def bench(
                 with Timer("Train", "DMatrix-Valid"):
                     Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
                     watches.append((Xy_valid, "Valid"))
+            else:
+                Xy_valid = None
 
             evals_result: EvalsLog = {}
             with Timer("Train", "Train"):
