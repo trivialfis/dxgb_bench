@@ -8,13 +8,10 @@ import subprocess
 
 
 def main(args: argparse.Namespace) -> None:
-    if args.target == "cpu":
-        shutil.copyfile("dxgb_bench/dev/Dockerfile.cpu", "Dockerfile")
-    else:
-        shutil.copyfile("dxgb_bench/dev/Dockerfile.gpu", "Dockerfile")
+    shutil.copyfile("dxgb_bench/dev/Dockerfile.cpu", "Dockerfile")
     build_args = args.build_args
     if args.tag is None:
-        tag = f"dxgb-bench-{args.target}-{args.arch}-{args.sm}:latest"
+        tag = f"dxgb-bench-{args.arch}-{args.sm}:latest"
     else:
         tag = args.tag
     cmd = [
@@ -62,7 +59,7 @@ if __name__ == "__main__":
 
 Examples:
 
-    python ./dxgb_bench/dev/build_image.py --target=gpu --arch=aarch --sm=90a
+    python ./dxgb_bench/dev/build_image.py --arch=aarch --sm=90a
 
     """
     )
@@ -80,7 +77,6 @@ Examples:
     parser.add_argument("--install-xgboost", action="store_true")
     parser.add_argument("--xgboost-checkout", default=None, type=str)
     parser.add_argument("--xgboost-repo", default=None, type=str)
-    parser.add_argument("--target", choices=["cpu", "gpu"], default="gpu")
     parser.add_argument("--tag", type=str, default=None)
     parser.add_argument("--push", action="store_true")
     args = parser.parse_args()
