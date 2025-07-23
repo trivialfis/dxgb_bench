@@ -66,6 +66,7 @@ jobs:
         ninja
         cd ..
         pip install -e . --no-build-isolation --no-deps
+        dxgb-bench --version
     - name: Test
       shell: bash -l {0}
       run: |

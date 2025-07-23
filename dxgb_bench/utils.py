@@ -12,6 +12,7 @@ import time
 import warnings
 from dataclasses import asdict, dataclass
 from functools import cache
+from importlib.metadata import version as metaversion
 from inspect import signature
 from types import ModuleType
 from typing import (
@@ -58,6 +59,11 @@ if TYPE_CHECKING:
         dd.DataFrame,
         dd.Series,
     ]
+
+
+__version__ = metaversion("dxgb_bench")
+
+assert __version__ != "0.0.0"
 
 
 def fprint(*args: Any, **kwargs: Any) -> None:
@@ -508,6 +514,7 @@ def has_chr() -> bool:
 
 
 def save_results(results: dict[str, Any], prefix: str) -> None:
+    results["version"] = __version__
     k = 0
     path = prefix + f"-{k}.json"
     while os.path.exists(path):

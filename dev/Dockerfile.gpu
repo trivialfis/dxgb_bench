@@ -1,4 +1,3 @@
-# syntax=docker/dockerfile:experimental
 FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
 ARG ARCH
 ARG SM

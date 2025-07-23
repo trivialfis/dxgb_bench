@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools", "setuptools-scm"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "dxgb-bench"
-version = "0.0.0"
+dynamic = ["version"]
 description="Benchmarking scripts for XGBoost."
 readme = { file = "README.org", content-type = "text/markdown" }
 
@@ -24,6 +24,8 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["."]
+
+[tool.setuptools_scm]
 
 [tool.mypy]
 ignore_missing_imports = true

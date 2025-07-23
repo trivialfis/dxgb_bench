@@ -25,6 +25,7 @@ dependencies:
 - python==3.12
 - pip
 - hatchling
+- setuptools-scm
 - hypothesis
 - pytest
 - numpy
