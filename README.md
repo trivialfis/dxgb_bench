@@ -60,9 +60,15 @@ Run `${COMMAND} --help` for more info.
 
 Dependencies
 ------------
+
+The yml files contain dependencies that are not strictly necessary for running the
+commands. I use them for docker build, which requires the entire tool chain to compile
+XGBoost.
+
 ## Build time
 - setuptools
 - setuptools-scm
+
 ## Run time (CUDA)
 - nvml (python)
 - cupy
