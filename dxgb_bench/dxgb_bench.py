@@ -137,6 +137,7 @@ def bench(
                     Xy_valid = None
                 watches = [(Xy, "Train")]
 
+            evals_result: EvalsLog = {}
             with Timer("Train", "Train"):
                 booster = xgb.train(
                     params,
@@ -144,7 +145,22 @@ def bench(
                     num_boost_round=n_rounds,
                     evals=watches,
                     verbose_eval=True,
+                    evals_result=evals_result,
                 )
+
+            opts = Opts(
+                n_samples_per_batch=-1,
+                n_features=-1,
+                n_batches=-1,
+                sparsity=-1.0,
+                on_the_fly=False,
+                validation=valid,
+                device=device,
+                mr=None,
+                target_type="reg",
+                cache_host_ratio=None,
+            )
+            opts = fill_opts_shape(opts, Xy, Xy_valid, 1)
         else:
             assert task == "qdm-iter"
             if valid:
@@ -180,7 +196,7 @@ def bench(
             else:
                 Xy_valid = None
 
-            evals_result: EvalsLog = {}
+            evals_result = {}
             with Timer("Train", "Train"):
                 booster = xgb.train(
                     params,
@@ -190,10 +206,6 @@ def bench(
                     verbose_eval=True,
                     evals_result=evals_result,
                 )
-
-            assert booster.num_boosted_rounds() == n_rounds
-            print(f"Trained for {n_rounds} iterations.")
-            print(Timer.global_timer())
 
             opts = Opts(
                 n_samples_per_batch=-1,
@@ -209,17 +221,20 @@ def bench(
             )
             opts = fill_opts_shape(opts, Xy, Xy_valid, it_impl.n_batches)
 
-            machine = machine_info(opts.device)
-            opts_dict = merge_opts(opts, params)
-            opts_dict["n_rounds"] = n_rounds
-            opts_dict["n_workers"] = 1
-            results = {
-                "opts": opts_dict,
-                "timer": Timer.global_timer(),
-                "evals": evals_result,
-                "machine": machine,
-            }
-            save_results(results, "incore")
+        print(f"Trained for {n_rounds} iterations.")
+        print(Timer.global_timer())
+        assert booster.num_boosted_rounds() == n_rounds
+        machine = machine_info(opts.device)
+        opts_dict = merge_opts(opts, params)
+        opts_dict["n_rounds"] = n_rounds
+        opts_dict["n_workers"] = 1
+        results = {
+            "opts": opts_dict,
+            "timer": Timer.global_timer(),
+            "evals": evals_result,
+            "machine": machine,
+        }
+        save_results(results, "incore")
 
 
 def cli_main() -> None:
