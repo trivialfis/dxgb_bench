@@ -57,3 +57,19 @@ Commands
 - dxgb-ext-bench
 
 Run `${COMMAND} --help` for more info.
+
+Dependencies
+------------
+## Build time
+- setuptools
+- setuptools-scm
+## Run time (CUDA)
+- nvml (python)
+- cupy
+- numpy
+- xgboost
+- pandas
+- tqdm
+- packaging
+- typing_extensions
+- scipy
