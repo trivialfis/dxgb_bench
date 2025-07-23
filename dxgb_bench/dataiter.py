@@ -39,6 +39,8 @@ class IterImpl:
 def get_pinfo(Xp: str) -> PathInfo:
     """Get information based on the file name."""
     name = os.path.basename(Xp)
+    # X|y-rows-columns-batch-shard.npz
+    fname_pattern = r"([X|y])_(\d+)_(\d+)-(\d+)-(\d+).[npy|npz|kvi]"
     mat = re.search(fname_pattern, name)
     assert mat is not None
     x, rows_str, cols_str, batch_str, shard_str = mat.groups()
@@ -94,10 +96,6 @@ def get_file_paths_local(dirname: str) -> tuple[list[str], list[str]]:
 
     assert len(X_files) == len(y_files)
     return X_files, y_files
-
-
-# X|y-rows-columns-batch-shard.npz
-fname_pattern = r"([X|y])_(\d+)_(\d+)-(\d+)-(\d+).[npy|npz|kvi]"
 
 
 def load_batches(
@@ -348,6 +346,7 @@ class BenchIter(DxgbIter):
         self._it += 1
         return True
 
+    @override
     def reset(self) -> None:
         fprint("Reset")
         self._it = 0
@@ -403,6 +402,7 @@ class StridedIter(DxgbIter):
         self._it += self._stride
         return True
 
+    @override
     def reset(self) -> None:
         if get_rank() == 0:
             fprint("Reset")
