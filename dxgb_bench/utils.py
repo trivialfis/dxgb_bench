@@ -63,6 +63,8 @@ if TYPE_CHECKING:
 
 __version__ = metaversion("dxgb_bench")
 
+assert __version__ != "0.0.0"
+
 
 def fprint(*args: Any, **kwargs: Any) -> None:
     print(*args, **kwargs)
