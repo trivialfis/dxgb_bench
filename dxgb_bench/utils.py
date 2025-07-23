@@ -520,6 +520,7 @@ def save_results(results: dict[str, Any], prefix: str) -> None:
     else:
         v = xgb.__version__
     results["version"] = {"dxgb_bench": __version__, "xgboost": v}
+    results["binfo"] = binfo
     k = 0
     path = prefix + f"-{k}.json"
     while os.path.exists(path):
