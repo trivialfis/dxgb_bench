@@ -5,7 +5,7 @@ Container image
 One level above the `dxgb_bench` directory, run
 
 ``` sh
-python ./dxgb_bench/dev/build_image.py --target=gpu --arch=x86 --sm=89 --install-xgboost
+python ./dxgb_bench/dev/build_image.py --arch=x86 --sm=89 --install-xgboost
 ```
 
 Run
