@@ -18,6 +18,7 @@ if [[ -n ${INSTALL_XGBOOST} && -n ${SM} ]]; then
 	  -DUSE_NVTX=ON \
 	  -DUSE_NVCOMP=ON \
 	  -DPLUGIN_RMM=ON \
+	  -DBUILD_WITH_GIT_HASH=ON \
 	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
 
     cd /ws/build && time ninja

@@ -514,7 +514,12 @@ def has_chr() -> bool:
 
 
 def save_results(results: dict[str, Any], prefix: str) -> None:
-    results["version"] = __version__
+    binfo = xgb.build_info()
+    if "GIT_HASH" in binfo:
+        v = xgb.__version__ + "-" + binfo["GIT_HASH"]
+    else:
+        v = xgb.__version__
+    results["version"] = {"dxgb_bench": __version__, "xgboost": v}
     k = 0
     path = prefix + f"-{k}.json"
     while os.path.exists(path):
