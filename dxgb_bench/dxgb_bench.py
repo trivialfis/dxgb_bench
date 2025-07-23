@@ -21,6 +21,7 @@ from .dataiter import (
 from .datasets.generated import make_dense_regression, make_sparse_regression, psize
 from .strip import make_strips
 from .utils import (
+    __version__,
     DFT_OUT,
     EvalsLog,
     Opts,
@@ -239,6 +240,8 @@ def bench(
 
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
+    parser.add_argument("--version", action="store_true")
+
     subsparsers = parser.add_subparsers(dest="command")
     dg_parser = subsparsers.add_parser("datagen")
     bh_parser = subsparsers.add_parser("bench")
@@ -288,6 +291,9 @@ def cli_main() -> None:
     )
 
     args = parser.parse_args()
+    if args.version is True:
+        fprint(__version__)
+        return
 
     if args.command == "datagen":
         saveto = split_path(args.saveto)
