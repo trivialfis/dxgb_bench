@@ -1,22 +1,4 @@
-Synthetic data
---------------
-To use the data gen written C++, we need to build it using CMake first. One can use the
-`dxgb-bench` to generate the data, or generate them on the fly with the external memory
-version of XGBoost.
-
-``` sh
-mkdir build && cd build
-cmake .. -DCMAKE_CUDA_ARCHITECTURS=89 -GNinja
-ninja
-cd ../
-pip install -e . --no-build-isolation --no-deps
-```
-
-For both the batched `datagen` and the data iterator, the output should be consistent for
-different number of batches and for different devices. For example, generating 2 batches
-with 1024 samples for each batch should produce the exact same result as generating a
-single batch with 2048 samples. When compiled with CUDA, CPU and GPU output should match
-each other.
+Some scripts for running benchmarks with XGBoost.
 
 Container image
 ---------------
@@ -31,6 +13,30 @@ Run
 python ./dxgb_bench/dev/build_image.py --help
 ```
 for more options.
+
+Building from source
+--------------------
+To use the data gen written C++, we need to build it using CMake first. One can use the
+`dxgb-bench` to generate the data, or generate them on the fly with the external memory
+version of XGBoost.
+
+``` sh
+git clone https://github.com/trivialfis/dxgb_bench.git
+cd dxgb_bench
+mkdir build && cd build
+cmake ../dxgb_bench -DCMAKE_CUDA_ARCHITECTURS=89 -GNinja
+ninja
+cd ../
+pip install -e . --no-build-isolation --no-deps
+```
+
+Synthetic data
+--------------
+For both the batched `datagen` and the data iterator, the output should be consistent for
+different number of batches and for different devices. For example, generating 2 batches
+with 1024 samples for each batch should produce the exact same result as generating a
+single batch with 2048 samples. When compiled with CUDA, CPU and GPU output should match
+each other.
 
 Examples
 --------
@@ -58,12 +64,12 @@ Commands
 
 Run `${COMMAND} --help` for more info.
 
-Dependencies
-------------
+Python dependencies
+-------------------
 
 The yml files contain dependencies that are not strictly necessary for running the
 commands. I use them for docker build, which requires the entire tool chain to compile
-XGBoost.
+XGBoost and dxgb-bench C++ code.
 
 ## Build time
 - setuptools
