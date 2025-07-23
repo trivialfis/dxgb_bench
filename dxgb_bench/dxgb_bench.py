@@ -21,11 +21,11 @@ from .dataiter import (
 from .datasets.generated import make_dense_regression, make_sparse_regression, psize
 from .strip import make_strips
 from .utils import (
-    __version__,
     DFT_OUT,
     EvalsLog,
     Opts,
     Timer,
+    __version__,
     add_data_params,
     add_device_param,
     add_hyper_param,
