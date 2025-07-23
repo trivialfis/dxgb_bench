@@ -8,7 +8,7 @@ import subprocess
 
 
 def main(args: argparse.Namespace) -> None:
-    shutil.copyfile("dxgb_bench/dev/Dockerfile.cpu", "Dockerfile")
+    shutil.copyfile("dxgb_bench/dev/Dockerfile.gpu", "Dockerfile")
     build_args = args.build_args
     if args.tag is None:
         tag = f"dxgb-bench-{args.arch}-{args.sm}:latest"
@@ -75,9 +75,20 @@ Examples:
         required=False,
     )
     parser.add_argument("--install-xgboost", action="store_true")
-    parser.add_argument("--xgboost-checkout", default=None, type=str)
-    parser.add_argument("--xgboost-repo", default=None, type=str)
-    parser.add_argument("--tag", type=str, default=None)
-    parser.add_argument("--push", action="store_true")
+    parser.add_argument(
+        "--xgboost-checkout", default=None, type=str, help="git commit of XGBoost."
+    )
+    parser.add_argument(
+        "--xgboost-repo",
+        default=None,
+        type=str,
+        help="git URL to the XGBoost repository.",
+    )
+    parser.add_argument(
+        "--tag", type=str, default=None, help="Tag for the resulting image."
+    )
+    parser.add_argument(
+        "--push", action="store_true", help="Push the tag after the image is built."
+    )
     args = parser.parse_args()
     main(args)

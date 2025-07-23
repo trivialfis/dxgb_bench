@@ -26,6 +26,12 @@ One level above the `dxgb_bench` directory, run
 python ./dxgb_bench/dev/build_image.py --target=gpu --arch=x86 --sm=89 --install-xgboost
 ```
 
+Run
+``` sh
+python ./dxgb_bench/dev/build_image.py --help
+```
+for more options.
+
 Examples
 --------
 
@@ -39,14 +45,9 @@ Run external memory test with synthesized on the fly:
 dxgb-ext-bench --fly --n_samples_per_batch=2097152 --n_features=256 --n_batches=8 --device=cuda --task=ext-qdm --n_rounds=8 --verbosity=1 --mr=arena
 ```
 
-Run external memory test on a distributed system:
+Run external memory test on a distributed system (SNMG):
 ``` sh
 dxgb-dist-bench --n_workers=4 --cluster_type=local --fly --mr=arena --n_samples_per_batch=4194304 --n_features=512 --n_batches=196 --device=cuda --n_rounds=128 --verbosity=2
-```
-
-Generate some data:
-``` sh
-dxgb-bench datagen --n_samples_per_batch=2097152 --n_features=256 --n_batches=8 --device=cuda
 ```
 
 Commands
@@ -54,3 +55,5 @@ Commands
 - dxgb-bench
 - dxgb-dist-bench
 - dxgb-ext-bench
+
+Run `${COMMAND} --help` for more info.
