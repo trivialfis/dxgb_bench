@@ -36,7 +36,7 @@ For both the batched `datagen` and the data iterator, the output should be consi
 different number of batches and for different devices. For example, generating 2 batches
 with 1024 samples for each batch should produce the exact same result as generating a
 single batch with 2048 samples. When compiled with CUDA, CPU and GPU output should match
-each other. The benchmark script can synthesize data on-the-fly when running distributed
+each other. The benchmark script can synthesize data on-the-fly when running out-of-core
 training, which helps us to avoid storage issues during development.
 
 Examples
