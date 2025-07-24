@@ -70,6 +70,8 @@ There are some additional utilities like the RMM log parser:
 dxgb-bench rmmpeak --path=/bench/rmm_log.dev0
 ```
 
+The result of a test is saved into a JSON file under the working directory.
+
 Python dependencies
 -------------------
 
