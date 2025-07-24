@@ -36,22 +36,28 @@ For both the batched `datagen` and the data iterator, the output should be consi
 different number of batches and for different devices. For example, generating 2 batches
 with 1024 samples for each batch should produce the exact same result as generating a
 single batch with 2048 samples. When compiled with CUDA, CPU and GPU output should match
-each other.
+each other. The benchmark script can synthesize data on-the-fly when running distributed
+training, which helps us to avoid storage issues during development.
 
 Examples
 --------
 
-Run datagen:
+- Run datagen:
 ``` sh
 dxgb-bench datagen --n_samples_per_batch=4194304 --n_batches=4 --n_features=512 --device=cpu --fmt=npy
 ```
 
-Run external memory test with synthesized on the fly:
+- Run training with the generated data:
+``` sh
+dxgb-bench bench --task=qdm --n_rounds=10
+```
+
+- Run external memory test with data synthesized on the fly:
 ``` sh
 dxgb-ext-bench --fly --n_samples_per_batch=2097152 --n_features=256 --n_batches=8 --device=cuda --task=ext-qdm --n_rounds=8 --verbosity=1 --mr=arena
 ```
 
-Run external memory test on a distributed system (SNMG):
+- Run external memory test on a distributed system (SNMG) with data synthesized on the fly:
 ``` sh
 dxgb-dist-bench --n_workers=4 --cluster_type=local --fly --mr=arena --n_samples_per_batch=4194304 --n_features=512 --n_batches=196 --device=cuda --n_rounds=128 --verbosity=2
 ```
@@ -62,7 +68,8 @@ Commands
 - dxgb-dist-bench
 - dxgb-ext-bench
 
-Run `${COMMAND} --help` for more info.
+Run `${COMMAND} --help` for more info, including file formats, where to save the synthetic
+data, hyper-parameters, etc.
 
 There are some additional utilities like the RMM log parser:
 
