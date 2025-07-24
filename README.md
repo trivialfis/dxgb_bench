@@ -70,7 +70,83 @@ There are some additional utilities like the RMM log parser:
 dxgb-bench rmmpeak --path=/bench/rmm_log.dev0
 ```
 
-The result of a test is saved into a JSON file under the working directory.
+The result of a test is saved into a JSON file under the working directory. An example output from in-core training:
+
+<details>
+
+<summary>Example output</summary>
+
+``` json
+{
+  "opts": {
+    "n_samples_per_batch": 32768,
+    "n_features": 512,
+    "n_batches": 1,
+    "sparsity": 0.0,
+    "on_the_fly": false,
+    "validation": false,
+    "device": "cuda",
+    "mr": null,
+    "target_type": "reg",
+    "cache_host_ratio": null,
+    "tree_method": "hist",
+    "max_depth": 6,
+    "grow_policy": "depthwise",
+    "subsample": null,
+    "colsample_bynode": null,
+    "colsample_bytree": null,
+    "max_bin": 256,
+    "lambda": null,
+    "gamma": null,
+    "eta": null,
+    "min_child_weight": null,
+    "verbosity": 1,
+    "objective": null,
+    "n_rounds": 2,
+    "n_workers": 1
+  },
+  "timer": {
+    "load-batches": {
+      "load": 0.8841826915740967
+    },
+    "load-all": {
+      "concat": 0.017390012741088867
+    },
+    "Train": {
+      "DMatrix-Train": 0.0640714168548584,
+      "Train": 0.982398271560669
+    }
+  },
+  "evals": {
+    "Train": {
+      "rmse": [
+        33.3493520474823,
+        32.88331998446392
+      ]
+    }
+  },
+  "machine": {
+    "system": "Linux",
+    "arch": "x86_64",
+    "cpus": 24,
+    "gpus": [
+      "NVIDIA GeForce RTX 4070 Ti SUPER",
+      "NVIDIA GeForce RTX 4070 Ti SUPER"
+    ],
+    "drivers": [
+      "570.124.06",
+      "570.124.06"
+    ],
+    "c2c": null
+  },
+  "version": {
+    "dxgb_bench": "0.1.dev345+g77eabb5",
+    "xgboost": "3.1.0-dev-ab24a469d"
+  }
+}
+```
+
+</details>
 
 Python dependencies
 -------------------
