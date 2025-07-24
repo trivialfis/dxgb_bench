@@ -64,6 +64,12 @@ Commands
 
 Run `${COMMAND} --help` for more info.
 
+There are some additional utilities like the RMM log parser:
+
+``` sh
+dxgb-bench rmmpeak --path=/bench/rmm_log.dev0
+```
+
 Python dependencies
 -------------------
 
