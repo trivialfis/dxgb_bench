@@ -36,22 +36,28 @@ For both the batched `datagen` and the data iterator, the output should be consi
 different number of batches and for different devices. For example, generating 2 batches
 with 1024 samples for each batch should produce the exact same result as generating a
 single batch with 2048 samples. When compiled with CUDA, CPU and GPU output should match
-each other.
+each other. The benchmark script can synthesize data on-the-fly when running distributed
+training, which helps us to avoid storage issues during development.
 
 Examples
 --------
 
-Run datagen:
+- Run datagen:
 ``` sh
 dxgb-bench datagen --n_samples_per_batch=4194304 --n_batches=4 --n_features=512 --device=cpu --fmt=npy
 ```
 
-Run external memory test with synthesized on the fly:
+- Run training with the generated data:
+``` sh
+dxgb-bench bench --task=qdm --n_rounds=10
+```
+
+- Run external memory test with data synthesized on the fly:
 ``` sh
 dxgb-ext-bench --fly --n_samples_per_batch=2097152 --n_features=256 --n_batches=8 --device=cuda --task=ext-qdm --n_rounds=8 --verbosity=1 --mr=arena
 ```
 
-Run external memory test on a distributed system (SNMG):
+- Run external memory test on a distributed system (SNMG) with data synthesized on the fly:
 ``` sh
 dxgb-dist-bench --n_workers=4 --cluster_type=local --fly --mr=arena --n_samples_per_batch=4194304 --n_features=512 --n_batches=196 --device=cuda --n_rounds=128 --verbosity=2
 ```
@@ -62,7 +68,92 @@ Commands
 - dxgb-dist-bench
 - dxgb-ext-bench
 
-Run `${COMMAND} --help` for more info.
+Run `${COMMAND} --help` for more info, including file formats, where to save the synthetic
+data, hyper-parameters, etc.
+
+There are some additional utilities like the RMM log parser:
+
+``` sh
+dxgb-bench rmmpeak --path=/bench/rmm_log.dev0
+```
+
+The result of a test is saved into a JSON file under the working directory. An example output from in-core training:
+
+<details>
+
+<summary>Example output</summary>
+
+``` json
+{
+  "opts": {
+    "n_samples_per_batch": 32768,
+    "n_features": 512,
+    "n_batches": 1,
+    "sparsity": 0.0,
+    "on_the_fly": false,
+    "validation": false,
+    "device": "cuda",
+    "mr": null,
+    "target_type": "reg",
+    "cache_host_ratio": null,
+    "tree_method": "hist",
+    "max_depth": 6,
+    "grow_policy": "depthwise",
+    "subsample": null,
+    "colsample_bynode": null,
+    "colsample_bytree": null,
+    "max_bin": 256,
+    "lambda": null,
+    "gamma": null,
+    "eta": null,
+    "min_child_weight": null,
+    "verbosity": 1,
+    "objective": null,
+    "n_rounds": 2,
+    "n_workers": 1
+  },
+  "timer": {
+    "load-batches": {
+      "load": 0.8841826915740967
+    },
+    "load-all": {
+      "concat": 0.017390012741088867
+    },
+    "Train": {
+      "DMatrix-Train": 0.0640714168548584,
+      "Train": 0.982398271560669
+    }
+  },
+  "evals": {
+    "Train": {
+      "rmse": [
+        33.3493520474823,
+        32.88331998446392
+      ]
+    }
+  },
+  "machine": {
+    "system": "Linux",
+    "arch": "x86_64",
+    "cpus": 24,
+    "gpus": [
+      "NVIDIA GeForce RTX 4070 Ti SUPER",
+      "NVIDIA GeForce RTX 4070 Ti SUPER"
+    ],
+    "drivers": [
+      "570.124.06",
+      "570.124.06"
+    ],
+    "c2c": null
+  },
+  "version": {
+    "dxgb_bench": "0.1.dev345+g77eabb5",
+    "xgboost": "3.1.0-dev-ab24a469d"
+  }
+}
+```
+
+</details>
 
 Python dependencies
 -------------------

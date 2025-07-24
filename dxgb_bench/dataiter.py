@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import gc
 import os
-import re
 from abc import abstractmethod, abstractproperty
 from typing import TYPE_CHECKING, Any, Callable, SupportsFloat, TypeAlias
 
@@ -19,7 +18,7 @@ from .datasets.generated import (
     make_dense_regression,
     make_sparse_regression,
 )
-from .strip import PathInfo, make_strips
+from .strip import make_strips
 from .utils import TEST_SIZE, Timer, fprint
 
 if TYPE_CHECKING:
@@ -34,49 +33,6 @@ class IterImpl:
 
     @abstractproperty
     def n_batches(self) -> int: ...
-
-
-def get_pinfo(Xp: str) -> PathInfo:
-    """Get information based on the file name."""
-    name = os.path.basename(Xp)
-    # X|y-rows-columns-batch-shard.npz
-    fname_pattern = r"([X|y])_(\d+)_(\d+)-(\d+)-(\d+).[npy|npz|kvi]"
-    mat = re.search(fname_pattern, name)
-    assert mat is not None
-    x, rows_str, cols_str, batch_str, shard_str = mat.groups()
-    n_samples, n_features, batch_idx, shard_idx = (
-        int(rows_str),
-        int(cols_str),
-        int(batch_str),
-        int(shard_str),
-    )
-    return PathInfo(x, n_samples, n_features, batch_idx, shard_idx)
-
-
-def load_Xy(
-    Xp: str, yp: str, device: str
-) -> tuple[np.ndarray | sparse.csr_matrix, np.ndarray]:
-    if Xp.endswith("npz"):
-        X = sparse.load_npz(Xp)
-        y = np.load(yp)
-    elif Xp.endswith("npy"):
-        X = np.load(Xp)
-        y = np.load(yp)
-    else:
-        assert Xp.endswith("kio"), Xp
-        import kvikio
-
-        pinfo = get_pinfo(Xp)
-        X, y = _alloc(pinfo.n_samples, pinfo.n_features, device)
-
-        with kvikio.CuFile(Xp, "r") as fd:
-            n_bytes = fd.read(X)
-            assert n_bytes == X.nbytes
-        with kvikio.CuFile(yp, "r") as f:
-            n_bytes = f.read(y)
-            assert n_bytes == y.nbytes
-
-    return X, y
 
 
 XyPair: TypeAlias = tuple[np.ndarray | sparse.csr_matrix, np.ndarray]

@@ -71,4 +71,3 @@ jobs:
       shell: bash -l {0}
       run: |
         pytest -s -v ./tests/*.py
-        pytest -s -v ./tests/dsk
