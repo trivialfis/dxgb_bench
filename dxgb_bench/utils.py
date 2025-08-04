@@ -282,6 +282,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--alpha", type=float, default=None)
     parser.add_argument("--min_child_weight", type=float, default=None)
     parser.add_argument("--reg_lambda", type=float, default=None)
+    parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
     # DMatrix
     parser.add_argument("--cache_host_ratio", type=float, required=False)
@@ -297,11 +298,12 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "colsample_bynode": args.colsample_bynode,
         "colsample_bytree": args.colsample_bytree,
         "max_bin": args.n_bins,
-        "lambda": args.reg_lambda,
         "gamma": args.gamma,
         "alpha": args.alpha,
         "eta": args.eta,
         "min_child_weight": args.min_child_weight,
+        "lambda": args.reg_lambda,
+        "seed": args.seed,
         "device": args.device,
         "verbosity": args.verbosity,
         "objective": "binary:logistic" if args.target_type == "bin" else None,
