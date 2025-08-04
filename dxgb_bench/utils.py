@@ -279,6 +279,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--colsample_bytree", type=float, default=None)
     parser.add_argument("--eta", type=float, default=None)
     parser.add_argument("--gamma", type=float, default=None)
+    parser.add_argument("--alpha", type=float, default=None)
     parser.add_argument("--min_child_weight", type=float, default=None)
     parser.add_argument("--reg_lambda", type=float, default=None)
     parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
@@ -298,6 +299,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "max_bin": args.n_bins,
         "lambda": args.reg_lambda,
         "gamma": args.gamma,
+        "alpha": args.alpha,
         "eta": args.eta,
         "min_child_weight": args.min_child_weight,
         "device": args.device,
