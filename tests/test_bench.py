@@ -40,6 +40,7 @@ def test_bench_qdm(device: Device, fmt: str) -> None:
         bench(
             task="qdm",
             loadfrom=outdirs,
+            model_path=None,
             params=params,
             n_rounds=8,
             valid=True,
@@ -60,6 +61,7 @@ def test_bench_iter(device: Device, fmt: str) -> None:
         bench(
             task="qdm-iter",
             loadfrom=outdirs,
+            model_path=None,
             params=params,
             n_rounds=8,
             valid=True,

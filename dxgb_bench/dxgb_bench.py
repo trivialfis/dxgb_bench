@@ -37,6 +37,7 @@ from .utils import (
     merge_opts,
     mkdirs,
     peak_rmm_memory_bytes,
+    save_booster,
     save_results,
     split_path,
 )
@@ -112,6 +113,7 @@ def datagen(
 def bench(
     task: str,
     loadfrom: list[str],
+    model_path: str | None,
     params: dict[str, Any],
     n_rounds: int,
     valid: bool,
@@ -237,6 +239,30 @@ def bench(
         }
         save_results(results, "incore")
 
+        if model_path is not None:
+            save_booster(booster, model_path)
+
+
+def bench_inference(
+    task: str,
+    loadfrom: list[str],
+    model_path: str,
+    n_repeats: int,
+    device: str,
+) -> None:
+    with Timer("Inference", "Total"):
+        booster = xgb.Booster(model_file=model_path)
+        booster.set_param({"device": device})
+
+        X, y = load_all(loadfrom, device)
+
+        with Timer("Inference", "Inference"):
+            for i in range(n_repeats):
+                booster.inplace_predict(X)
+
+    results = {"timer": Timer.global_timer()}
+    save_results(results, "infer")
+
 
 def cli_main() -> None:
     parser = argparse.ArgumentParser()
@@ -244,6 +270,7 @@ def cli_main() -> None:
 
     subsparsers = parser.add_subparsers(dest="command")
     dg_parser = subsparsers.add_parser("datagen")
+    if_parser = subsparsers.add_parser("infer")
     bh_parser = subsparsers.add_parser("bench")
     mi_parser = subsparsers.add_parser("mi", description="Print machine information.")
     rmm_peak_parser = subsparsers.add_parser(
@@ -289,6 +316,29 @@ def cli_main() -> None:
     bh_parser.add_argument(
         "--valid", action="store_true", help="Split for the validation dataset."
     )
+    bh_parser.add_argument(
+        "--model_path",
+        type=str,
+        help="Save the booster object if a path is provided.",
+        default=None,
+    )
+
+    # Inference parser
+    if_parser.add_argument("--model_path", type=str, required=True)
+    if_parser.add_argument("--n_repeats", type=int, default=10)
+    if_parser = add_device_param(if_parser)
+    if_parser.add_argument(
+        "--loadfrom",
+        type=str,
+        required=False,
+        default=DFT_OUT,
+        help="Load data from a directory instead of generating it.",
+    )
+    if_parser.add_argument(
+        "--task",
+        choices=["inplace_np"],
+        default="inplace_np",
+    )
 
     args = parser.parse_args()
     if args.version is True:
@@ -316,12 +366,25 @@ def cli_main() -> None:
         assert os.path.exists(path)
         peak = peak_rmm_memory_bytes(path)
         print("Peak memory usage:", peak)
+    elif args.command == "infer":
+        loadfrom = split_path(args.loadfrom)
+        bench_inference(
+            args.task, loadfrom, args.model_path, args.n_repeats, args.device
+        )
     else:
         assert args.command == "bench"
         loadfrom = split_path(args.loadfrom)
         params = make_params_from_args(args)
 
-        bench(args.task, loadfrom, params, args.n_rounds, args.valid, args.device)
+        bench(
+            args.task,
+            loadfrom,
+            args.model_path,
+            params,
+            args.n_rounds,
+            args.valid,
+            args.device,
+        )
 
 
 if __name__ == "__main__":

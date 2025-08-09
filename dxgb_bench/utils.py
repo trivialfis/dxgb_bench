@@ -517,6 +517,21 @@ def has_chr() -> bool:
     return "cache_host_ratio" in names
 
 
+def save_booster(model: xgb.Booster, prefix: str) -> None:
+    prefix = os.path.expanduser(prefix)
+
+    if prefix.endswith(".json"):
+        model.save_model(prefix)
+        return
+
+    k = 0
+    path = prefix + f"-{k}.json"
+    while os.path.exists(path):
+        k += 1
+        path = prefix + f"-{k}.json"
+    model.save_model(path)
+
+
 def save_results(results: dict[str, Any], prefix: str) -> None:
     binfo = xgb.build_info()
     if "GIT_HASH" in binfo:
