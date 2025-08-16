@@ -62,6 +62,15 @@ dxgb-ext-bench --fly --n_samples_per_batch=2097152 --n_features=256 --n_batches=
 dxgb-dist-bench --n_workers=4 --cluster_type=local --fly --mr=arena --n_samples_per_batch=4194304 --n_features=512 --n_batches=196 --device=cuda --n_rounds=128 --verbosity=2
 ```
 
+Kvikio
+------
+We use kvikio for data IO, some environment variables might be useful:
+
+``` sh
+export KVIKIO_NTHREADS=8
+export KVIKIO_COMPAT_MODE=1
+```
+
 Commands
 --------
 - dxgb-bench
