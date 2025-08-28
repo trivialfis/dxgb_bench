@@ -30,6 +30,7 @@ from .utils import (
     add_device_param,
     add_hyper_param,
     add_target_type,
+    device_attributes,
     fill_opts_shape,
     fprint,
     machine_info,
@@ -273,6 +274,7 @@ def cli_main() -> None:
     if_parser = subsparsers.add_parser("infer")
     bh_parser = subsparsers.add_parser("bench")
     mi_parser = subsparsers.add_parser("mi", description="Print machine information.")
+    di_parser = subsparsers.add_parser("di", description="Print device attributes.")
     rmm_peak_parser = subsparsers.add_parser(
         "rmmpeak", description="Get the peak memory usage from a RMM log."
     )
@@ -361,6 +363,8 @@ def cli_main() -> None:
     elif args.command == "mi":
         mi = machine_info(device=args.device)
         print(json.dumps(mi, indent=2))
+    elif args.command == "di":
+        device_attributes()
     elif args.command == "rmmpeak":
         path = os.path.expanduser(args.path)
         assert os.path.exists(path)

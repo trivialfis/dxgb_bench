@@ -473,6 +473,25 @@ def machine_info(device: str) -> dict:
     return info
 
 
+def device_attributes() -> None:
+    from cuda.bindings import runtime as cudart
+
+    rc, shmem = cudart.cudaDeviceGetAttribute(
+        cudart.cudaDeviceAttr.cudaDevAttrMaxSharedMemoryPerBlock, 0
+    )
+    _checkcu(rc)
+    rc, shmem_optin = cudart.cudaDeviceGetAttribute(
+        cudart.cudaDeviceAttr.cudaDevAttrMaxSharedMemoryPerBlockOptin, 0
+    )
+    _checkcu(rc)
+    fprint(
+        "shared memory:",
+        f"{shmem / 1024}kB",
+        "shared memory optin:",
+        f"{shmem_optin / 1024}kB",
+    )
+
+
 def mkdirs(outdirs: list[str]) -> None:
     for d in outdirs:
         if not os.path.exists(d):
