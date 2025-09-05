@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+from time import time
 from typing import Any
 
 import numpy as np
@@ -244,6 +245,66 @@ def bench(
             save_booster(booster, model_path)
 
 
+# https://github.com/dmlc/xgboost/pull/11058
+def quick_inference(model_path: str) -> None:
+    def train_model(model_path: str) -> None:
+        from sklearn.datasets import load_digits
+        from sklearn.model_selection import train_test_split
+
+        data = load_digits()
+        X_train, X_test, y_train, y_test = train_test_split(
+            data["data"], data["target"], test_size=0.2
+        )
+        dtrain = xgb.DMatrix(X_train, label=y_train)
+        params = {
+            "max_depth": 3,
+            "eta": 1,
+            "objective": "multi:softprob",
+            "num_class": 10,
+        }
+        bst = xgb.train(params, dtrain, 128, [(dtrain, "train")])
+        bst.save_model(model_path)
+
+    def predict_np_array(model_path: str) -> None:
+        bst = xgb.Booster()
+        bst.set_param({"nthread": 1})
+        bst.load_model(fname=model_path)
+        times = []
+        np.random.seed(7)
+        iterations = 1000
+        for _ in range(iterations):
+            sample = np.random.uniform(-1, 10, size=(1, 64))
+            start = time()
+            bst.inplace_predict(sample)
+            times.append(time() - start)
+        iter_time = sum(times[iterations // 2 :]) / iterations / 2
+        print("np.array iter_time: ", iter_time * 1000, "ms")
+
+    def predict_sklearn(model_path: str) -> None:
+        import pandas as pd
+
+        clf = xgb.XGBClassifier()
+        clf.set_params(n_jobs=1)
+        clf.load_model(fname=model_path)
+        times = []
+        np.random.seed(7)
+        iterations = 1000
+        attrs = {f"{i}" for i in range(64)}
+        for _ in range(iterations):
+            sample = pd.DataFrame({ind: [np.random.uniform(-1, 10)] for ind in attrs})
+
+            start = time()
+            clf.predict_proba(sample)
+            times.append(time() - start)
+
+        iter_time = sum(times[iterations // 2 :]) / iterations / 2
+        print("DataFrame iter_time: ", iter_time * 1000, "ms")
+
+    train_model(model_path)
+    predict_sklearn(model_path)
+    predict_np_array(model_path)
+
+
 def bench_inference(
     task: str,
     loadfrom: list[str],
@@ -338,7 +399,7 @@ def cli_main() -> None:
     )
     if_parser.add_argument(
         "--task",
-        choices=["inplace_np"],
+        choices=["inplace_np", "quick"],
         default="inplace_np",
     )
 
@@ -371,6 +432,9 @@ def cli_main() -> None:
         peak = peak_rmm_memory_bytes(path)
         print("Peak memory usage:", peak)
     elif args.command == "infer":
+        if args.task == "quick":
+            quick_inference(args.model_path)
+            return
         loadfrom = split_path(args.loadfrom)
         bench_inference(
             args.task, loadfrom, args.model_path, args.n_repeats, args.device
