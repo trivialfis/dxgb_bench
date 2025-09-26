@@ -14,12 +14,11 @@ from xgboost import QuantileDMatrix
 
 from .dataiter import (
     TEST_SIZE,
-    BenchIter,
-    LoadIterStrip,
     load_all,
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression, psize
+from .external_mem import make_iter
 from .strip import make_strips
 from .utils import (
     DFT_OUT,
@@ -30,7 +29,7 @@ from .utils import (
     add_data_params,
     add_device_param,
     add_hyper_param,
-    add_target_type,
+    add_rmm_param,
     device_attributes,
     fill_opts_shape,
     fprint,
@@ -84,7 +83,7 @@ def datagen(
                 )
                 size_str = psize(X)
                 fprint(
-                    f"Batch:{i}, estimated size: {size_str}. {i*100/n_batches:.2f}%",
+                    f"Batch:{i}, estimated size: {size_str}. {i * 100 / n_batches:.2f}%",
                     end="\r",
                 )
 
@@ -117,17 +116,17 @@ def bench(
     loadfrom: list[str],
     model_path: str | None,
     params: dict[str, Any],
+    opts: Opts,
     n_rounds: int,
-    valid: bool,
-    device: str,
 ) -> None:
-    for d in loadfrom:
-        assert os.path.exists(d)
+    if not opts.on_the_fly:
+        for d in loadfrom:
+            assert os.path.exists(d), d
 
     with Timer("Train", "Total"):
         if task == "qdm":
-            X, y = load_all(loadfrom, device)
-            if valid:
+            X, y = load_all(loadfrom, opts.device)
+            if opts.validation:
                 X_train, X_test, y_train, y_test = train_test_split(
                     X, y, test_size=TEST_SIZE, random_state=2024
                 )
@@ -153,50 +152,18 @@ def bench(
                     evals_result=evals_result,
                 )
 
-            opts = Opts(
-                n_samples_per_batch=-1,
-                n_features=-1,
-                n_batches=-1,
-                sparsity=-1.0,
-                on_the_fly=False,
-                validation=valid,
-                device=device,
-                mr=None,
-                target_type="reg",
-                cache_host_ratio=None,
-            )
             opts = fill_opts_shape(opts, Xy, Xy_valid, 1)
         else:
             assert task == "qdm-iter"
-            if valid:
-                it_impl = LoadIterStrip(
-                    loadfrom, test_size=TEST_SIZE, is_valid=False, device=device
-                )
-                it_train = BenchIter(
-                    it_impl, is_ext=False, is_valid=False, device=device
-                )
 
-                it_impl = LoadIterStrip(
-                    loadfrom, test_size=TEST_SIZE, is_valid=True, device=device
-                )
-                it_valid = BenchIter(
-                    it_impl, is_ext=False, is_valid=True, device=device
-                )
-            else:
-                it_impl = LoadIterStrip(
-                    loadfrom, test_size=None, is_valid=False, device=device
-                )
-                it_train = BenchIter(
-                    it_impl, is_ext=False, is_valid=False, device=device
-                )
-                it_valid = None
-
+            it_train, it_valid = make_iter(opts, loadfrom, is_ext=False)
             with Timer("Train", "DMatrix-Train"):
-                Xy = QuantileDMatrix(it_train, max_bin=params["max_bin"])
-                watches = [(Xy, "Train")]
-            if valid:
+                Xy_train = QuantileDMatrix(it_train, max_bin=params["max_bin"])
+                watches = [(Xy_train, "Train")]
+
+            if opts.validation:
                 with Timer("Train", "DMatrix-Valid"):
-                    Xy_valid = QuantileDMatrix(it_valid, ref=Xy)
+                    Xy_valid = QuantileDMatrix(it_valid, ref=Xy_train)
                     watches.append((Xy_valid, "Valid"))
             else:
                 Xy_valid = None
@@ -205,26 +172,20 @@ def bench(
             with Timer("Train", "Train"):
                 booster = xgb.train(
                     params,
-                    Xy,
+                    Xy_train,
                     num_boost_round=n_rounds,
                     evals=watches,
                     verbose_eval=True,
                     evals_result=evals_result,
                 )
 
-            opts = Opts(
-                n_samples_per_batch=-1,
-                n_features=-1,
-                n_batches=-1,
-                sparsity=-1.0,
-                on_the_fly=False,
-                validation=valid,
-                device=device,
-                mr=None,
-                target_type="reg",
-                cache_host_ratio=None,
-            )
-            opts = fill_opts_shape(opts, Xy, Xy_valid, it_impl.n_batches)
+            if len(watches) >= 2:
+                assert watches[1][1] == "Valid"
+                opts = fill_opts_shape(
+                    opts, Xy_train, watches[1][0], it_train.n_batches
+                )
+            else:
+                opts = fill_opts_shape(opts, Xy_train, None, it_train.n_batches)
 
         print(f"Trained for {n_rounds} iterations.")
         print(Timer.global_timer())
@@ -358,6 +319,12 @@ def cli_main() -> None:
 
     # Benchmark parser
     bh_parser = add_device_param(bh_parser)
+    bh_parser = add_data_params(bh_parser, False)
+    bh_parser.add_argument(
+        "--fly",
+        action="store_true",
+        help="Generate data on the fly instead of loading it from the disk.",
+    )
     bh_parser.add_argument(
         "--loadfrom",
         type=str,
@@ -374,8 +341,8 @@ def cli_main() -> None:
         ),
         required=True,
     )
+    parser = add_rmm_param(parser)
     bh_parser = add_hyper_param(bh_parser)
-    bh_parser = add_target_type(bh_parser)
     bh_parser.add_argument(
         "--valid", action="store_true", help="Split for the validation dataset."
     )
@@ -444,14 +411,35 @@ def cli_main() -> None:
         loadfrom = split_path(args.loadfrom)
         params = make_params_from_args(args)
 
+        n_batches = args.n_batches
+        if args.fly:
+            n = args.n_samples_per_batch * n_batches
+        else:
+            n = 0
+
+        n_features = args.n_features
+        opts = Opts(
+            n_samples_per_batch=n // n_batches,
+            n_features=n_features,
+            n_batches=n_batches,
+            sparsity=args.sparsity,
+            on_the_fly=args.fly,
+            validation=args.valid,
+            device=args.device,
+            mr=args.mr,
+            target_type=args.target_type,
+            cache_host_ratio=args.cache_host_ratio,
+        )
+
         bench(
             args.task,
             loadfrom,
             args.model_path,
             params,
+            opts,
             args.n_rounds,
-            args.valid,
-            args.device,
+            # args.valid,
+            # args.device,
         )
 
 

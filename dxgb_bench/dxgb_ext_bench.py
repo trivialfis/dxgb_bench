@@ -43,7 +43,7 @@ def qdm_train(
     machine = machine_info(opts.device)
 
     with Timer("Train", "Total"):
-        it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
+        it_train, it_valid = make_iter(opts, loadfrom=loadfrom, is_ext=True)
         Xy_train, watches = make_extmem_qdms(
             opts, params["max_bin"], it_train, it_valid
         )

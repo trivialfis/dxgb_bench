@@ -7,10 +7,10 @@ import pytest
 
 from dxgb_bench.dxgb_bench import bench, datagen
 from dxgb_bench.testing import Device, TmpDir, devices, formats
-from dxgb_bench.utils import Timer
+from dxgb_bench.utils import Opts, Timer
 
 
-def make_data(saveto: list[str], device: Device, fmt: str) -> None:
+def make_data(saveto: list[str], device: Device, fmt: str) -> Opts:
     n_samples_per_batch = 256
     n_features = 16
     n_batches = 8
@@ -30,11 +30,26 @@ def make_data(saveto: list[str], device: Device, fmt: str) -> None:
         fmt=fmt,
     )
 
+    opts = Opts(
+        n_samples_per_batch=n_samples_per_batch,
+        n_features=n_features,
+        n_batches=n_batches,
+        sparsity=0.0,
+        on_the_fly=False,
+        validation=True,
+        device=device,
+        mr=None,
+        target_type="reg",
+        cache_host_ratio=None,
+    )
+    return opts
+
 
 @pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_bench_qdm(device: Device, fmt: str) -> None:
+    Timer.reset()
     with TmpDir(2, True) as outdirs:
-        make_data(outdirs, device, fmt)
+        opts = make_data(outdirs, device, fmt)
         # Call the bench function with test parameters
         params = {"device": device, "max_bin": 256}
         bench(
@@ -42,9 +57,8 @@ def test_bench_qdm(device: Device, fmt: str) -> None:
             loadfrom=outdirs,
             model_path=None,
             params=params,
+            opts=opts,
             n_rounds=8,
-            valid=True,
-            device=device,
         )
         timer = Timer.global_timer()
         assert timer["Train"]["DMatrix-Train"] > 0
@@ -54,8 +68,9 @@ def test_bench_qdm(device: Device, fmt: str) -> None:
 
 @pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_bench_iter(device: Device, fmt: str) -> None:
+    Timer.reset()
     with TmpDir(2, True) as outdirs:
-        make_data(outdirs, device, fmt)
+        opts = make_data(outdirs, device, fmt)
         # Call the bench function with test parameters
         params = {"device": device, "max_bin": 256}
         bench(
@@ -63,11 +78,47 @@ def test_bench_iter(device: Device, fmt: str) -> None:
             loadfrom=outdirs,
             model_path=None,
             params=params,
+            opts=opts,
             n_rounds=8,
-            valid=True,
-            device=device,
         )
         timer = Timer.global_timer()
         assert timer["Train"]["DMatrix-Train"] > 0
         assert timer["Train"]["DMatrix-Valid"] > 0
         assert timer["Train"]["Train"] > 0
+
+
+@pytest.mark.parametrize("device", devices())
+def test_bench_iter_fly(device: Device) -> None:
+    Timer.reset()
+    timer = Timer.global_timer()
+
+    n_samples_per_batch = 256
+    n_features = 128
+    n_batches = 8
+
+    opts = Opts(
+        n_samples_per_batch=n_samples_per_batch,
+        n_features=n_features,
+        n_batches=n_batches,
+        sparsity=0.0,
+        on_the_fly=True,
+        validation=True,
+        device=device,
+        mr=None,
+        target_type="reg",
+        cache_host_ratio=None,
+    )
+
+    params = {"device": device, "max_bin": 256}
+    bench(
+        task="qdm-iter",
+        loadfrom=[],
+        model_path=None,
+        params=params,
+        opts=opts,
+        n_rounds=8,
+    )
+
+    assert timer["Train"]["DMatrix-Train"] > 0
+    assert timer["Train"]["DMatrix-Valid"] > 0
+    assert timer["Train"]["Train"] > 0
