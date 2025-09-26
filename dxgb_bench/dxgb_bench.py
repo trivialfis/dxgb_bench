@@ -438,8 +438,6 @@ def cli_main() -> None:
             params,
             opts,
             args.n_rounds,
-            # args.valid,
-            # args.device,
         )
 
 
