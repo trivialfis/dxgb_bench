@@ -16,7 +16,9 @@ from .dataiter import (
 from .utils import Opts, Timer, has_chr, setup_rmm
 
 
-def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | None]:
+def make_iter(
+    opts: Opts, loadfrom: list[str], is_ext: bool
+) -> tuple[BenchIter, BenchIter | None]:
     if not opts.on_the_fly:
         # Load files
         if opts.validation:
@@ -25,7 +27,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
             )
             train_it = BenchIter(
                 it_impl,
-                is_ext=True,
+                is_ext=is_ext,
                 is_valid=False,
                 device=opts.device,
             )
@@ -34,7 +36,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
             )
             valid_it = BenchIter(
                 it_impl,
-                is_ext=True,
+                is_ext=is_ext,
                 is_valid=True,
                 device=opts.device,
             )
@@ -44,7 +46,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
             )
             train_it = BenchIter(
                 it_impl,
-                is_ext=True,
+                is_ext=is_ext,
                 is_valid=False,
                 device=opts.device,
             )
@@ -64,7 +66,7 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         )
         it_train = BenchIter(
             it_impl,
-            is_ext=True,
+            is_ext=is_ext,
             is_valid=False,
             device=opts.device,
         )
@@ -93,8 +95,12 @@ def make_iter(opts: Opts, loadfrom: list[str]) -> tuple[BenchIter, BenchIter | N
         target_type=opts.target_type,
         device=opts.device,
     )
-    it_train = BenchIter(it_train_impl, is_ext=True, is_valid=False, device=opts.device)
-    it_valid = BenchIter(it_valid_impl, is_ext=True, is_valid=True, device=opts.device)
+    it_train = BenchIter(
+        it_train_impl, is_ext=is_ext, is_valid=False, device=opts.device
+    )
+    it_valid = BenchIter(
+        it_valid_impl, is_ext=is_ext, is_valid=True, device=opts.device
+    )
     return it_train, it_valid
 
 
@@ -108,7 +114,7 @@ def spdm_train(
     if opts.device == "cuda" and opts.mr is not None:
         setup_rmm(opts.mr)
 
-    it_train, it_valid = make_iter(opts, loadfrom=loadfrom)
+    it_train, it_valid = make_iter(opts, loadfrom=loadfrom, is_ext=True)
     with Timer("ExtQdm", "DMatrix-Train"):
         Xy_train = xgb.DMatrix(it_train)
 

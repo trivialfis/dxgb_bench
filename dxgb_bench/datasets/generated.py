@@ -132,9 +132,9 @@ def psize(X: np.ndarray) -> str:
     elif n_bytes < 1024**2:
         size = f"{n_bytes / 1024} KB"
     elif n_bytes < 1024**3:
-        size = f"{n_bytes / 1024 ** 2} MB"
+        size = f"{n_bytes / 1024**2} MB"
     else:
-        size = f"{n_bytes / 1024 ** 3} GB"
+        size = f"{n_bytes / 1024**3} GB"
     return size
 
 
@@ -168,7 +168,6 @@ def make_dense_binary_classification(
         device, n_samples, n_features, sparsity=0.0, random_state=random_state
     )
     if device == "cpu":
-
         y = np.zeros(shape=(n_samples,), dtype=np.float32)
     else:
         import cupy as cp

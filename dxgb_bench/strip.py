@@ -350,7 +350,6 @@ class Strip:
 
         with dispatch_backend(device=self._device, fmt=self._fmt, shape=shape) as hdl:
             for shard_idx, dirname in enumerate(self._dirs):
-
                 if not os.path.exists(dirname):
                     os.mkdir(dirname)
 
