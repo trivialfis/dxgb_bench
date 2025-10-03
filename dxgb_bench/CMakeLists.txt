@@ -32,6 +32,8 @@ if (DXGB_USE_CUDA)
 endif ()
 
 set_target_properties(dxgbbench PROPERTIES
+  CXX_STANDARD 17
+  CXX_STANDARD_REQUIRED ON
   C_VISIBILITY_PRESET hidden
   CXX_VISIBILITY_PRESET hidden
 )

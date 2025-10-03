@@ -13,6 +13,11 @@ data/
 .cache
 build/
 *.so
+*.dll
+*.exp
+*.ilk
+*.lib
+*.pdb
 rmm_log*
 .gdb_history
 _tdata*

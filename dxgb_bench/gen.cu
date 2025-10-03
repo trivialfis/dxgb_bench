@@ -5,9 +5,9 @@
 #include <thrust/system/omp/execution_policy.h>  // for par
 
 #include <limits>
-#include <thread>
+#include <thread>  // for hardware_concurrency
+#include <cmath>   // for isnan
 #include <omp.h>
-#include <iostream>
 
 namespace cuda_impl {
 template <typename Exec>
@@ -36,7 +36,7 @@ void Impl(Exec exec, int64_t m, int64_t n, double sparsity, int64_t seed, float 
                        auto err = dist(rng);
                        y[i] = err;
                        for (std::size_t j = 0; j < n; ++j) {
-                         if (!std::isnan(out[n * i + j])) {
+                         if (!isnan(out[n * i + j])) {
                            y[i] += out[n * i + j];
                          }
                        }
