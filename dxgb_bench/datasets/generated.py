@@ -34,7 +34,7 @@ def _load_lib() -> ctypes.CDLL:
         ctypes.c_double,
         ctypes.c_int64,
         ctypes.POINTER(ctypes.c_float),
-        ctypes.POINTER(ctypes.c_float)
+        ctypes.POINTER(ctypes.c_float),
     ]
     lib.MakeDenseRegression.restype = ctypes.c_int
     return lib
