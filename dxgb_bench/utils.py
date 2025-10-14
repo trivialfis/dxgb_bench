@@ -484,11 +484,16 @@ def device_attributes() -> None:
         cudart.cudaDeviceAttr.cudaDevAttrMaxSharedMemoryPerBlockOptin, 0
     )
     _checkcu(rc)
+    rc, n_mps = cudart.cudaDeviceGetAttribute(
+        cudart.cudaDeviceAttr.cudaDevAttrMultiProcessorCount, 0
+    )
     fprint(
         "shared memory:",
         f"{shmem / 1024}kB",
         "shared memory optin:",
         f"{shmem_optin / 1024}kB",
+        "Multi processor count:",
+        n_mps,
     )
 
 
