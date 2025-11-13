@@ -236,7 +236,10 @@ class SynIterImpl(IterImpl):
                 sparsity=self.sparsity,
                 random_state=self._seed(i),
             )
-        assert self.sizes[i] == X.size, (self.sizes[i], X.size)
+        if hasattr(X, "numel"):
+            assert self.sizes[i] == X.numel(), (self.sizes[i], X.numel())
+        else:
+            assert self.sizes[i] == X.size, (self.sizes[i], X.size)
         return X, y
 
 

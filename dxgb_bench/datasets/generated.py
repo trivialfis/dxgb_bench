@@ -48,9 +48,14 @@ def make_reg_c(
 
     if is_cuda:
         import cupy as cp
+        import torch as tr
 
-        X = cp.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
-        y = cp.empty(shape=(n_samples_per_batch,), dtype=np.float32)
+        X = tr.empty(
+            size=(n_samples_per_batch, n_features), device=tr.device("cuda"), dtype=tr.float32
+        )
+        y = tr.empty(size=(n_samples_per_batch,), device=tr.device("cuda"), dtype=tr.float32)
+        # X = cp.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
+        # y = cp.empty(shape=(n_samples_per_batch,), dtype=np.float32)
         X_ptr = ctypes.cast(
             X.__cuda_array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
         )

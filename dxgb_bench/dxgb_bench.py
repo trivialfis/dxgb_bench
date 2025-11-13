@@ -158,7 +158,7 @@ def bench(
 
             it_train, it_valid = make_iter(opts, loadfrom, is_ext=False)
             with Timer("Train", "DMatrix-Train"):
-                Xy_train = QuantileDMatrix(it_train, max_bin=params["max_bin"])
+                Xy_train = QuantileDMatrix(it_train, max_bin=params["max_bin"], max_quantile_batches=2)
                 watches = [(Xy_train, "Train")]
 
             if opts.validation:
