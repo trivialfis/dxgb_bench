@@ -2,9 +2,9 @@
 
 set -euox pipefail
 
-DEB_ARM="nsight-systems-2025.3.1_2025.3.1.90-1_arm64.deb"
+DEB_ARM="nsight-systems-2025.5.1_2025.5.1.121-1_arm64.deb"
 DEB_X86="nsight-systems-2025.5.1_2025.5.1.121-1_amd64.deb"
-URL_ARM="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_3/${DEB_ARM}"
+URL_ARM="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_5/${DEB_ARM}"
 URL_X86="https://developer.nvidia.com/downloads/assets/tools/secure/nsight-systems/2025_5/${DEB_X86}"
 
 arch=$1
@@ -12,7 +12,7 @@ arch=$1
 case $arch in
     aarch)
 	wget $URL_ARM
-	echo "02b078c20d0aad765f2695fdbcc33ba3d2152fae9d0c994ae8ea3ce9a9278c5b  ./${DEB_ARM}" | shasum -a 256 --check
+	echo "9fd77ef3e990e2564edc25b32474935a86157bff5d58403648e7bd1a2d6f4e83  ./${DEB_ARM}" | shasum -a 256 --check
 	apt install ./${DEB_ARM} -y
 	rm ./${DEB_ARM}
 	;;
