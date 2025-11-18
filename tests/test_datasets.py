@@ -48,6 +48,7 @@ def test_dense_regression() -> None:
     X, y = make_dense_regression(
         n_samples=3,
         n_features=2,
+        n_targets=1,
         sparsity=0.6,
         device="cpu",
         random_state=1,
@@ -60,6 +61,7 @@ def test_dense_regression() -> None:
     X, y = make_dense_regression(
         n_samples=2047,
         n_features=16,
+        n_targets=1,
         sparsity=0.6,
         device="cpu",
         random_state=1,
@@ -82,7 +84,8 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
         datagen(
             nspb,
             n_features,
-            n_batches,
+            1,
+            n_batches=n_batches,
             assparse=False,
             target_type="reg",
             sparsity=0.0,
@@ -98,6 +101,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
             nspb * n_batches,
             n_features,
             1,
+            n_batches=1,
             assparse=False,
             target_type="reg",
             sparsity=0.0,
@@ -128,9 +132,10 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     impl = SynIterImpl(
         nspb,
         n_features,
-        n_batches,
-        0.0,
-        False,
+        n_targets=1,
+        n_batches=n_batches,
+        sparsity=0.0,
+        assparse=False,
         target_type="reg",
         device=device,
     )
@@ -153,7 +158,14 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
     y1 = concat(ys1)
 
     impl = SynIterImpl(
-        nspb * n_batches, n_features, 1, 0.0, False, target_type="reg", device=device
+        nspb * n_batches,
+        n_features,
+        n_targets=1,
+        n_batches=1,
+        sparsity=0.0,
+        assparse=False,
+        target_type="reg",
+        device=device,
     )
     X2, y2 = impl.get(0)
 
@@ -162,7 +174,8 @@ def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
         datagen(
             nspb,
             n_features,
-            n_batches,
+            1,
+            n_batches=n_batches,
             assparse=False,
             target_type="reg",
             sparsity=0.0,
@@ -201,9 +214,10 @@ def test_deterministic(device: str) -> None:
     impl = SynIterImpl(
         n_samples_per_batch,
         n_features,
-        n_batches,
-        0.0,
-        False,
+        n_targets=1,
+        n_batches=n_batches,
+        sparsity=0.0,
+        assparse=False,
         target_type=target_type,
         device=device,
     )
@@ -249,7 +263,8 @@ def test_cv(device: str) -> None:
         datagen(
             nspb,
             n_features,
-            n_batches,
+            1,
+            n_batches=n_batches,
             assparse=False,
             target_type="reg",
             sparsity=0.0,
@@ -282,7 +297,8 @@ def test_datagen(device: str) -> None:
         datagen(
             nspb,
             n_features,
-            n_batches,
+            1,
+            n_batches=n_batches,
             assparse=False,
             target_type="reg",
             sparsity=0.0,

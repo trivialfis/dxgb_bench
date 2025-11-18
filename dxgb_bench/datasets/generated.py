@@ -12,7 +12,7 @@ from typing import Tuple
 import numpy as np
 from scipy import sparse
 
-from ..utils import div_roundup, fprint
+from ..utils import div_roundup
 
 
 @functools.cache
@@ -31,6 +31,7 @@ def _load_lib() -> ctypes.CDLL:
         ctypes.c_bool,
         ctypes.c_int64,
         ctypes.c_int64,
+        ctypes.c_int64,
         ctypes.c_double,
         ctypes.c_int64,
         ctypes.POINTER(ctypes.c_float),
@@ -41,7 +42,12 @@ def _load_lib() -> ctypes.CDLL:
 
 
 def make_reg_c(
-    is_cuda: bool, n_samples_per_batch: int, n_features: int, seed: int, sparsity: float
+    is_cuda: bool,
+    n_samples_per_batch: int,
+    n_features: int,
+    n_targets: int,
+    seed: int,
+    sparsity: float,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Use the C++/CUDA implementation of dense data gen."""
     _lib = _load_lib()
@@ -50,7 +56,7 @@ def make_reg_c(
         import cupy as cp
 
         X = cp.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
-        y = cp.empty(shape=(n_samples_per_batch,), dtype=np.float32)
+        y = cp.empty(shape=(n_samples_per_batch, n_targets), dtype=np.float32)
         X_ptr = ctypes.cast(
             X.__cuda_array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
         )
@@ -59,7 +65,7 @@ def make_reg_c(
         )
     else:
         X = np.empty(shape=(n_samples_per_batch, n_features), dtype=np.float32)
-        y = np.empty(shape=(n_samples_per_batch,), dtype=np.float32)
+        y = np.empty(shape=(n_samples_per_batch, n_targets), dtype=np.float32)
         X_ptr = ctypes.cast(
             X.__array_interface__["data"][0], ctypes.POINTER(ctypes.c_float)
         )
@@ -71,6 +77,7 @@ def make_reg_c(
         ctypes.c_bool(is_cuda),
         ctypes.c_int64(n_samples_per_batch),
         ctypes.c_int64(n_features),
+        ctypes.c_int64(n_targets),
         ctypes.c_double(sparsity),
         ctypes.c_int64(seed),
         X_ptr,
@@ -152,6 +159,7 @@ def make_dense_regression(
     device: str,
     n_samples: int,
     n_features: int,
+    n_targets: int,
     *,
     sparsity: float,
     random_state: int,
@@ -165,6 +173,7 @@ def make_dense_regression(
         is_cuda=device == "cuda",
         n_samples_per_batch=n_samples,
         n_features=n_features,
+        n_targets=n_targets,
         seed=random_state,
         sparsity=sparsity,
     )
@@ -172,17 +181,22 @@ def make_dense_regression(
 
 
 def make_dense_binary_classification(
-    device: str, n_samples: int, n_features: int, random_state: int
+    device: str, n_samples: int, n_features: int, n_targets: int, random_state: int
 ) -> Tuple[np.ndarray, np.ndarray]:
     X, y_sum = make_dense_regression(
-        device, n_samples, n_features, sparsity=0.0, random_state=random_state
+        device,
+        n_samples,
+        n_features,
+        n_targets,
+        sparsity=0.0,
+        random_state=random_state,
     )
     if device == "cpu":
-        y = np.zeros(shape=(n_samples,), dtype=np.float32)
+        y = np.zeros(shape=(n_samples, n_targets), dtype=np.float32)
     else:
         import cupy as cp
 
-        y = cp.zeros(shape=(n_samples,), dtype=cp.float32)
+        y = cp.zeros(shape=(n_samples, n_targets), dtype=cp.float32)
 
     y[y_sum > 0] = 1
     gc.collect()

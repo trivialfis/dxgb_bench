@@ -89,6 +89,7 @@ def main(args: argparse.Namespace) -> None:
     opts = Opts(
         n_samples_per_batch=n // n_batches,
         n_features=n_features,
+        n_targets=args.n_targets,
         n_batches=n_batches,
         sparsity=args.sparsity,
         on_the_fly=args.fly,

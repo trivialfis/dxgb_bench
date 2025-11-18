@@ -47,6 +47,7 @@ from .utils import (
 def datagen(
     n_samples_per_batch: int,
     n_features: int,
+    n_targets: int,
     n_batches: int,
     *,
     assparse: bool,
@@ -78,6 +79,7 @@ def datagen(
                     device=device,
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
+                    n_targets=n_targets,
                     sparsity=sparsity,
                     random_state=size,
                 )
@@ -96,6 +98,8 @@ def datagen(
                 y_fd.write(y, batch_idx=i)
             else:
                 out = outdirs[i % len(outdirs)]
+                if n_targets != 1:
+                    raise NotImplementedError()
                 X, y = make_sparse_regression(
                     n_samples=n_samples_per_batch,
                     n_features=n_features,
@@ -380,6 +384,7 @@ def cli_main() -> None:
         datagen(
             n_samples_per_batch=args.n_samples_per_batch,
             n_features=args.n_features,
+            n_targets=args.n_targets,
             n_batches=args.n_batches,
             assparse=args.assparse,
             target_type=args.target_type,
@@ -422,6 +427,7 @@ def cli_main() -> None:
             n_samples_per_batch=n // n_batches,
             n_features=n_features,
             n_batches=n_batches,
+            n_targets=args.n_targets,
             sparsity=args.sparsity,
             on_the_fly=args.fly,
             validation=args.valid,

@@ -235,6 +235,7 @@ def cli_main() -> None:
     opts = Opts(
         n_samples_per_batch=args.n_samples_per_batch,
         n_features=args.n_features,
+        n_targets=args.n_targets,
         n_batches=args.n_batches,
         sparsity=args.sparsity,
         on_the_fly=args.fly,
