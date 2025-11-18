@@ -285,6 +285,11 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--reg_lambda", type=float, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
+    parser.add_argument(
+        "--multi_strategy",
+        choices=["multi_output_tree", "one_output_per_tree"],
+        default=None,
+    )
     # DMatrix
     parser.add_argument("--cache_host_ratio", type=float, required=False)
     return parser
@@ -308,6 +313,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "device": args.device,
         "verbosity": args.verbosity,
         "objective": "binary:logistic" if args.target_type == "bin" else None,
+        "multi_strategy": args.multi_strategy,
     }
     fprint(params)
     return params
