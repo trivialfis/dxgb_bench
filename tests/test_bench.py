@@ -21,6 +21,7 @@ def make_data(saveto: list[str], device: Device, fmt: str) -> Opts:
     datagen(
         n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
+        n_targets=1,
         n_batches=n_batches,
         assparse=assparse,
         target_type=target_type,
@@ -33,6 +34,7 @@ def make_data(saveto: list[str], device: Device, fmt: str) -> Opts:
     opts = Opts(
         n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
+        n_targets=1,
         n_batches=n_batches,
         sparsity=0.0,
         on_the_fly=False,
@@ -99,6 +101,7 @@ def test_bench_iter_fly(device: Device) -> None:
     opts = Opts(
         n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
+        n_targets=1,
         n_batches=n_batches,
         sparsity=0.0,
         on_the_fly=True,

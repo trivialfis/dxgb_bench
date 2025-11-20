@@ -1,17 +1,18 @@
+#include <omp.h>
 #include <thrust/execution_policy.h>
 #include <thrust/for_each.h>
 #include <thrust/iterator/counting_iterator.h>
 #include <thrust/random.h>
 #include <thrust/system/omp/execution_policy.h>  // for par
 
+#include <cmath>  // for isnan
 #include <limits>
 #include <thread>  // for hardware_concurrency
-#include <cmath>   // for isnan
-#include <omp.h>
 
 namespace cuda_impl {
 template <typename Exec>
-void Impl(Exec exec, int64_t m, int64_t n, double sparsity, int64_t seed, float *out, float *y) {
+void Impl(Exec exec, int64_t m, int64_t n, int64_t n_targets, double sparsity, int64_t seed,
+          float *out, float *y) {
   thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m * n,
                      [=] __host__ __device__(std::size_t i) {
                        thrust::minstd_rand rng, rng1;
@@ -27,30 +28,35 @@ void Impl(Exec exec, int64_t m, int64_t n, double sparsity, int64_t seed, float 
                        }
                        out[i] = dist(rng);
                      });
-  thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m,
-                     [=] __host__ __device__(std::size_t i) {
-                       thrust::minstd_rand rng;
-                       rng.seed(0);
-                       rng.discard(seed / n + i);
-                       thrust::normal_distribution<float> dist{0.0f, 1.5f};
-                       auto err = dist(rng);
-                       y[i] = err;
-                       for (std::size_t j = 0; j < n; ++j) {
-                         if (!isnan(out[n * i + j])) {
-                           y[i] += out[n * i + j];
+
+  // We can run this as a single kernel if we have an unravel impl.
+  for (int64_t t = 0; t < n_targets; ++t) {
+    thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m,
+                       [=] __host__ __device__(std::size_t i) {
+                         thrust::minstd_rand rng;
+                         rng.seed(0);
+                         rng.discard(seed / n + i);
+                         thrust::normal_distribution<float> dist{0.0f, 1.5f};
+                         // auto cor = dist(rng);
+                         auto err = dist(rng);
+                         y[i * n_targets + t] = err;
+                         for (std::size_t j = 0; j < n; ++j) {
+                           if (!isnan(out[n * i + j])) {
+                             y[i] += out[n * i + j] * 1.0;
+                           }
                          }
-                       }
-                     });
+                       });
+  }
 }
 
-int MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, double sparsity, int64_t seed,
-                        float *out, float *y) {
+int MakeDenseRegression(bool is_cuda, int64_t m, int64_t n, int64_t n_targets, double sparsity,
+                        int64_t seed, float *out, float *y) {
   if (is_cuda) {
-    Impl(thrust::cuda::par_nosync, m, n, sparsity, seed, out, y);
+    Impl(thrust::cuda::par_nosync, m, n, n_targets, sparsity, seed, out, y);
     cub::SyncStream(cudaStreamPerThread);
   } else {
     omp_set_num_threads(std::thread::hardware_concurrency());
-    Impl(thrust::omp::par, m, n, sparsity, seed, out, y);
+    Impl(thrust::omp::par, m, n, n_targets, sparsity, seed, out, y);
   }
   return 0;
 }

@@ -174,6 +174,7 @@ class SynIterImpl(IterImpl):
         self,
         n_samples_per_batch: int,
         n_features: int,
+        n_targets: int,
         n_batches: int,
         sparsity: float,
         assparse: bool,
@@ -183,6 +184,7 @@ class SynIterImpl(IterImpl):
     ) -> None:
         self.n_samples_per_batch = n_samples_per_batch
         self.n_features = n_features
+        self.n_targets = n_targets
         self._n_batches = n_batches
         self.sparsity = sparsity
         self.assparse = assparse
@@ -215,6 +217,7 @@ class SynIterImpl(IterImpl):
                 device=self.device,
                 n_samples=self.n_samples_per_batch,
                 n_features=self.n_features,
+                n_targets=self.n_targets,
                 random_state=self._seed(i),
             )
             fprint("seed:", self._seed(i))
@@ -233,6 +236,7 @@ class SynIterImpl(IterImpl):
                 device=self.device,
                 n_samples=self.n_samples_per_batch,
                 n_features=self.n_features,
+                n_targets=self.n_targets,
                 sparsity=self.sparsity,
                 random_state=self._seed(i),
             )

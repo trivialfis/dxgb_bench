@@ -233,6 +233,7 @@ def add_data_params(
         )
     else:
         parser.add_argument("--n_features", type=int, required=required)
+    parser.add_argument("--n_targets", type=int, default=1)
     parser.add_argument("--n_batches", type=int, default=1)
     parser.add_argument("--assparse", action="store_true")
     parser.add_argument("--sparsity", type=float, default=0.0)
@@ -284,6 +285,11 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument("--reg_lambda", type=float, default=None)
     parser.add_argument("--seed", type=int, default=None)
     parser.add_argument("--verbosity", choices=[0, 1, 2, 3], default=1, type=int)
+    parser.add_argument(
+        "--multi_strategy",
+        choices=["multi_output_tree", "one_output_per_tree"],
+        default=None,
+    )
     # DMatrix
     parser.add_argument("--cache_host_ratio", type=float, required=False)
     return parser
@@ -307,6 +313,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "device": args.device,
         "verbosity": args.verbosity,
         "objective": "binary:logistic" if args.target_type == "bin" else None,
+        "multi_strategy": args.multi_strategy,
     }
     fprint(params)
     return params
@@ -488,9 +495,9 @@ def device_attributes() -> None:
         cudart.cudaDeviceAttr.cudaDevAttrMultiProcessorCount, 0
     )
     fprint(
-        "shared memory:",
+        "Shared memory:",
         f"{shmem / 1024}kB",
-        "shared memory optin:",
+        "Shared memory optin:",
         f"{shmem_optin / 1024}kB",
         "Multi processor count:",
         n_mps,
@@ -507,6 +514,7 @@ def mkdirs(outdirs: list[str]) -> None:
 class Opts:
     n_samples_per_batch: int
     n_features: int
+    n_targets: int
     n_batches: int
     sparsity: float
     on_the_fly: bool
@@ -593,6 +601,8 @@ def fill_opts_shape(
     sparsity = 1.0 - density
     opts.n_samples_per_batch = n_samples // n_batches
     opts.n_features = Xy.num_col()
+    opts.n_targets = Xy.get_label().size // Xy.num_row()
+    assert opts.n_targets >= 1
     opts.sparsity = sparsity
     opts.n_batches = n_batches
     return opts

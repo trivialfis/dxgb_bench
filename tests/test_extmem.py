@@ -27,6 +27,7 @@ def test_qdm_train(device: Device, fmt: str) -> None:
     opts = Opts(
         n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
+        n_targets=1,
         n_batches=n_batches,
         sparsity=0.0,
         on_the_fly=False,
@@ -41,6 +42,7 @@ def test_qdm_train(device: Device, fmt: str) -> None:
         datagen(
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
+            n_targets=1,
             n_batches=n_batches,
             assparse=False,
             target_type="reg",

@@ -22,6 +22,7 @@ def test_dist(device: Device, extmem: bool) -> None:
     opts = Opts(
         n_samples_per_batch=256,
         n_features=128,
+        n_targets=1,
         n_batches=8,
         sparsity=0.0,
         on_the_fly=True,
@@ -94,6 +95,7 @@ def test_strided_syn_iter(device: Device) -> None:
     it_impl = SynIterImpl(
         n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
+        n_targets=1,
         n_batches=n_batches,
         sparsity=0.0,
         assparse=False,
@@ -119,6 +121,7 @@ def test_strided_load_iter(device: Device) -> None:
         datagen(
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
+            n_targets=1,
             n_batches=n_batches,
             assparse=assparse,
             target_type=target_type,
@@ -165,6 +168,7 @@ def test_syn_json(device: Device) -> None:
     opts = Opts(
         n_samples_per_batch=n_samples_per_batch,
         n_features=n_features,
+        n_targets=1,
         n_batches=n_batches,
         sparsity=0.0,
         on_the_fly=True,
@@ -218,6 +222,7 @@ def test_load_json(device: Device) -> None:
         datagen(
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
+            n_targets=1,
             n_batches=n_batches,
             assparse=False,
             target_type="reg",
@@ -230,6 +235,7 @@ def test_load_json(device: Device) -> None:
         opts = Opts(
             n_samples_per_batch=n_samples_per_batch,
             n_features=n_features,
+            n_targets=1,
             n_batches=n_batches,
             sparsity=sparsity,
             on_the_fly=True,

@@ -34,6 +34,7 @@ def make_iter(
             it_train_impl: IterImpl = SynIterImpl(
                 n_samples_per_batch=n_train_samples,
                 n_features=opts.n_features,
+                n_targets=opts.n_targets,
                 n_batches=opts.n_batches,
                 sparsity=opts.sparsity,
                 assparse=False,
@@ -43,6 +44,7 @@ def make_iter(
             it_valid_impl: IterImpl | None = SynIterImpl(
                 n_samples_per_batch=n_valid_samples,
                 n_features=opts.n_features,
+                n_targets=opts.n_targets,
                 n_batches=opts.n_batches,
                 sparsity=opts.sparsity,
                 assparse=False,
@@ -53,6 +55,7 @@ def make_iter(
             it_train_impl = SynIterImpl(
                 n_samples_per_batch=opts.n_samples_per_batch,
                 n_features=opts.n_features,
+                n_targets=opts.n_targets,
                 n_batches=opts.n_batches,
                 sparsity=opts.sparsity,
                 assparse=False,
