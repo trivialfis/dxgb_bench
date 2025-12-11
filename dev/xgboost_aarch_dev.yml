@@ -12,6 +12,7 @@ dependencies:
 - cuda-profiler-api
 - libcurand-dev
 - cuda-python
+- cuda-cccl
 - cuda-nvtx-dev
 - cuda-version=12.8
 - ninja
