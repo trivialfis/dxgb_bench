@@ -31,6 +31,7 @@ def test_dist(device: Device, extmem: bool) -> None:
         target_type="reg",
         mr=None,
         cache_host_ratio=None,
+        min_cache_page_bytes=None,
     )
     with TmpDir(1, True) as tmpdir:
         booster, _ = bench(
@@ -177,6 +178,7 @@ def test_syn_json(device: Device) -> None:
         target_type="reg",
         mr=None,
         cache_host_ratio=None,
+        min_cache_page_bytes=None,
     )
 
     with TmpDir(n_dirs=1, delete=True) as tmpdirs, Chdir(tmpdirs[0]):
@@ -244,6 +246,7 @@ def test_load_json(device: Device) -> None:
             target_type="reg",
             mr=None,
             cache_host_ratio=None,
+            min_cache_page_bytes=None,
         )
 
         Timer.reset()

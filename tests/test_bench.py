@@ -43,6 +43,7 @@ def make_data(saveto: list[str], device: Device, fmt: str) -> Opts:
         mr=None,
         target_type="reg",
         cache_host_ratio=None,
+        min_cache_page_bytes=None,
     )
     return opts
 
@@ -110,6 +111,7 @@ def test_bench_iter_fly(device: Device) -> None:
         mr=None,
         target_type="reg",
         cache_host_ratio=None,
+        min_cache_page_bytes=None,
     )
 
     params = {"device": device, "max_bin": 256}

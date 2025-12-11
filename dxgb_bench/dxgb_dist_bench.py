@@ -244,6 +244,7 @@ def cli_main() -> None:
         mr=args.mr,
         target_type=args.target_type,
         cache_host_ratio=args.cache_host_ratio,
+        min_cache_page_bytes=args.min_cache_page_bytes,
     )
     loadfrom = split_path(args.loadfrom)
     params = make_params_from_args(args)

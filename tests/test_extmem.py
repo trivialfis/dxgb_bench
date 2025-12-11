@@ -36,6 +36,7 @@ def test_qdm_train(device: Device, fmt: str) -> None:
         mr=None,
         target_type="reg",
         cache_host_ratio=None,
+        min_cache_page_bytes=None,
     )
 
     with TmpDir(2, True) as outdirs:

@@ -292,6 +292,13 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     )
     # DMatrix
     parser.add_argument("--cache_host_ratio", type=float, required=False)
+    parser.add_argument(
+        "--min_cache_page_bytes",
+        type=int,
+        required=False,
+        default=None,
+        help="Parameter for the data iterator used for external memory. Set it to 0 to disable the data concatenation.",
+    )
     return parser
 
 
@@ -523,6 +530,7 @@ class Opts:
     mr: str | None
     target_type: str
     cache_host_ratio: float | None
+    min_cache_page_bytes: int | None
 
 
 def merge_opts(opts: Opts, params: dict[str, Any]) -> dict[str, Any]:

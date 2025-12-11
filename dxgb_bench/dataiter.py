@@ -274,14 +274,25 @@ def _silent(msg: str) -> None:
 class BenchIter(DxgbIter):
     """A custom iterator for profiling."""
 
-    def __init__(self, it: IterImpl, is_ext: bool, is_valid: bool, device: str) -> None:
+    def __init__(
+        self,
+        it: IterImpl,
+        is_ext: bool,
+        is_valid: bool,
+        min_cache_page_bytes: int | None,
+        device: str,
+    ) -> None:
         self._it = 0
         self._impl = it
         self._is_eval = is_valid
         self._device = device
 
         if is_ext:
-            super().__init__(cache_prefix="cache", on_host=True)
+            super().__init__(
+                cache_prefix="cache",
+                on_host=True,
+                min_cache_page_bytes=min_cache_page_bytes,
+            )
         else:
             super().__init__()
 
