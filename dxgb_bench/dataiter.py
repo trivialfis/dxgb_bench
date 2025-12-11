@@ -204,7 +204,7 @@ class SynIterImpl(IterImpl):
         return self._n_batches
 
     def _seed(self, i: int) -> int:
-        return sum(self.sizes[:i]) + self.rs
+        return self.rs + sum(self.sizes[:i])
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
@@ -220,7 +220,6 @@ class SynIterImpl(IterImpl):
                 n_targets=self.n_targets,
                 random_state=self._seed(i),
             )
-            fprint("seed:", self._seed(i))
             assert self.sizes[i] == X.size
             return X, y
         if self.assparse:

@@ -11,9 +11,9 @@
 
 namespace cuda_impl {
 template <typename Exec>
-void Impl(Exec exec, int64_t m, int64_t n, int64_t n_targets, double sparsity, int64_t seed,
-          float *out, float *y) {
-  thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m * n,
+void Impl(Exec exec, int64_t n_samples, int64_t n_columns, int64_t n_targets, double sparsity,
+          int64_t seed, float *out, float *y) {
+  thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), n_samples * n_columns,
                      [=] __host__ __device__(std::size_t i) {
                        thrust::minstd_rand rng, rng1;
                        rng.seed(0);
@@ -31,18 +31,19 @@ void Impl(Exec exec, int64_t m, int64_t n, int64_t n_targets, double sparsity, i
 
   // We can run this as a single kernel if we have an unravel impl.
   for (int64_t t = 0; t < n_targets; ++t) {
-    thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), m,
+    thrust::minstd_rand rng;
+    rng.seed(0);
+    rng.discard(t);
+    thrust::normal_distribution<float> dist{0.0f, 1.5f};
+    auto err = dist(rng);
+
+    thrust::for_each_n(exec, thrust::make_counting_iterator(0ul), n_samples,
                        [=] __host__ __device__(std::size_t i) {
-                         thrust::minstd_rand rng;
-                         rng.seed(0);
-                         rng.discard(seed / n + i);
-                         thrust::normal_distribution<float> dist{0.0f, 1.5f};
-                         // auto cor = dist(rng);
-                         auto err = dist(rng);
-                         y[i * n_targets + t] = err;
-                         for (std::size_t j = 0; j < n; ++j) {
-                           if (!isnan(out[n * i + j])) {
-                             y[i] += out[n * i + j] * 1.0;
+                         y[i * n_targets + t] = 0;
+
+                         for (std::size_t j = 0; j < n_columns; ++j) {
+                           if (!isnan(out[n_columns * i + j])) {
+                             y[i * n_targets + t] += out[n_columns * i + j] * err;
                            }
                          }
                        });

@@ -74,17 +74,18 @@ def test_dense_regression() -> None:
     assert nnz == 2047
 
 
-def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
+def run_dense_batches(device: str, n_targets: int) -> tuple[np.ndarray, np.ndarray]:
+    """Compare results between multiple batches and single batch."""
     n_features = 3
     n_batches = 12
-    nspb = 8
+    nspb = 16
 
     with tempfile.TemporaryDirectory() as tmpdir:
         path = os.path.join(tmpdir, "data")
         datagen(
             nspb,
             n_features,
-            1,
+            n_targets=n_targets,
             n_batches=n_batches,
             assparse=False,
             target_type="reg",
@@ -100,7 +101,7 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
         datagen(
             nspb * n_batches,
             n_features,
-            1,
+            n_targets=n_targets,
             n_batches=1,
             assparse=False,
             target_type="reg",
@@ -117,11 +118,12 @@ def run_dense_batches(device: str) -> tuple[np.ndarray, np.ndarray]:
 
 
 @pytest.mark.skipif(reason="No CUDA.", condition=not has_cuda())
-def test_dense_batches() -> None:
-    X0, y0 = run_dense_batches("cpu")
-    X1, y1 = run_dense_batches("cuda")
+@pytest.mark.parametrize("n_targets", [1, 3])
+def test_dense_batches(n_targets: int) -> None:
+    X0, y0 = run_dense_batches("cpu", n_targets)
+    X1, y1 = run_dense_batches("cuda", n_targets)
     np.testing.assert_allclose(X0, X1, rtol=1e-6)
-    np.testing.assert_allclose(y0, y1, rtol=5e-6)
+    np.testing.assert_allclose(y0, y1, rtol=1e-5)
 
 
 def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
@@ -204,17 +206,18 @@ def test_dense_iter() -> None:
     assert_array_allclose(y0, y1, rtol=5e-6)
 
 
-@pytest.mark.parametrize("device", devices())
-def test_deterministic(device: str) -> None:
+@pytest.mark.parametrize("device,n_targets", product(devices(), [1, 3]))
+def test_deterministic(device: str, n_targets: int) -> None:
     n_samples_per_batch = 8192
     n_features = 400
-    target_type = "bin"
+    target_type = "reg"
     n_batches = 4
 
+    print()
     impl = SynIterImpl(
         n_samples_per_batch,
         n_features,
-        n_targets=1,
+        n_targets=n_targets,
         n_batches=n_batches,
         sparsity=0.0,
         assparse=False,

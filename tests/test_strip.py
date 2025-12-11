@@ -147,7 +147,7 @@ def run_subset_tests(n_dirs: int, device: Device, fmt: str) -> None:
     X_out = Strip("X", tmpdirs, fmt, device)
     n_batches = 2
     n_samples = 100
-    for batch_idx in range(2):
+    for batch_idx in range(n_batches):
         array = np.arange(0 + batch_idx, n_samples + batch_idx, dtype=np.float32)
         X_out.write(array, batch_idx)
 
@@ -176,3 +176,30 @@ def test_single_subset(device: Device, fmt: str) -> None:
 @pytest.mark.parametrize("device,fmt", product(devices(), formats()))
 def test_stripping_subset(device: Device, fmt: str) -> None:
     run_subset_tests(3, device, fmt)
+
+
+@pytest.mark.parametrize("device,fmt", product(devices(), formats()))
+def test_multi_target(device: Device, fmt: str) -> None:
+    n_dirs = 2
+    tmpdirs = [make_tmp(i) for i in range(n_dirs)]
+
+    y_out = Strip("y", tmpdirs, fmt, device)
+
+    n_samples = 32
+    n_columns = 4
+    n = n_samples * n_columns
+    n_batches = 2
+
+    arrays = []
+    for batch_idx in range(n_batches):
+        array = np.arange(0 + batch_idx, n + batch_idx, dtype=np.float32).reshape(
+            n_samples, n_columns
+        )
+        y_out.write(array, batch_idx)
+        arrays.append(array)
+
+    y_out = Strip("y", tmpdirs, fmt, device)
+    for batch_idx in range(n_batches):
+        y = y_out.read(batch_idx, None, None)
+        assert y.shape == (n_samples, n_columns)
+        assert_array_allclose(y, arrays[batch_idx])

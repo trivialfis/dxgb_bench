@@ -240,11 +240,11 @@ def make_file_name(
     assert name in ("X", "y")
     base = f"{name}-r{shape[0]}"
     if name == "X":
-        fname = f"{base}-c{shape[1]}-b{batch_idx}-s{shard_idx}.{fmt}"
+        n_columns = shape[1]
     else:
-        # Single column
-        assert len(shape) == 1 or shape[1] <= 1
-        fname = f"{base}-c1-b{batch_idx}-s{shard_idx}.{fmt}"
+        # Optional multi-target
+        n_columns = 1 if len(shape) == 1 or shape[1] <= 1 else shape[1]
+    fname = f"{base}-c{n_columns}-b{batch_idx}-s{shard_idx}.{fmt}"
     return os.path.join(dirname, fname)
 
 
