@@ -147,6 +147,7 @@ def make_extmem_qdms(
             "data": it_train,
             "max_bin": max_bin,
             "max_quantile_batches": 32,
+            "min_cache_page_bytes": opts.min_cache_page_bytes,
         }
         if has_chr():
             dargs["cache_host_ratio"] = opts.cache_host_ratio
@@ -162,6 +163,7 @@ def make_extmem_qdms(
                 "data": it_valid,
                 "max_bin": max_bin,
                 "ref": Xy_train,
+                "min_cache_page_bytes": opts.min_cache_page_bytes,
             }
             if has_chr():
                 dargs["cache_host_ratio"] = opts.cache_host_ratio
