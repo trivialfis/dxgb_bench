@@ -221,7 +221,7 @@ def test_deterministic(device: str) -> None:
         target_type=target_type,
         device=device,
     )
-    it = BenchIter(impl, True, False, device)
+    it = BenchIter(impl, True, False, min_cache_page_bytes=None, device=device)
     Xs: list[np.ndarray] = []
     ys: list[np.ndarray] = []
 
