@@ -30,6 +30,7 @@ def make_iter(
                 is_ext=is_ext,
                 is_valid=False,
                 device=opts.device,
+                min_cache_page_bytes=opts.min_cache_page_bytes,
             )
             it_impl = LoadIterStrip(
                 loadfrom, is_valid=True, test_size=TEST_SIZE, device=opts.device
@@ -39,6 +40,7 @@ def make_iter(
                 is_ext=is_ext,
                 is_valid=True,
                 device=opts.device,
+                min_cache_page_bytes=opts.min_cache_page_bytes,
             )
         else:
             it_impl = LoadIterStrip(
@@ -49,6 +51,7 @@ def make_iter(
                 is_ext=is_ext,
                 is_valid=False,
                 device=opts.device,
+                min_cache_page_bytes=opts.min_cache_page_bytes,
             )
             valid_it = None
         return train_it, valid_it
@@ -70,6 +73,7 @@ def make_iter(
             is_ext=is_ext,
             is_valid=False,
             device=opts.device,
+            min_cache_page_bytes=opts.min_cache_page_bytes,
         )
         return it_train, None
 
@@ -99,10 +103,18 @@ def make_iter(
         device=opts.device,
     )
     it_train = BenchIter(
-        it_train_impl, is_ext=is_ext, is_valid=False, device=opts.device
+        it_train_impl,
+        is_ext=is_ext,
+        is_valid=False,
+        device=opts.device,
+        min_cache_page_bytes=opts.min_cache_page_bytes,
     )
     it_valid = BenchIter(
-        it_valid_impl, is_ext=is_ext, is_valid=True, device=opts.device
+        it_valid_impl,
+        is_ext=is_ext,
+        is_valid=True,
+        device=opts.device,
+        min_cache_page_bytes=opts.min_cache_page_bytes,
     )
     return it_train, it_valid
 
