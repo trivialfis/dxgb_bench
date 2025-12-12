@@ -340,7 +340,7 @@ DFT_OUT = os.path.join(os.curdir, "data")
 
 
 def need_rmm(mr_name: str | None) -> bool:
-    return mr_name in ("cuda", None)
+    return mr_name not in ("cuda", None)
 
 
 def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
