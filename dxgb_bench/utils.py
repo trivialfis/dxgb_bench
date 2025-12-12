@@ -256,9 +256,9 @@ def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
 def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--mr",
-        choices=["arena", "binning", "pool", "async"],
+        choices=["arena", "binning", "pool", "async", "cuda"],
         default="arena",
-        help="Name of the RMM memory resource.",
+        help="Name of the RMM memory resource. `cuda` means no RMM pool.",
     )
     return parser
 
@@ -304,6 +304,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
 
 def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
     params = {
+        "debug_synchronize": True,
         "tree_method": args.tree_method,
         "max_depth": args.max_depth,
         "grow_policy": args.policy,
@@ -338,10 +339,17 @@ TEST_SIZE = 0.2  # Emulate to 5-fold CV
 DFT_OUT = os.path.join(os.curdir, "data")
 
 
+def need_rmm(mr_name: str | None) -> bool:
+    return mr_name in ("cuda", None)
+
+
 def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
     import rmm
     from cuda.bindings import runtime as cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
+
+    if not need_rmm(mr_name):
+        return
 
     cp = import_cupy()
 

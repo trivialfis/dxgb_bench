@@ -24,6 +24,7 @@ from .utils import (
     machine_info,
     make_params_from_args,
     merge_opts,
+    need_rmm,
     save_results,
     setup_rmm,
     split_path,
@@ -37,7 +38,8 @@ def qdm_train(
     loadfrom: list[str],
 ) -> tuple[xgb.Booster, dict[str, Any]]:
     """Train with the ExtMemQuantileDMatrix."""
-    if opts.device == "cuda" and opts.mr is not None:
+    if need_rmm(opts.mr):
+        assert opts.mr is not None
         setup_rmm(opts.mr)
 
     machine = machine_info(opts.device)
@@ -152,5 +154,5 @@ ext-qdm: Use the ExtMemQuantileDMatrix.
             "`--fly` must be true for binary classification target."
         )
 
-    with xgb.config_context(verbosity=args.verbosity, use_rmm=True):
+    with xgb.config_context(verbosity=args.verbosity, use_rmm=need_rmm(args.mr)):
         main(args)
