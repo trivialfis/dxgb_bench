@@ -256,9 +256,9 @@ def add_device_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser
 def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     parser.add_argument(
         "--mr",
-        choices=["arena", "binning", "pool", "async"],
+        choices=["arena", "binning", "pool", "async", "cuda"],
         default="arena",
-        help="Name of the RMM memory resource.",
+        help="Name of the RMM memory resource. `cuda` means cuda async pool without RMM.",
     )
     return parser
 
@@ -304,6 +304,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
 
 def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
     params = {
+        "debug_synchronize": True,
         "tree_method": args.tree_method,
         "max_depth": args.max_depth,
         "grow_policy": args.policy,
@@ -338,27 +339,48 @@ TEST_SIZE = 0.2  # Emulate to 5-fold CV
 DFT_OUT = os.path.join(os.curdir, "data")
 
 
+def need_rmm(mr_name: str | None) -> bool:
+    return mr_name in ("cuda", None)
+
+
 def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
     import rmm
+    from cuda.bindings import driver
     from cuda.bindings import runtime as cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
 
-    cp = import_cupy()
-
     status, free, total = cudart.cudaMemGetInfo()
     _checkcu(status)
-    fprint("Setup rmm, total:", total, "free:", free)
+    fprint("Setup memory pool, total:", total, "free:", free)
+
+    threshold = 0.9
+
+    if mr_name == "cuda":
+        # Set the default CUDA mem pool
+        status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
+        _checkcu(status)
+        fprint("Use default memory allocator:", dft_pool)
+        v = driver.cuuint64_t(int(total * threshold))
+        (status,) = cudart.cudaMemPoolSetAttribute(
+            dft_pool,
+            cudart.cudaMemPoolAttr.cudaMemPoolAttrReleaseThreshold,
+            v,
+        )
+        _checkcu(status)
+        return
+
+    cp = import_cupy()
 
     match mr_name:
         case "arena":
             fprint("Use `ArenaMemoryResource`.")
             mr = rmm.mr.CudaMemoryResource()
-            mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
+            mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * threshold))
             status, free, total = cudart.cudaMemGetInfo()
         case "async":
             fprint("Use `CudaAsyncMemoryResource`.")
             mr = rmm.mr.CudaAsyncMemoryResource(
-                initial_pool_size=int(total * 0.90),
+                initial_pool_size=int(total * threshold),
                 release_threshold=int(total * 0.95),
                 enable_ipc=False,
             )
