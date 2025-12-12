@@ -153,5 +153,9 @@ ext-qdm: Use the ExtMemQuantileDMatrix.
             "`--fly` must be true for binary classification target."
         )
 
-    with xgb.config_context(verbosity=args.verbosity, use_rmm=need_rmm(args.mr)):
+    with xgb.config_context(
+        verbosity=args.verbosity,
+        use_rmm=need_rmm(args.mr),
+        use_cuda_async_pool=args.mr == "cuda",
+    ):
         main(args)

@@ -12,7 +12,7 @@ from xgboost import collective as coll
 
 from .dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
 from .external_mem import make_extmem_qdms
-from .utils import TEST_SIZE, Opts, Timer, fill_opts_shape, fprint, setup_rmm
+from .utils import TEST_SIZE, Opts, Timer, fill_opts_shape, fprint, need_rmm, setup_rmm
 
 
 def _get_logger() -> logging.Logger:
@@ -151,7 +151,11 @@ def train(
             f"[dxgb-bench] {coll.get_rank()}: CPU Affinity: {affos}",
             f" devices: {devices}",
         )
-        with xgboost.config_context(use_rmm=True, verbosity=verbosity):
+        with xgboost.config_context(
+            use_rmm=need_rmm(opts.mr),
+            verbosity=verbosity,
+            use_cuda_async_pool=opts.mr == "cuda",
+        ):
             it_train, it_valid = make_iter(opts, loadfrom, is_extmem)
             if is_extmem:
                 Xy_train, watches = make_extmem_qdms(
