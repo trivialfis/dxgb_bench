@@ -38,8 +38,7 @@ def qdm_train(
     loadfrom: list[str],
 ) -> tuple[xgb.Booster, dict[str, Any]]:
     """Train with the ExtMemQuantileDMatrix."""
-    if need_rmm(opts.mr):
-        assert opts.mr is not None
+    if opts.mr is not None:
         setup_rmm(opts.mr)
 
     machine = machine_info(opts.device)

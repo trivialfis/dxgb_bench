@@ -258,7 +258,7 @@ def add_rmm_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         "--mr",
         choices=["arena", "binning", "pool", "async", "cuda"],
         default="arena",
-        help="Name of the RMM memory resource. `cuda` means no RMM pool.",
+        help="Name of the RMM memory resource. `cuda` means cuda async pool without RMM.",
     )
     return parser
 
@@ -345,28 +345,42 @@ def need_rmm(mr_name: str | None) -> bool:
 
 def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
     import rmm
+    from cuda.bindings import driver
     from cuda.bindings import runtime as cudart
     from rmm.allocators.cupy import rmm_cupy_allocator
 
-    if not need_rmm(mr_name):
+    status, free, total = cudart.cudaMemGetInfo()
+    _checkcu(status)
+    fprint("Setup memory pool, total:", total, "free:", free)
+
+    threshold = 0.9
+
+    if mr_name == "cuda":
+        # Set the default CUDA mem pool
+        status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
+        _checkcu(status)
+        fprint("Use default memory allocator:", dft_pool)
+        v = driver.cuuint64_t(int(total * threshold))
+        (status,) = cudart.cudaMemPoolSetAttribute(
+            dft_pool,
+            cudart.cudaMemPoolAttr.cudaMemPoolAttrReleaseThreshold,
+            v,
+        )
+        _checkcu(status)
         return
 
     cp = import_cupy()
-
-    status, free, total = cudart.cudaMemGetInfo()
-    _checkcu(status)
-    fprint("Setup rmm, total:", total, "free:", free)
 
     match mr_name:
         case "arena":
             fprint("Use `ArenaMemoryResource`.")
             mr = rmm.mr.CudaMemoryResource()
-            mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * 0.9))
+            mr = rmm.mr.ArenaMemoryResource(mr, arena_size=int(total * threshold))
             status, free, total = cudart.cudaMemGetInfo()
         case "async":
             fprint("Use `CudaAsyncMemoryResource`.")
             mr = rmm.mr.CudaAsyncMemoryResource(
-                initial_pool_size=int(total * 0.90),
+                initial_pool_size=int(total * threshold),
                 release_threshold=int(total * 0.95),
                 enable_ipc=False,
             )

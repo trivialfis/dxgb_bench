@@ -132,7 +132,7 @@ def train(
     is_extmem: bool,
     worker_id: int,
 ) -> tuple[xgboost.Booster, dict[str, Any], Opts]:
-    if opts.device == "cuda" and opts.mr is not None:
+    if opts.mr is not None:
         setup_rmm(opts.mr, worker_id)
 
         devices = os.getenv("CUDA_VISIBLE_DEVICES", None)

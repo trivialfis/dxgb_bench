@@ -126,7 +126,7 @@ def spdm_train(
     loadfrom: list[str],
 ) -> xgb.Booster:
     """Train with the Sparse DMatrix."""
-    if opts.device == "cuda" and opts.mr is not None:
+    if opts.mr is not None:
         setup_rmm(opts.mr)
 
     it_train, it_valid = make_iter(opts, loadfrom=loadfrom, is_ext=True)
