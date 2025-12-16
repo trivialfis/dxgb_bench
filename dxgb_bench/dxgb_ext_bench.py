@@ -5,7 +5,9 @@ import argparse
 import os
 from typing import Any
 
+import cupy as cp
 import xgboost as xgb
+from xgboost.objective import TreeObjective
 
 from .external_mem import (
     make_extmem_qdms,
@@ -29,6 +31,36 @@ from .utils import (
     setup_rmm,
     split_path,
 )
+
+
+def ls_obj(
+    y_true: cp.ndarray, y_pred: cp.ndarray, sample_weight: cp.ndarray | None
+) -> tuple[cp.ndarray, cp.ndarray]:
+    """Least squared error."""
+    grad = y_pred - y_true
+    hess = cp.ones(grad.shape)
+    if sample_weight is not None:
+        grad *= sample_weight
+        hess *= sample_weight
+    return grad, hess
+
+
+class LsObj2(TreeObjective):
+    """Use mean as split grad."""
+
+    def __call__(
+        self, iteration: int, y_pred: Any, dtrain: xgb.DMatrix
+    ) -> tuple[Any, Any]:
+        y_true = dtrain.get_label().reshape(y_pred.shape)
+        grad, hess = ls_obj(cp.array(y_true), cp.array(y_pred), None)
+        return cp.array(grad), cp.array(hess)
+
+    def split_grad(
+        self, iteration: int, grad: Any, hess: Any
+    ) -> tuple[cp.ndarray, cp.ndarray]:
+        sgrad = cp.mean(grad, axis=1)
+        shess = cp.mean(hess, axis=1)
+        return sgrad, shess
 
 
 def qdm_train(
@@ -58,6 +90,7 @@ def qdm_train(
                 evals=watches,
                 verbose_eval=True,
                 evals_result=evals_result,
+                obj=LsObj2(),
             )
     if len(watches) >= 2:
         assert watches[1][1] == "Valid"
