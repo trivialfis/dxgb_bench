@@ -7,7 +7,7 @@ from typing import Any
 
 import cupy as cp
 import xgboost as xgb
-from xgboost.objective import TreeObjective
+from xgboost.objective import TreeObjective, Objective
 
 from .external_mem import (
     make_extmem_qdms,
@@ -43,6 +43,17 @@ def ls_obj(
         grad *= sample_weight
         hess *= sample_weight
     return grad, hess
+
+
+class LsObj1(Objective):
+    """Normal custom objective."""
+
+    def __call__(
+        self, iteration: int, y_pred: Any, dtrain: xgb.DMatrix
+    ) -> tuple[Any, Any]:
+        y_true = dtrain.get_label().reshape(y_pred.shape)
+        grad, hess = ls_obj(cp.array(y_true), cp.array(y_pred), None)
+        return cp.array(grad), cp.array(hess)
 
 
 class LsObj2(TreeObjective):
@@ -90,7 +101,7 @@ def qdm_train(
                 evals=watches,
                 verbose_eval=True,
                 evals_result=evals_result,
-                obj=LsObj2(),
+                obj=LsObj1(),
             )
     if len(watches) >= 2:
         assert watches[1][1] == "Valid"
