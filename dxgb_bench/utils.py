@@ -355,7 +355,11 @@ def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
 
     threshold = 0.9
 
+    cp = import_cupy()
+
     if mr_name == "cuda":
+        from cupy.cuda import MemoryAsyncPool
+
         # Set the default CUDA mem pool
         status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
         _checkcu(status)
@@ -367,9 +371,9 @@ def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
             v,
         )
         _checkcu(status)
-        return
 
-    cp = import_cupy()
+        cp.cuda.set_allocator(MemoryAsyncPool().malloc)
+        return
 
     match mr_name:
         case "arena":
@@ -577,6 +581,14 @@ def has_chr() -> bool:
     sig = signature(xgb.ExtMemQuantileDMatrix)
     names = [name for name, _ in sig.parameters.items()]
     return "cache_host_ratio" in names
+
+
+@cache
+def has_async_pool() -> bool:
+    ver = parse_version(xgb.__version__)
+
+    new_ver = (ver.major == 3 and ver.minor > 1) or ver.major > 3
+    return new_ver
 
 
 def save_booster(model: xgb.Booster, prefix: str) -> None:
