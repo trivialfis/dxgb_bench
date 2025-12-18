@@ -37,9 +37,11 @@ from .utils import (
     make_params_from_args,
     merge_opts,
     mkdirs,
+    need_rmm,
     peak_rmm_memory_bytes,
     save_booster,
     save_results,
+    setup_rmm,
     split_path,
 )
 
@@ -345,7 +347,7 @@ def cli_main() -> None:
         ),
         required=True,
     )
-    parser = add_rmm_param(parser)
+    bh_parser = add_rmm_param(bh_parser)
     bh_parser = add_hyper_param(bh_parser)
     bh_parser.add_argument(
         "--valid", action="store_true", help="Split for the validation dataset."
@@ -437,15 +439,22 @@ def cli_main() -> None:
             cache_host_ratio=args.cache_host_ratio,
             min_cache_page_bytes=args.min_cache_page_bytes,
         )
+        if opts.mr is not None:
+            setup_rmm(opts.mr)
 
-        bench(
-            args.task,
-            loadfrom,
-            args.model_path,
-            params,
-            opts,
-            args.n_rounds,
-        )
+        with xgb.config_context(
+            verbosity=args.verbosity,
+            use_rmm=need_rmm(args.mr),
+            use_cuda_async_pool=args.mr == "cuda",
+        ):
+            bench(
+                args.task,
+                loadfrom,
+                args.model_path,
+                params,
+                opts,
+                args.n_rounds,
+            )
 
 
 if __name__ == "__main__":

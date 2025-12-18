@@ -355,7 +355,11 @@ def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
 
     threshold = 0.9
 
+    cp = import_cupy()
+
     if mr_name == "cuda":
+        from cupy.cuda import MemoryAsyncPool
+
         # Set the default CUDA mem pool
         status, dft_pool = cudart.cudaDeviceGetDefaultMemPool(0)
         _checkcu(status)
@@ -367,9 +371,9 @@ def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
             v,
         )
         _checkcu(status)
-        return
 
-    cp = import_cupy()
+        cp.cuda.set_allocator(MemoryAsyncPool().malloc)
+        return
 
     match mr_name:
         case "arena":
