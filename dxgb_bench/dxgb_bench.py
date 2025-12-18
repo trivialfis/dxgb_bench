@@ -33,6 +33,7 @@ from .utils import (
     device_attributes,
     fill_opts_shape,
     fprint,
+    has_async_pool,
     machine_info,
     make_params_from_args,
     merge_opts,
@@ -445,7 +446,7 @@ def cli_main() -> None:
         with xgb.config_context(
             verbosity=args.verbosity,
             use_rmm=need_rmm(args.mr),
-            use_cuda_async_pool=args.mr == "cuda",
+            use_cuda_async_pool=args.mr == "cuda" if has_async_pool() else None,
         ):
             bench(
                 args.task,

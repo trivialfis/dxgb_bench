@@ -583,6 +583,14 @@ def has_chr() -> bool:
     return "cache_host_ratio" in names
 
 
+@cache
+def has_async_pool() -> bool:
+    ver = parse_version(xgb.__version__)
+
+    new_ver = (ver.major == 3 and ver.minor > 1) or ver.major > 3
+    return new_ver
+
+
 def save_booster(model: xgb.Booster, prefix: str) -> None:
     prefix = os.path.expanduser(prefix)
 

@@ -21,6 +21,7 @@ from .utils import (
     add_hyper_param,
     add_rmm_param,
     fill_opts_shape,
+    has_async_pool,
     machine_info,
     make_params_from_args,
     merge_opts,
@@ -156,6 +157,6 @@ ext-qdm: Use the ExtMemQuantileDMatrix.
     with xgb.config_context(
         verbosity=args.verbosity,
         use_rmm=need_rmm(args.mr),
-        use_cuda_async_pool=args.mr == "cuda",
+        use_cuda_async_pool=args.mr == "cuda" if has_async_pool() else None,
     ):
         main(args)
