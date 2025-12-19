@@ -344,10 +344,8 @@ def need_rmm(mr_name: str | None) -> bool:
 
 
 def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
-    import rmm
     from cuda.bindings import driver
     from cuda.bindings import runtime as cudart
-    from rmm.allocators.cupy import rmm_cupy_allocator
 
     status, free, total = cudart.cudaMemGetInfo()
     _checkcu(status)
@@ -374,6 +372,9 @@ def setup_rmm(mr_name: str, worker_id: Optional[int] = None) -> None:
 
         cp.cuda.set_allocator(MemoryAsyncPool().malloc)
         return
+
+    import rmm
+    from rmm.allocators.cupy import rmm_cupy_allocator
 
     match mr_name:
         case "arena":
