@@ -1,4 +1,4 @@
-FROM rapidsai/ci-conda:cuda12.8.0-ubuntu22.04-py3.12
+FROM rapidsai/ci-conda:cuda13.0.1-ubuntu24.04-py3.12
 ARG ARCH
 ARG SM
 ARG INSTALL_XGBOOST
