@@ -304,7 +304,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
 
 def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
     params = {
-        "debug_synchronize": True,
+        "debug_synchronize": args.multi_strategy == "multi_output_tree",
         "tree_method": args.tree_method,
         "max_depth": args.max_depth,
         "grow_policy": args.policy,
