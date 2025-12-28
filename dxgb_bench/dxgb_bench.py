@@ -440,13 +440,16 @@ def cli_main() -> None:
             cache_host_ratio=args.cache_host_ratio,
             min_cache_page_bytes=args.min_cache_page_bytes,
         )
-        if opts.mr is not None:
+
+        is_cuda = opts.device == "cuda"
+        if is_cuda and opts.mr is not None:
             setup_rmm(opts.mr)
 
         with xgb.config_context(
             verbosity=args.verbosity,
-            use_rmm=need_rmm(args.mr),
-            use_cuda_async_pool=args.mr == "cuda" if has_async_pool() else None,
+            use_rmm=is_cuda and need_rmm(args.mr),
+            use_cuda_async_pool=is_cuda
+            and (args.mr == "cuda" if has_async_pool() else None),
         ):
             bench(
                 args.task,
