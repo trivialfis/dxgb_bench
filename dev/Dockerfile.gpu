@@ -29,6 +29,13 @@ RUN \
     ./install_nsys.sh $ARCH && \
     cd -
 
+COPY dxgb_bench/dev/install_ncu.sh ws/install_ncu.sh
+
+RUN \
+    cd ws && \
+    ./install_ncu.sh $ARCH && \
+    cd -
+
 COPY dxgb_bench/dev/build_conda_env.sh ws/build_conda_env.sh
 
 RUN --mount=type=cache,target=/opt/conda/pkgs /ws/build_conda_env.sh $ARCH
