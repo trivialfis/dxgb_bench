@@ -22,11 +22,11 @@ RUN mkdir ws
 
 COPY dxgb_bench/dev/xgboost_dev.yml ws/xgboost_dev.yml
 COPY dxgb_bench/dev/xgboost_aarch_dev.yml ws/xgboost_aarch_dev.yml
-COPY dxgb_bench/dev/install_nsight.sh ws/install_nsight.sh
+COPY dxgb_bench/dev/install_nsys.sh ws/install_nsys.sh
 
 RUN \
     cd ws && \
-    ./install_nsight.sh $ARCH && \
+    ./install_nsys.sh $ARCH && \
     cd -
 
 COPY dxgb_bench/dev/build_conda_env.sh ws/build_conda_env.sh
