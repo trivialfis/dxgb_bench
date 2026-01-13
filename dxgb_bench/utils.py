@@ -276,6 +276,7 @@ def add_hyper_param(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
     )
     parser.add_argument("--n_bins", type=int, default=256)
     parser.add_argument("--subsample", type=float, default=None)
+    parser.add_argument("--num_parallel_tree", type=int, default=None)
     parser.add_argument("--colsample_bynode", type=float, default=None)
     parser.add_argument("--colsample_bytree", type=float, default=None)
     parser.add_argument("--eta", type=float, default=None)
@@ -309,6 +310,7 @@ def make_params_from_args(args: argparse.Namespace) -> dict[str, Any]:
         "max_depth": args.max_depth,
         "grow_policy": args.policy,
         "subsample": args.subsample,
+        "num_parallel_tree": args.num_parallel_tree,
         "colsample_bynode": args.colsample_bynode,
         "colsample_bytree": args.colsample_bytree,
         "max_bin": args.n_bins,
