@@ -74,21 +74,27 @@ def _setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
     This function should be called in a child process to configure NUMA bindings for the
     given worker.
     """
+    import pynvml
+
     import pyhwloc
     # from pyhwloc.cuda_runtime import get_device
     from pyhwloc.nvml import get_cpu_affinity, get_device
     from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
 
-    with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
-        # Get CPU affinity for this GPU
-        dev = get_device(topo, worker_id)
-        cpuset = dev.get_affinity()
+    try:
+        pynvml.nvmlInit()
+        with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
+            # Get CPU affinity for this GPU
+            dev = get_device(topo, worker_id)
+            cpuset = dev.get_affinity()
 
-        print("Idx:", worker_id, "\nCPUSet:", cpuset)
-        # Set CPU binding
-        topo.set_cpubind(cpuset)
-        # Set memory binding using cpuset (hwloc determines NUMA nodes from cpuset)
-        topo.set_membind(cpuset, MemBindPolicy.BIND, MemBindFlags.STRICT)
+            print("Idx:", worker_id, "\nCPUSet:", cpuset)
+            # Set CPU binding
+            topo.set_cpubind(cpuset)
+            # Set memory binding using cpuset (hwloc determines NUMA nodes from cpuset)
+            topo.set_membind(cpuset, MemBindPolicy.BIND, MemBindFlags.STRICT)
+    finally:
+        pynvml.nvmlShutdown()
 
 
 def _loky_initializer(n_workers: int, mr: str | None, device: str) -> None:
