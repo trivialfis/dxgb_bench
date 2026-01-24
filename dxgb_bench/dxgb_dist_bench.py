@@ -38,7 +38,6 @@ from .utils import (
     split_path,
 )
 
-
 R = TypeVar("R")
 P = ParamSpec("P")
 
@@ -114,7 +113,9 @@ def _loky_initializer(n_workers: int, mr: str | None, device: str) -> None:
 
         # Set up RMM if requested
         if mr is not None:
-            setup_rmm(mr, worker_id=0)  # worker_id=0 because CUDA_VISIBLE_DEVICES is set
+            setup_rmm(
+                mr, worker_id=0
+            )  # worker_id=0 because CUDA_VISIBLE_DEVICES is set
 
 
 # ------------------------------------------------------------------------------
