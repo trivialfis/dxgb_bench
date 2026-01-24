@@ -31,6 +31,7 @@ dependencies:
 - pytest
 - numpy
 - pandas
+- loky
 - scipy
 - scikit-learn
 # python dask
