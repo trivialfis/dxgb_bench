@@ -45,3 +45,4 @@ dependencies:
 - typing_extensions
 - pip:
   - build
+  - pyhwloc
