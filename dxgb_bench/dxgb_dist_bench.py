@@ -75,7 +75,8 @@ def _setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
     given worker.
     """
     import pyhwloc
-    from pyhwloc.cuda_runtime import get_device
+    # from pyhwloc.cuda_runtime import get_device
+    from pyhwloc.nvml import get_cpu_affinity, get_device
     from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
 
     with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
