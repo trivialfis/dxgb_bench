@@ -12,54 +12,34 @@ concurrency:
 jobs:
   lint:
     name: Format and Lint
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - uses: prefix-dev/setup-pixi@v0.9.4
       with:
-        submodules: false
-    - uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
-    - name: Install packages
-      run: |
-        python3 -m pip install black isort
+        pixi-version: v0.42.0
+        run-install: false
     - name: Run lint
       run: |
-        black --check .
-        isort --profile=black --check .
+        pixi exec --spec black --spec isort -- black --check .
+        pixi exec --spec black --spec isort -- isort --profile=black --check .
 
   tests:
     name: Run basic tests
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest]
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
-      with:
-        submodules: 'fales'
-    - uses: conda-incubator/setup-miniconda@v3
-      with:
-        environment-file: dev/xgboost_dev.yml
-        miniforge-version: latest
-        activate-environment: xgboost_dev
     - name: System dependencies
       run: |
         sudo apt install numactl -y
-    - name: Install XGBoost
-      shell: bash -l {0}
+    - uses: prefix-dev/setup-pixi@v0.9.4
+      with:
+        pixi-version: v0.42.0
+        cache: true
+        cache-write: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+    - name: Build dxgb_bench
+      shell: pixi run bash -e {0}
       run: |
-        pip install xgboost
-    - name: Build
-      shell: bash -l {0}
-      run: |
-        echo $CONDA_PREFIX
-        conda info
         mkdir build
         cd build
         cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_CUDA_ARCHITECTURES=all ../dxgb_bench
@@ -68,6 +48,6 @@ jobs:
         pip install -e . --no-build-isolation --no-deps
         dxgb-bench --version
     - name: Test
-      shell: bash -l {0}
+      shell: pixi run bash -e {0}
       run: |
         pytest -s -v ./tests/*.py
