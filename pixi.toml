@@ -35,14 +35,11 @@ distributed = ">=2024.10"
 cuda-python = "*"
 cudf = "25.*"
 cupy = "*"
-dask-cudf = "25.*"
-dask-cuda = "25.*"
 kvikio = "*"
 
 # Utilities
 tqdm = "*"
 typing_extensions = "*"
-asyncssh = "*"
 
 [pypi-dependencies]
 build = "*"
