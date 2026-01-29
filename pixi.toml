@@ -1,0 +1,48 @@
+[workspace]
+name = "dxgb_bench"
+version = "0.1.0"
+description = "Benchmark utility for XGBoost with GPU support"
+channels = ["rapidsai", "nvidia", "conda-forge", "https://prefix.dev/pixi-build-backends"]
+platforms = ["linux-64"]
+channel-priority = "disabled"
+preview = ["pixi-build"]
+
+[dependencies]
+# XGBoost Python package (depends on C++ library built from source)
+py-xgboost = { path = "packages/xgboost-python" }
+
+# Python
+python = "3.12.*"
+pip = "*"
+setuptools-scm = "*"
+
+# Python testing
+hypothesis = "*"
+pytest = "*"
+
+# Python data science
+numpy = "*"
+pandas = "*"
+scipy = "*"
+scikit-learn = "*"
+
+# Python dask
+dask = ">=2024.10"
+distributed = ">=2024.10"
+
+# GPU (RAPIDS)
+cuda-python = "*"
+cudf = "25.*"
+cupy = "*"
+kvikio = "*"
+
+# Utilities
+tqdm = "*"
+typing_extensions = "*"
+
+[pypi-dependencies]
+build = "*"
+
+[tasks]
+# Install dxgb_bench itself
+install = { cmd = "pip install -e . --no-deps --no-build-isolation" }
