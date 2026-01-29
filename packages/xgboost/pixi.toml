@@ -36,9 +36,11 @@ ninja = "*"
 cuda-cudart-dev = "*"
 cuda-nvcc = "*"
 cuda-profiler-api = "*"
-cuda-cccl = "*"
 cuda-nvtx-dev = "*"
 cuda-version = "==13.0"
+
+# CCCL from source
+cccl = { path = "../cccl" }
 
 # Additional build dependencies
 nccl = "*"
@@ -46,6 +48,7 @@ rmm = "*"
 
 [package.host-dependencies]
 # Host dependencies needed at build time
+cccl = { path = "../cccl" }
 rmm = "*"
 nccl = "*"
 

@@ -8,8 +8,8 @@ channel-priority = "disabled"
 preview = ["pixi-build"]
 
 [dependencies]
-# XGBoost built from source
-xgboost = { path = "packages/xgboost" }
+# XGBoost Python package (depends on C++ library built from source)
+py-xgboost = { path = "packages/xgboost-python" }
 
 # Python
 python = "3.12.*"

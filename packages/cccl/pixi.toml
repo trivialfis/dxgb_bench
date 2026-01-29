@@ -1,0 +1,32 @@
+[package]
+name = "cccl"
+version = "3.2.0"
+description = "CUDA C++ Core Libraries - Thrust, CUB, and libcudacxx"
+license = "Apache-2.0"
+
+[package.build.source]
+git = "https://github.com/NVIDIA/cccl.git"
+branch = "branch/3.2.x"
+
+[package.build.backend]
+name = "pixi-build-cmake"
+version = "*"
+
+[package.build.config]
+# CCCL is a header-only library, install only
+extra-args = [
+    "-DCCCL_ENABLE_TESTING=OFF",
+    "-DCCCL_ENABLE_EXAMPLES=OFF",
+]
+
+[package.build-dependencies]
+cmake = ">=3.21"
+ninja = "*"
+
+[package.host-dependencies]
+# CCCL needs CUDA for some components
+cuda-cudart-dev = "*"
+cuda-version = "==13.0"
+
+[package.run-dependencies]
+# Header-only library, minimal runtime dependencies
