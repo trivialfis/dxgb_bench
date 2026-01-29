@@ -1,5 +1,6 @@
 dxgb_bench_workspace
 data.json
+.pixi
 *.gz
 *.csv
 __pycache__
