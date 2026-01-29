@@ -14,7 +14,6 @@ py-xgboost = { path = "packages/xgboost-python" }
 # Python
 python = "3.12.*"
 pip = "*"
-hatchling = "*"
 setuptools-scm = "*"
 
 # Python testing
