@@ -1,36 +1,197 @@
-# Copyright (c) 2024-2025, Jiaming Yuan.  All rights reserved.
+# Copyright (c) 2024-2026, Jiaming Yuan.  All rights reserved.
+"""Distributed XGBoost benchmarking with pyhwloc for NUMA binding."""
+
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import pickle
 import subprocess
+import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
-from typing import Any, TypeAlias
+import traceback
+from functools import wraps
+from typing import Any, Callable, ParamSpec, TypeAlias, TypeVar
 
 import xgboost
+from xgboost import collective as coll
 from xgboost.tracker import RabitTracker
 
+from .dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
+from .external_mem import make_extmem_qdms
 from .utils import (
     DFT_OUT,
+    TEST_SIZE,
     Opts,
     Timer,
     add_data_params,
     add_device_param,
     add_hyper_param,
     add_rmm_param,
+    fill_opts_shape,
+    fprint,
+    has_async_pool,
     machine_info,
     make_params_from_args,
     merge_opts,
+    need_rmm,
     save_results,
+    setup_rmm,
     split_path,
 )
 
+R = TypeVar("R")
+P = ParamSpec("P")
 
-def make_iter_qdms(
+
+def _try_run(fn: Callable[P, R]) -> Callable[P, R]:
+    """Wrapper to print exceptions in subprocess workers before re-raising."""
+
+    @wraps(fn)
+    def inner(*args: P.args, **kwargs: P.kwargs) -> R:
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            print(traceback.format_exc(), file=sys.stderr)
+            raise RuntimeError("Running into exception in worker.") from e
+
+    return inner
+
+
+def _get_logger() -> logging.Logger:
+    logger = logging.getLogger("[dxgb-bench]")
+    logger.setLevel(logging.INFO)
+    if not logger.hasHandlers():
+        handler = logging.StreamHandler()
+        logger.addHandler(handler)
+    return logger
+
+
+def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
+    """Set up CPU and memory binding using pyhwloc."""
+    import pyhwloc
+    from pyhwloc.cuda_runtime import get_device
+    from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
+
+    with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
+        # Get CPU affinity for this GPU
+        dev = get_device(topo, device=0)  # device is handled by the VISIBLE DEVICES
+        cpuset = dev.get_affinity()
+
+        devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
+        print(
+            "Idx:",
+            worker_id,
+            "\nCPUSet:",
+            cpuset,
+            "\nDevices:",
+            devices,
+        )
+        # Set CPU binding
+        topo.set_cpubind(cpuset)
+        # Set memory binding using cpuset (hwloc determines NUMA nodes from cpuset)
+        topo.set_membind(cpuset, MemBindPolicy.BIND, MemBindFlags.STRICT)
+
+
+def _worker_init(worker_id: int, n_workers: int, mr: str | None, device: str) -> None:
+    """Initialize a subprocess worker with NUMA bindings and RMM."""
+    if device != "cuda":
+        return
+
+    # Set up NUMA bindings using pyhwloc
+    setup_pyhwloc_binding(worker_id, n_workers)
+
+    # Set up RMM if requested
+    if mr is not None:
+        setup_rmm(mr, worker_id=worker_id)
+
+
+# ------------------------------------------------------------------------------
+# Worker training implementation
+# ------------------------------------------------------------------------------
+
+
+def _make_iter(
+    opts: Opts, loadfrom: list[str], is_extmem: bool
+) -> tuple[StridedIter, StridedIter | None]:
+    """Create data iterators for training and validation."""
+    it_train_impl: IterImpl
+    it_valid_impl: IterImpl | None
+
+    if opts.on_the_fly:
+        if opts.validation:
+            n_train_samples = int(opts.n_samples_per_batch * (1.0 - TEST_SIZE))
+            n_valid_samples = opts.n_samples_per_batch - n_train_samples
+            it_train_impl = SynIterImpl(
+                n_samples_per_batch=n_train_samples,
+                n_features=opts.n_features,
+                n_targets=opts.n_targets,
+                n_batches=opts.n_batches,
+                sparsity=opts.sparsity,
+                assparse=False,
+                target_type=opts.target_type,
+                device=opts.device,
+            )
+            it_valid_impl = SynIterImpl(
+                n_samples_per_batch=n_valid_samples,
+                n_features=opts.n_features,
+                n_targets=opts.n_targets,
+                n_batches=opts.n_batches,
+                sparsity=opts.sparsity,
+                assparse=False,
+                target_type=opts.target_type,
+                device=opts.device,
+            )
+        else:
+            it_train_impl = SynIterImpl(
+                n_samples_per_batch=opts.n_samples_per_batch,
+                n_features=opts.n_features,
+                n_targets=opts.n_targets,
+                n_batches=opts.n_batches,
+                sparsity=opts.sparsity,
+                assparse=False,
+                target_type=opts.target_type,
+                device=opts.device,
+            )
+            it_valid_impl = None
+    else:
+        if opts.validation:
+            it_train_impl = LoadIterStrip(loadfrom, False, TEST_SIZE, opts.device)
+            it_valid_impl = LoadIterStrip(loadfrom, True, TEST_SIZE, opts.device)
+        else:
+            it_train_impl = LoadIterStrip(loadfrom, False, None, opts.device)
+            it_valid_impl = None
+
+        assert it_train_impl.n_batches % coll.get_world_size() == 0
+
+    it_train = StridedIter(
+        it_train_impl,
+        start=coll.get_rank(),
+        stride=coll.get_world_size(),
+        is_ext=is_extmem,
+        is_valid=False,
+        device=opts.device,
+    )
+    if it_valid_impl is not None:
+        it_valid = StridedIter(
+            it_valid_impl,
+            start=coll.get_rank(),
+            stride=coll.get_world_size(),
+            is_ext=is_extmem,
+            is_valid=True,
+            device=opts.device,
+        )
+    else:
+        it_valid = None
+
+    return it_train, it_valid
+
+
+def _make_iter_qdms(
     it_train: xgboost.DataIter, it_valid: xgboost.DataIter | None, max_bin: int
 ) -> tuple[xgboost.DMatrix, list[tuple[xgboost.DMatrix, str]]]:
+    """Create QuantileDMatrix for training and validation."""
     with Timer("Train", "DMatrix-Train"):
         dargs = {
             "data": it_train,
@@ -54,19 +215,271 @@ def make_iter_qdms(
     return Xy_train, watches
 
 
-def get_numa_node_id(ordinal: int) -> int:
-    import cuda.bindings.runtime as cudart
+@_try_run
+def _train(
+    worker_id: int,
+    n_workers: int,
+    opts: Opts,
+    n_rounds: int,
+    rabit_args: dict[str, Any],
+    params: dict[str, Any],
+    loadfrom: list[str],
+    verbosity: int,
+    is_extmem: bool,
+) -> tuple[xgboost.Booster, dict[str, Any], Opts]:
+    """Execute XGBoost training in a worker process.
 
-    status, value = cudart.cudaDeviceGetAttribute(
-        cudart.cudaDeviceAttr.cudaDevAttrHostNumaId, ordinal
-    )
-    if status != cudart.cudaError_t.cudaSuccess:
-        raise RuntimeError(cudart.cudaGetErrorString(status))
-    return value
+    RMM and NUMA bindings are set up in ``_worker_init``.
+    """
+    # Initialize worker (NUMA bindings, RMM)
+    _worker_init(worker_id, n_workers, opts.mr, opts.device)
+    devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
+    results: dict[str, Any] = {}
+
+    def log_fn(msg: str) -> None:
+        if coll.get_rank() == 0:
+            _get_logger().info(msg)
+
+    with coll.CommunicatorContext(**rabit_args):
+        affos = os.sched_getaffinity(0)
+        fprint(
+            f"[dxgb-bench] {coll.get_rank()}: CPU Affinity: {affos}",
+            f" devices: {devices}",
+        )
+        with xgboost.config_context(
+            use_rmm=need_rmm(opts.mr),
+            verbosity=verbosity,
+            use_cuda_async_pool=opts.mr == "cuda" if has_async_pool() else None,
+        ):
+            it_train, it_valid = _make_iter(opts, loadfrom, is_extmem)
+            if is_extmem:
+                Xy_train, watches = make_extmem_qdms(
+                    opts, params["max_bin"], it_train, it_valid
+                )
+            else:
+                Xy_train, watches = _make_iter_qdms(
+                    it_train, it_valid, params["max_bin"]
+                )
+
+            evals_result: dict[str, dict[str, float]] = {}
+            with Timer("Train", "Train", logger=log_fn):
+                booster = xgboost.train(
+                    params,
+                    Xy_train,
+                    evals=watches,
+                    num_boost_round=n_rounds,
+                    verbose_eval=True,
+                    evals_result=evals_result,
+                )
+    if len(watches) >= 2:
+        opts = fill_opts_shape(opts, Xy_train, watches[1][0], it_train.n_batches)
+    else:
+        opts = fill_opts_shape(opts, Xy_train, None, it_train.n_batches)
+    results["timer"] = Timer.global_timer()
+    results["evals"] = evals_result
+    return booster, results, opts
+
+
+# ------------------------------------------------------------------------------
+# Subprocess Pool Abstraction
+# ------------------------------------------------------------------------------
+
+
+def _get_cuda_visible_devices(worker_id: int, n_workers: int) -> str:
+    """Get CUDA_VISIBLE_DEVICES string for a worker.
+
+    Rotate GPUs so each worker sees its GPU first.
+    """
+    ordinals = [w % n_workers for w in range(worker_id, worker_id + n_workers)]
+    return ",".join(map(str, ordinals))
+
+
+class SubprocessPool:
+    """A process pool that spawns workers as subprocesses.
+
+    This pool provides a map-like interface for running functions in separate
+    subprocesses. Each worker gets its own CUDA_VISIBLE_DEVICES environment variable set
+    appropriately for GPU isolation.
+
+    """
+
+    def __init__(
+        self, n_workers: int, device: str = "cuda", capture_output: bool = True
+    ) -> None:
+        self.n_workers = n_workers
+        self.device = device
+        self.capture_output = capture_output
+        self._tmpdir: tempfile.TemporaryDirectory[str] | None = None
+
+    def __enter__(self) -> "SubprocessPool":
+        self._tmpdir = tempfile.TemporaryDirectory()
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
+        if self._tmpdir is not None:
+            self._tmpdir.cleanup()
+            self._tmpdir = None
+
+    def _get_tmpdir(self) -> str:
+        if self._tmpdir is None:
+            raise RuntimeError("SubprocessPool must be used as a context manager")
+        return self._tmpdir.name
+
+    def map(
+        self,
+        fn: Callable[..., R],
+        args_list: list[dict[str, Any]],
+    ) -> list[R]:
+        """Apply function to each set of arguments in separate subprocesses.
+
+        Parameters
+        ----------
+        fn : Callable
+            The function to execute. Must be picklable (e.g., a module-level
+            function). The function will receive `worker_id` and `n_workers`
+            as additional keyword arguments.
+        args_list : list[dict]
+            List of keyword argument dicts, one per worker. Length must equal
+            n_workers.
+
+        Returns
+        -------
+        list
+            List of results from each worker, in order.
+
+        """
+        if len(args_list) != self.n_workers:
+            raise ValueError(
+                f"args_list length ({len(args_list)}) must match "
+                f"n_workers ({self.n_workers})"
+            )
+
+        tmpdir = self._get_tmpdir()
+
+        # Serialize function and arguments for each worker
+        task_paths: list[str] = []
+        output_paths: list[str] = []
+
+        for worker_id, args in enumerate(args_list):
+            task_data = {
+                "fn": fn,
+                "args": args,
+                "worker_id": worker_id,
+                "n_workers": self.n_workers,
+            }
+            task_path = os.path.join(tmpdir, f"task_{worker_id}.pkl")
+            output_path = os.path.join(tmpdir, f"result_{worker_id}.pkl")
+
+            with open(task_path, "wb") as f:
+                pickle.dump(task_data, f)
+
+            task_paths.append(task_path)
+            output_paths.append(output_path)
+
+        # Spawn all worker subprocesses
+        processes: list[subprocess.Popen[bytes]] = []
+
+        for worker_id in range(self.n_workers):
+            env = os.environ.copy()
+            if self.device == "cuda":
+                env["CUDA_VISIBLE_DEVICES"] = _get_cuda_visible_devices(
+                    worker_id, self.n_workers
+                )
+
+            cmd = [
+                sys.executable,
+                "-m",
+                "dxgb_bench.dxgb_dist_bench",
+                "worker",
+                "--task-path",
+                task_paths[worker_id],
+                "--output-path",
+                output_paths[worker_id],
+            ]
+            popen_kwargs: dict[str, Any] = {"env": env}
+            if self.capture_output:
+                popen_kwargs["stdout"] = subprocess.PIPE
+                popen_kwargs["stderr"] = subprocess.PIPE
+
+            proc = subprocess.Popen(cmd, **popen_kwargs)
+            processes.append(proc)
+
+        # Wait for all workers and collect results
+        results: list[R] = []
+        errors: list[str] = []
+
+        for worker_id, proc in enumerate(processes):
+            if self.capture_output:
+                stdout, stderr = proc.communicate()
+                if stdout:
+                    print(stdout.decode(), end="")
+                if stderr:
+                    print(stderr.decode(), end="", file=sys.stderr)
+            else:
+                proc.wait()
+
+            if proc.returncode != 0:
+                errors.append(
+                    f"Worker {worker_id} failed with return code {proc.returncode}"
+                )
+                continue
+
+            output_path = output_paths[worker_id]
+            if os.path.exists(output_path):
+                with open(output_path, "rb") as f:
+                    result_data = pickle.load(f)
+                if "error" in result_data:
+                    errors.append(f"Worker {worker_id}: {result_data['error']}")
+                else:
+                    results.append(result_data["result"])
+            else:
+                errors.append(f"Worker {worker_id} did not produce output file")
+
+        if errors:
+            raise RuntimeError("Worker errors:\n" + "\n".join(errors))
+
+        return results
+
+
+# ------------------------------------------------------------------------------
+# Process orchestration
+# ------------------------------------------------------------------------------
+
+
+def _run_workers(
+    n_rounds: int,
+    opts: Opts,
+    params: dict[str, Any],
+    n_workers: int,
+    loadfrom: list[str],
+    verbosity: int,
+    is_extmem: bool,
+    rabit_args: dict[str, Any],
+) -> list[tuple[xgboost.Booster, dict[str, Any], Opts]]:
+    """Run distributed training using SubprocessPool."""
+    # Build the common arguments for all workers
+    common_args = {
+        "opts": opts,
+        "n_rounds": n_rounds,
+        "rabit_args": rabit_args,
+        "params": params,
+        "loadfrom": loadfrom,
+        "verbosity": verbosity,
+        "is_extmem": is_extmem,
+    }
+
+    # Each worker gets the same arguments (worker_id/n_workers added by pool)
+    args_list = [common_args.copy() for _ in range(n_workers)]
+
+    with SubprocessPool(
+        n_workers=n_workers, device=opts.device, capture_output=False
+    ) as pool:
+        results = pool.map(_train, args_list)
+
+    return results
 
 
 def bench(
-    tmpdir: str,
     n_rounds: int,
     opts: Opts,
     params: dict[str, Any],
@@ -75,6 +488,7 @@ def bench(
     verbosity: int,
     is_extmem: bool,
 ) -> tuple[xgboost.Booster, dict[str, Any]]:
+    """Run distributed XGBoost benchmark."""
     assert n_workers > 0
 
     tracker = RabitTracker(host_ip="127.0.0.1", n_workers=n_workers)
@@ -88,60 +502,20 @@ def bench(
         n_batches_per_worker = opts.n_batches // n_workers
         assert n_batches_per_worker > 1
 
-    R: TypeAlias = tuple[xgboost.Booster, dict[str, Any], Opts]
-
-    def launch(wparams: dict[str, Any], worker_id: int) -> R:
-        path = os.path.join(tmpdir, f"worker-params-{worker_id}.pkl")
-        with open(path, "wb") as wfd:
-            pickle.dump(wparams, wfd)
-
-        env = os.environ.copy()
-
-        if device == "cuda":
-            nodeid = get_numa_node_id(worker_id)
-            cmd = [
-                "numactl",
-                f"--membind={nodeid}",
-                f"--cpunodebind={nodeid}",
-                "_dxgb-dist-impl",
-                "--params",
-                path,
-            ]
-
-            ordinals = [w % n_workers for w in range(worker_id, worker_id + n_workers)]
-            devices = ",".join(map(str, ordinals))
-            env["CUDA_VISIBLE_DEVICES"] = devices
-        else:
-            cmd = [
-                "_dxgb-dist-impl",
-                "--params",
-                path,
-            ]
-
-        subprocess.check_call(cmd, env=env)
-        path = os.path.join(tmpdir, f"worker-results-{worker_id}.pkl")
-        with open(path, "rb") as rfd:
-            booster, results, opts = pickle.load(rfd)
-        return booster, results, opts
+    TrainResult: TypeAlias = tuple[xgboost.Booster, dict[str, Any], Opts]
 
     with Timer("Train", "Total"):
-        with ThreadPoolExecutor(max_workers=n_workers) as exe:
-            futures = []
-            for worker_id in range(n_workers):
-                wparams = {
-                    "opts": opts,
-                    "n_rounds": n_rounds,
-                    "rabit_args": rabit_args,
-                    "params": params,
-                    "loadfrom": loadfrom,
-                    "verbosity": verbosity,
-                    "worker_id": worker_id,
-                    "is_extmem": is_extmem,
-                }
-                fut = exe.submit(launch, wparams, worker_id)
-                futures.append(fut)
+        train_results: list[TrainResult] = _run_workers(
+            n_rounds=n_rounds,
+            opts=opts,
+            params=params,
+            n_workers=n_workers,
+            loadfrom=loadfrom,
+            verbosity=verbosity,
+            is_extmem=is_extmem,
+            rabit_args=rabit_args,
+        )
 
-        train_results: list[R] = [f.result() for f in futures]
         assert len(train_results) == n_workers
         assert all(b[0].num_boosted_rounds() == n_rounds for b in train_results)
 
@@ -203,35 +577,124 @@ def bench(
     return boosters[0], results
 
 
-def cli_main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
+# ------------------------------------------------------------------------------
+# Subprocess worker entry point
+# ------------------------------------------------------------------------------
+
+
+def _worker_main(task_path: str, output_path: str) -> None:
+    """Entry point for subprocess workers.
+
+    Loads a pickled task (function + arguments), executes it, and writes the
+    result to an output file. This enables the SubprocessPool to run arbitrary
+    functions in separate processes.
+
+    Parameters
+    ----------
+    task_path : str
+        Path to pickled task file containing:
+        - fn: The function to execute
+        - args: Keyword arguments dict for the function
+        - worker_id: The worker's index
+        - n_workers: Total number of workers
+    output_path : str
+        Path to write the pickled result.
+    """
+    # Load the task
+    with open(task_path, "rb") as f:
+        task = pickle.load(f)
+
+    fn = task["fn"]
+    args = task["args"]
+    worker_id = task["worker_id"]
+    n_workers = task["n_workers"]
+
+    # Execute the function with worker_id and n_workers injected
+    try:
+        result = fn(worker_id=worker_id, n_workers=n_workers, **args)
+        output = {"result": result}
+    except Exception as e:
+        # Capture exception info for the parent process
+        output = {"error": f"{type(e).__name__}: {e}\n{traceback.format_exc()}"}
+
+    # Write result to output file
+    with open(output_path, "wb") as f:
+        pickle.dump(output, f)
+
+
+# ------------------------------------------------------------------------------
+# CLI
+# ------------------------------------------------------------------------------
+
+
+def _add_worker_subparser(subparsers: argparse._SubParsersAction[Any]) -> None:
+    """Add the 'worker' subparser for subprocess workers (internal use)."""
+    worker_parser = subparsers.add_parser(
+        "worker",
+        help="Run as a subprocess worker (internal use by SubprocessPool).",
+    )
+    worker_parser.add_argument(
+        "--task-path",
+        type=str,
+        required=True,
+        help="Path to pickled task file.",
+    )
+    worker_parser.add_argument(
+        "--output-path",
+        type=str,
+        required=True,
+        help="Path to write pickled output.",
+    )
+
+
+def _add_bench_subparser(subparsers: argparse._SubParsersAction[Any]) -> None:
+    """Add the 'bench' subparser for the main benchmark client."""
+    run_parser = subparsers.add_parser(
+        "bench",
+        help="Run distributed XGBoost benchmark.",
+    )
+    run_parser.add_argument(
         "--fly",
         action="store_true",
         help="Generate data on the fly instead of loading it from the disk.",
     )
-    parser.add_argument("--task", choices=["ext", "qdm"], required=True)
-    parser.add_argument(
-        "--valid", action="store_true", help="Split for the validation dataset."
+    run_parser.add_argument(
+        "--task",
+        choices=["ext", "qdm"],
+        required=True,
+        help="Task type: 'ext' for external memory, 'qdm' for QuantileDMatrix.",
     )
-    parser.add_argument("--loadfrom", type=str, default=DFT_OUT)
-    parser.add_argument("--cluster_type", choices=["local"], required=True)
-    parser.add_argument("--n_workers", type=int, required=True)
-    parser.add_argument(
-        "--hosts", type=str, help=";separated list of hosts.", required=False
+    run_parser.add_argument(
+        "--valid",
+        action="store_true",
+        help="Split for the validation dataset.",
     )
-    parser.add_argument("--rpy", type=str, help="remote python path.", required=False)
-    parser.add_argument("--username", type=str, help="SSH username.", required=False)
-    parser.add_argument(
-        "--sched", type=str, help="path the to schedule config.", required=False
+    run_parser.add_argument(
+        "--loadfrom",
+        type=str,
+        default=DFT_OUT,
+        help="Path to load data from.",
+    )
+    run_parser.add_argument(
+        "--n_workers",
+        type=int,
+        required=True,
+        help="Number of workers.",
     )
 
-    parser = add_device_param(parser)
-    parser = add_rmm_param(parser)
-    parser = add_hyper_param(parser)
-    parser = add_data_params(parser, required=False)
-    args = parser.parse_args()
+    add_device_param(run_parser)
+    add_rmm_param(run_parser)
+    add_hyper_param(run_parser)
+    add_data_params(run_parser, required=False)
 
+
+def _handle_worker(args: argparse.Namespace) -> None:
+    """Handle the 'worker' subcommand."""
+    _worker_main(args.task_path, args.output_path)
+
+
+def _handle_bench(args: argparse.Namespace) -> None:
+    """Handle the 'bench' subcommand."""
     opts = Opts(
         n_samples_per_batch=args.n_samples_per_batch,
         n_features=args.n_features,
@@ -250,20 +713,36 @@ def cli_main() -> None:
     params = make_params_from_args(args)
     is_extmem = args.task == "ext"
 
-    if args.cluster_type == "local":
-        with tempfile.TemporaryDirectory() as tmpdir:
-            bench(
-                tmpdir,
-                args.n_rounds,
-                opts,
-                params,
-                args.n_workers,
-                loadfrom,
-                args.verbosity,
-                is_extmem,
-            )
+    bench(
+        args.n_rounds,
+        opts,
+        params,
+        args.n_workers,
+        loadfrom,
+        args.verbosity,
+        is_extmem,
+    )
+
+
+def cli_main() -> None:
+    parser = argparse.ArgumentParser(
+        prog="dxgb_dist_bench",
+        description="Distributed XGBoost benchmarking with NUMA binding.",
+    )
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    _add_worker_subparser(subparsers)
+    _add_bench_subparser(subparsers)
+
+    args = parser.parse_args()
+
+    if args.command == "worker":
+        _handle_worker(args)
+    elif args.command == "bench":
+        _handle_bench(args)
     else:
-        raise ValueError("Option removed.")
+        parser.print_help()
+        sys.exit(1)
 
 
 if __name__ == "__main__":

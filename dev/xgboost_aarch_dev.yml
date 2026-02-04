@@ -12,6 +12,7 @@ dependencies:
 - cuda-profiler-api
 - libcurand-dev
 - cuda-python
+- cuda-cccl
 - cuda-nvtx-dev
 - cuda-version=13.0
 - ninja
@@ -45,3 +46,4 @@ dependencies:
 - typing_extensions
 - pip:
   - build
+  - pyhwloc
