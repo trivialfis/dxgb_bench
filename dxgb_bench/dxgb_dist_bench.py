@@ -684,10 +684,10 @@ def _add_worker_subparser(subparsers: argparse._SubParsersAction[Any]) -> None:
     )
 
 
-def _add_run_subparser(subparsers: argparse._SubParsersAction[Any]) -> None:
-    """Add the 'run' subparser for the main benchmark client."""
+def _add_bench_subparser(subparsers: argparse._SubParsersAction[Any]) -> None:
+    """Add the 'bench' subparser for the main benchmark client."""
     run_parser = subparsers.add_parser(
-        "run",
+        "bench",
         help="Run distributed XGBoost benchmark.",
     )
     run_parser.add_argument(
@@ -756,8 +756,8 @@ def _handle_worker(args: argparse.Namespace) -> None:
     _worker_main(args.task_path, args.output_path)
 
 
-def _handle_run(args: argparse.Namespace) -> None:
-    """Handle the 'run' subcommand."""
+def _handle_bench(args: argparse.Namespace) -> None:
+    """Handle the 'bench' subcommand."""
     opts = Opts(
         n_samples_per_batch=args.n_samples_per_batch,
         n_features=args.n_features,
@@ -798,14 +798,14 @@ def cli_main() -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
     _add_worker_subparser(subparsers)
-    _add_run_subparser(subparsers)
+    _add_bench_subparser(subparsers)
 
     args = parser.parse_args()
 
     if args.command == "worker":
         _handle_worker(args)
-    elif args.command == "run":
-        _handle_run(args)
+    elif args.command == "bench":
+        _handle_bench(args)
     else:
         parser.print_help()
         sys.exit(1)
