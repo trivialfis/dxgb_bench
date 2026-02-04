@@ -82,7 +82,7 @@ def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
 
     with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
         # Get CPU affinity for this GPU
-        dev = get_device(topo, worker_id)
+        dev = get_device(topo, device=0)
         cpuset = dev.get_affinity()
 
         devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
@@ -316,6 +316,10 @@ class SubprocessPool:
     device : str
         Device type ("cuda" or "cpu"). If "cuda", CUDA_VISIBLE_DEVICES will be
         set for each worker.
+    capture_output : bool
+        If True (default), capture worker stdout/stderr and print after completion.
+        If False, let workers inherit parent's stdout/stderr for real-time output.
+        Note: when False, output from multiple workers may be interleaved.
 
     Examples
     --------
@@ -330,9 +334,12 @@ class SubprocessPool:
     [0, 2, 4, 6]
     """
 
-    def __init__(self, n_workers: int, device: str = "cuda") -> None:
+    def __init__(
+        self, n_workers: int, device: str = "cuda", capture_output: bool = True
+    ) -> None:
         self.n_workers = n_workers
         self.device = device
+        self.capture_output = capture_output
         self._tmpdir: tempfile.TemporaryDirectory[str] | None = None
 
     def __enter__(self) -> "SubprocessPool":
@@ -426,12 +433,12 @@ class SubprocessPool:
                 "--output-path",
                 output_paths[worker_id],
             ]
-            proc = subprocess.Popen(
-                cmd,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
+            popen_kwargs: dict[str, Any] = {"env": env}
+            if self.capture_output:
+                popen_kwargs["stdout"] = subprocess.PIPE
+                popen_kwargs["stderr"] = subprocess.PIPE
+
+            proc = subprocess.Popen(cmd, **popen_kwargs)
             processes.append(proc)
 
         # Wait for all workers and collect results
@@ -439,11 +446,14 @@ class SubprocessPool:
         errors: list[str] = []
 
         for worker_id, proc in enumerate(processes):
-            stdout, stderr = proc.communicate()
-            if stdout:
-                print(stdout.decode(), end="")
-            if stderr:
-                print(stderr.decode(), end="", file=sys.stderr)
+            if self.capture_output:
+                stdout, stderr = proc.communicate()
+                if stdout:
+                    print(stdout.decode(), end="")
+                if stderr:
+                    print(stderr.decode(), end="", file=sys.stderr)
+            else:
+                proc.wait()
 
             if proc.returncode != 0:
                 errors.append(
@@ -498,7 +508,9 @@ def _run_workers(
     # Each worker gets the same arguments (worker_id/n_workers added by pool)
     args_list = [common_args.copy() for _ in range(n_workers)]
 
-    with SubprocessPool(n_workers=n_workers, device=opts.device) as pool:
+    with SubprocessPool(
+        n_workers=n_workers, device=opts.device, capture_output=False
+    ) as pool:
         results = pool.map(_train, args_list)
 
     return results
