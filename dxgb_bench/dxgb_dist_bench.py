@@ -69,11 +69,7 @@ def _get_logger() -> logging.Logger:
 
 
 def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
-    """Set up CPU and memory binding using pyhwloc.
-
-    This function should be called in a child process to configure NUMA bindings for the
-    given worker.
-    """
+    """Set up CPU and memory binding using pyhwloc."""
     import pyhwloc
 
     # from pyhwloc.cuda_runtime import get_device
@@ -82,7 +78,7 @@ def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
 
     with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
         # Get CPU affinity for this GPU
-        dev = get_device(topo, device=0)
+        dev = get_device(topo, device=0)  # device is handled by the VISIABLE DEVICES
         cpuset = dev.get_affinity()
 
         devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
@@ -306,32 +302,9 @@ class SubprocessPool:
     """A process pool that spawns workers as subprocesses.
 
     This pool provides a map-like interface for running functions in separate
-    subprocesses. Each worker gets its own CUDA_VISIBLE_DEVICES environment
-    variable set appropriately for GPU isolation.
+    subprocesses. Each worker gets its own CUDA_VISIBLE_DEVICES environment variable set
+    appropriately for GPU isolation.
 
-    Parameters
-    ----------
-    n_workers : int
-        Number of worker processes to spawn.
-    device : str
-        Device type ("cuda" or "cpu"). If "cuda", CUDA_VISIBLE_DEVICES will be
-        set for each worker.
-    capture_output : bool
-        If True (default), capture worker stdout/stderr and print after completion.
-        If False, let workers inherit parent's stdout/stderr for real-time output.
-        Note: when False, output from multiple workers may be interleaved.
-
-    Examples
-    --------
-    >>> def compute(worker_id: int, n_workers: int, value: int) -> int:
-    ...     # worker_id and n_workers are automatically injected
-    ...     return value * 2
-    ...
-    >>> with SubprocessPool(n_workers=4, device="cuda") as pool:
-    ...     args_list = [{"value": i} for i in range(4)]
-    ...     results = pool.map(compute, args_list)
-    >>> results
-    [0, 2, 4, 6]
     """
 
     def __init__(
@@ -378,12 +351,6 @@ class SubprocessPool:
         list
             List of results from each worker, in order.
 
-        Raises
-        ------
-        RuntimeError
-            If any worker fails.
-        ValueError
-            If args_list length doesn't match n_workers.
         """
         if len(args_list) != self.n_workers:
             raise ValueError(
@@ -713,36 +680,10 @@ def _add_bench_subparser(subparsers: argparse._SubParsersAction[Any]) -> None:
         help="Path to load data from.",
     )
     run_parser.add_argument(
-        "--cluster_type",
-        choices=["local"],
-        required=True,
-        help="Cluster type for distributed training.",
-    )
-    run_parser.add_argument(
         "--n_workers",
         type=int,
         required=True,
         help="Number of workers.",
-    )
-    run_parser.add_argument(
-        "--hosts",
-        type=str,
-        help=";separated list of hosts.",
-    )
-    run_parser.add_argument(
-        "--rpy",
-        type=str,
-        help="Remote python path.",
-    )
-    run_parser.add_argument(
-        "--username",
-        type=str,
-        help="SSH username.",
-    )
-    run_parser.add_argument(
-        "--sched",
-        type=str,
-        help="Path to the schedule config.",
     )
 
     add_device_param(run_parser)
@@ -776,18 +717,15 @@ def _handle_bench(args: argparse.Namespace) -> None:
     params = make_params_from_args(args)
     is_extmem = args.task == "ext"
 
-    if args.cluster_type == "local":
-        bench(
-            args.n_rounds,
-            opts,
-            params,
-            args.n_workers,
-            loadfrom,
-            args.verbosity,
-            is_extmem,
-        )
-    else:
-        raise ValueError("Option removed.")
+    bench(
+        args.n_rounds,
+        opts,
+        params,
+        args.n_workers,
+        loadfrom,
+        args.verbosity,
+        is_extmem,
+    )
 
 
 def cli_main() -> None:
