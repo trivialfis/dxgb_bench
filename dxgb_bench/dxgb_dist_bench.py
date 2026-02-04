@@ -86,7 +86,16 @@ def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
         cpuset = dev.get_affinity()
 
         devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
-        print("Idx:", worker_id, "\nCPUSet:", cpuset, "\nDevices:", devices)
+        print(
+            "Idx:",
+            worker_id,
+            "\nCPUSet:",
+            cpuset,
+            "\nDevices:",
+            devices,
+            "Worker ID:",
+            worker_id,
+        )
         # Set CPU binding
         topo.set_cpubind(cpuset)
         # Set memory binding using cpuset (hwloc determines NUMA nodes from cpuset)
