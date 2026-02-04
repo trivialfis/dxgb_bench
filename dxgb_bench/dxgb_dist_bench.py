@@ -71,8 +71,6 @@ def _get_logger() -> logging.Logger:
 def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
     """Set up CPU and memory binding using pyhwloc."""
     import pyhwloc
-
-
     from pyhwloc.cuda_runtime import get_device
     from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
 
@@ -89,7 +87,6 @@ def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
             cpuset,
             "\nDevices:",
             devices,
-
         )
         # Set CPU binding
         topo.set_cpubind(cpuset)
