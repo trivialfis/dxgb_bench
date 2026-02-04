@@ -72,13 +72,13 @@ def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
     """Set up CPU and memory binding using pyhwloc."""
     import pyhwloc
 
-    # from pyhwloc.cuda_runtime import get_device
+
     from pyhwloc.cuda_runtime import get_device
     from pyhwloc.topology import MemBindFlags, MemBindPolicy, TypeFilter
 
     with pyhwloc.from_this_system().set_io_types_filter(TypeFilter.KEEP_ALL) as topo:
         # Get CPU affinity for this GPU
-        dev = get_device(topo, device=0)  # device is handled by the VISIABLE DEVICES
+        dev = get_device(topo, device=0)  # device is handled by the VISIBLE DEVICES
         cpuset = dev.get_affinity()
 
         devices = os.getenv("CUDA_VISIBLE_DEVICES", None)
@@ -89,8 +89,7 @@ def setup_pyhwloc_binding(worker_id: int, n_workers: int) -> None:
             cpuset,
             "\nDevices:",
             devices,
-            "Worker ID:",
-            worker_id,
+
         )
         # Set CPU binding
         topo.set_cpubind(cpuset)
