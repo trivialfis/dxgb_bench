@@ -1,0 +1,57 @@
+[package]
+name = "xgboost"
+version = "3.2.0"
+description = "Scalable, Portable and Distributed Gradient Boosting Library"
+license = "Apache-2.0"
+
+[package.build.source]
+git = "https://github.com/dmlc/xgboost.git"
+branch = "master"
+
+[package.build.backend]
+name = "pixi-build-cmake"
+version = "*"
+
+[package.build.config]
+# CMake configuration for XGBoost with GPU support
+extra-args = [
+    "-DUSE_CUDA=ON",
+    "-DUSE_NCCL=ON",
+    "-DUSE_DLOPEN_NCCL=ON",
+    "-DUSE_OPENMP=ON",
+    "-DUSE_NVTX=ON",
+    "-DUSE_NVCOMP=OFF",
+    "-DPLUGIN_RMM=ON",
+    "-DBUILD_WITH_GIT_HASH=ON",
+    "-DCMAKE_CUDA_ARCHITECTURES=native",
+    "-DENABLE_ALL_WARNINGS=ON",
+]
+
+[package.build-dependencies]
+# Build tools
+cmake = ">=3.18"
+ninja = "*"
+
+# CUDA toolkit
+cuda-cudart-dev = "*"
+cuda-nvcc = "*"
+cuda-profiler-api = "*"
+cuda-nvtx-dev = "*"
+cuda-version = "==13.0"
+
+# CCCL from source
+cccl = { path = "../cccl" }
+
+# Additional build dependencies
+nccl = "*"
+rmm = "*"
+
+[package.host-dependencies]
+# Host dependencies needed at build time
+cccl = { path = "../cccl" }
+rmm = "*"
+nccl = "*"
+
+[package.run-dependencies]
+# Runtime dependencies
+libgomp = "*"  # OpenMP runtime

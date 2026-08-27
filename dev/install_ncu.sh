@@ -2,4 +2,4 @@
 
 set -euox pipefail
 
-apt install nsight-compute-2025.4.0 -y
+apt install nsight-compute-2026.2.1 -y

@@ -54,15 +54,13 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="""
+    parser = argparse.ArgumentParser(description="""
 
 Examples:
 
     python ./dxgb_bench/dev/build_image.py --arch=aarch --sm=90a
 
-    """
-    )
+    """)
     machine = platform.machine()
     dft_arch = "aarch" if machine.startswith("aarch") else "x86"
     parser.add_argument(

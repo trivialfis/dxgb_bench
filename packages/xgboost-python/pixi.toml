@@ -1,0 +1,34 @@
+[package]
+name = "py-xgboost"
+version = "3.2.0"
+description = "XGBoost Python bindings"
+license = "Apache-2.0"
+
+[package.build.source]
+git = "https://github.com/dmlc/xgboost.git"
+branch = "master"
+subdirectory = "python-package"
+
+[package.build.backend]
+name = "pixi-build-python"
+version = "*"
+
+[package.build.config]
+# Use the pre-built libxgboost.so from the system/conda prefix
+# This corresponds to: pip install . --config-settings use_system_libxgboost=True
+extra-args = ["-Cuse_system_libxgboost=true"]
+
+[package.host-dependencies]
+# The C++ library we built - provides libxgboost.so in $PREFIX/lib
+xgboost = { path = "../xgboost" }
+python = "3.12.*"
+hatchling = "*"
+numpy = "*"
+
+[package.run-dependencies]
+# The C++ library - needed at runtime for libxgboost.so
+xgboost = { path = "../xgboost" }
+# Python runtime dependencies
+python = ">=3.10"
+numpy = "*"
+scipy = "*"
