@@ -30,6 +30,7 @@ dependencies:
 - pytest
 - numpy
 - pandas
+- pyarrow
 - scipy
 - scikit-learn
 # python dask

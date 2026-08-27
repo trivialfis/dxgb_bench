@@ -18,6 +18,10 @@ from .dataiter import (
     train_test_split,
 )
 from .datasets.generated import make_dense_regression, make_sparse_regression, psize
+from .datasets.public.cli import DESCRIPTION as PUBLIC_DATASETS_DESCRIPTION
+from .datasets.public.cli import add_arguments as add_public_dataset_arguments
+from .datasets.public.cli import run as run_public_datasets
+from .datasets.public.cli import validate_args as validate_public_dataset_args
 from .external_mem import make_iter
 from .strip import make_strips
 from .utils import (
@@ -307,6 +311,10 @@ def cli_main() -> None:
     rmm_peak_parser = subsparsers.add_parser(
         "rmmpeak", description="Get the peak memory usage from a RMM log."
     )
+    datasets_parser = subsparsers.add_parser(
+        "datasets", description=PUBLIC_DATASETS_DESCRIPTION
+    )
+    add_public_dataset_arguments(datasets_parser)
 
     # machine info parser
     mi_parser = add_device_param(mi_parser)
@@ -406,6 +414,9 @@ def cli_main() -> None:
         assert os.path.exists(path)
         peak = peak_rmm_memory_bytes(path)
         print("Peak memory usage:", peak)
+    elif args.command == "datasets":
+        validate_public_dataset_args(datasets_parser, args)
+        run_public_datasets(args)
     elif args.command == "infer":
         if args.task == "quick":
             quick_inference(args.model_path)

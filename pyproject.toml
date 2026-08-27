@@ -6,9 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "dxgb-bench"
 dynamic = ["version"]
 description="Benchmarking scripts for XGBoost."
-readme = { file = "README.org", content-type = "text/markdown" }
+readme = { file = "README.md", content-type = "text/markdown" }
 
 dependencies = [
+    "numpy",
+    "pandas",
+    "pyarrow",
     "tqdm"
 ]
 
@@ -16,6 +19,7 @@ dependencies = [
 dxgb-ext-bench = "dxgb_bench.dxgb_ext_bench:cli_main"
 dxgb-bench = "dxgb_bench.dxgb_bench:cli_main"
 dxgb-dist-bench = "dxgb_bench.dxgb_dist_bench:cli_main"
+dxgb-datasets = "dxgb_bench.datasets.public.cli:main"
 _dxgb-dist-impl = "dxgb_bench.dxgb_dist_impl:cli_main"
 
 [tool.setuptools]

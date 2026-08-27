@@ -74,6 +74,7 @@ export KVIKIO_COMPAT_MODE=1
 Commands
 --------
 - dxgb-bench
+- dxgb-datasets
 - dxgb-dist-bench
 - dxgb-ext-bench
 
@@ -84,6 +85,36 @@ There are some additional utilities like the RMM log parser:
 
 ``` sh
 dxgb-bench rmmpeak --path=/bench/rmm_log.dev0
+```
+
+Public datasets
+---------------
+
+`dxgb_bench.datasets.public` provides a reusable pipeline for 17 public multiclass and
+multi-output regression datasets. It downloads original sources atomically, applies a
+registered dataset-specific processor, validates the result, and stores memory-mapped
+NumPy arrays with source hashes, citations, licenses, feature metadata, and split metadata.
+
+Use either the dedicated command or the main command's `datasets` subcommand:
+
+``` sh
+dxgb-datasets --list
+dxgb-datasets covertype poker_hand
+dxgb-bench datasets --download-only aloi
+dxgb-bench datasets --validate-only --offline covertype
+```
+
+The default cache is `${XDG_CACHE_HOME:-~/.cache}/dxgb_bench/datasets`. Set
+`DXGB_BENCH_DATASET_CACHE` or pass `--cache-dir` to use a shared location.
+
+The stages are also available through Python:
+
+``` python
+from dxgb_bench.datasets.public import PublicDatasetPipeline
+
+pipeline = PublicDatasetPipeline()
+dataset = pipeline.ensure("covertype")
+print(dataset.X.shape, dataset.y.shape)
 ```
 
 The result of a test is saved into a JSON file under the working directory. An example output from in-core training:
@@ -181,6 +212,7 @@ XGBoost and dxgb-bench C++ code.
 - numpy
 - xgboost
 - pandas
+- pyarrow
 - tqdm
 - packaging
 - typing_extensions

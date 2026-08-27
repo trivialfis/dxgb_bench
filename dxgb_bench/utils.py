@@ -23,7 +23,6 @@ from typing import (
     Optional,
     Sequence,
     TypeAlias,
-    Union,
 )
 
 import numpy as np
@@ -35,31 +34,12 @@ except ImportError as e:
     warnings.warn(str(e), UserWarning)
     nvtx = None
 
-import pandas
 import tqdm
 import xgboost as xgb
 from xgboost.compat import import_cupy
 
 if TYPE_CHECKING:
-    import cudf
     from cuda.bindings import runtime as cudart
-    from dask import array as da
-    from dask import dataframe as dd
-
-    DC: TypeAlias = Union[da.Array, dd.DataFrame, dd.Series]  # dask collection
-    ID = Union[
-        cudf.DataFrame, pandas.DataFrame, cudf.Series, pandas.Series
-    ]  # input data
-    DType = Union[
-        cudf.DataFrame,
-        pandas.DataFrame,
-        cudf.Series,
-        pandas.Series,
-        da.Array,
-        dd.DataFrame,
-        dd.Series,
-    ]
-
 
 __version__ = metaversion("dxgb_bench")
 
@@ -74,61 +54,6 @@ def fprint(*args: Any, **kwargs: Any) -> None:
 fprint.__doc__ = print.__doc__
 
 EvalsLog: TypeAlias = xgb.callback.TrainingCallback.EvalsLog
-
-
-def read_csv(
-    path: str,
-    sep: str,
-    dtype,
-    header,
-    names,
-    backend,
-    skiprows=0,
-    blocksize=None,
-) -> DType:
-    if backend == "dask_cudf":
-        import dask_cudf
-
-        df = dask_cudf.read_csv(
-            path, delimiter=sep, dtype=dtype, header=None, names=names
-        )
-    elif backend == "dask":
-        if blocksize is None:
-            blocksize = dd.io.csv.AUTO_BLOCKSIZE
-        df = dd.read_csv(
-            path,
-            names=names,
-            blocksize=blocksize,
-            engine="python",
-            sep=sep,
-            skiprows=skiprows,
-            dtype=dtype,
-            header=header,
-        )
-    elif backend == "cudf":
-        import cudf
-
-        df = cudf.read_csv(path, delimiter=sep, dtype=dtype, header=None, names=names)
-    else:
-        df = None
-        raise ValueError("Unknown read_csv backend:", backend)
-    return df
-
-
-pbar = None
-
-
-def show_progress(block_num: int, block_size: int, total_size: int) -> None:
-    global pbar
-    if pbar is None:
-        pbar = tqdm.tqdm(total=total_size / 1024, unit="kB")
-
-    downloaded = block_num * block_size
-    if downloaded < total_size:
-        pbar.update(block_size / 1024)
-    else:
-        pbar.close()
-        pbar = None
 
 
 GlobalTimer: TypeAlias = Dict[str, Dict[str, float]]
