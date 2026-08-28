@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -19,6 +19,7 @@ from dxgb_bench.datasets.public import (
     default_cache_dir,
 )
 from dxgb_bench.datasets.public.cli import main as datasets_main
+from dxgb_bench.datasets.public.pipeline import validate_prepared_values
 
 
 @dataclass
@@ -42,7 +43,7 @@ def toy_pipeline(tmp_path: Path) -> ToyPipeline:
         rows=4,
         features=2,
         outputs=2,
-        split_kind="stratified",
+        split_kind="official_test",
         citation="Synthetic test fixture.",
         license="CC0",
     )
@@ -55,12 +56,13 @@ def toy_pipeline(tmp_path: Path) -> ToyPipeline:
         return PreparedDataset(
             X=pd.DataFrame(
                 {
-                    "first": pd.Series([0, 1, 0, 1], dtype="category"),
+                    "first": pd.Series([0.0, 1.0, np.nan, 1.0], dtype="category"),
                     "second": np.asarray([1.0, 2.0, 3.0, 4.0], dtype=np.float32),
                 }
             ),
             y=np.asarray([0, 1, 0, 1], dtype=np.int32),
             feature_names=["first", "second"],
+            split=np.asarray([0, 0, 2, 2], dtype=np.int32),
             details={"fixture": True},
         )
 
@@ -80,6 +82,9 @@ def test_registry_has_a_processor_for_every_dataset() -> None:
         "amazon_employee",
         "airlines",
         "kick",
+        "monks_1",
+        "monks_2",
+        "monks_3",
     } <= set(DATASETS)
 
 
@@ -91,6 +96,10 @@ def test_ensure_fetches_processes_caches_and_reuses(
     assert first.X.shape == (4, 2)
     assert isinstance(first.X, pd.DataFrame)
     assert isinstance(first.X["first"].dtype, pd.CategoricalDtype)
+    assert first.X["first"].cat.categories.tolist() == [0, 1]
+    assert not pd.api.types.is_float_dtype(first.X["first"].cat.categories.dtype)
+    assert first.split is not None
+    assert first.split.tolist() == [0, 0, 2, 2]
     assert first.y.tolist() == [0, 1, 0, 1]
     assert first.metadata["class_counts"] == [2, 2]
     assert first.metadata["fixture"] is True
@@ -102,6 +111,30 @@ def test_ensure_fetches_processes_caches_and_reuses(
     second = toy_pipeline.pipeline.ensure("toy", offline=True)
     assert toy_pipeline.processor_calls == ["toy"]
     assert second.metadata["source_sha256"] == first.metadata["source_sha256"]
+
+
+def test_cache_rejects_changed_dataset_semantics(toy_pipeline: ToyPipeline) -> None:
+    toy_pipeline.pipeline.ensure("toy")
+    spec = replace(toy_pipeline.pipeline.spec("toy"), split_kind="predefined")
+    changed = PublicDatasetPipeline(
+        cache_dir=toy_pipeline.pipeline.cache_dir,
+        registry={"toy": spec},
+        processors=toy_pipeline.pipeline.processors,
+    )
+    with pytest.raises(ValueError, match="split_kind"):
+        changed.load("toy")
+
+
+def test_validation_rejects_an_empty_category(toy_pipeline: ToyPipeline) -> None:
+    spec = replace(toy_pipeline.pipeline.spec("toy"), features=1)
+    prepared = PreparedDataset(
+        X=pd.DataFrame({"empty": pd.Series([None] * 4, dtype="category")}),
+        y=np.asarray([0, 1, 0, 1], dtype=np.int32),
+        feature_names=["empty"],
+        split=np.asarray([0, 0, 2, 2], dtype=np.int32),
+    )
+    with pytest.raises(ValueError, match="categorical feature 'empty' is empty"):
+        validate_prepared_values(spec, prepared)
 
 
 def test_rebuild_reprocesses_cached_source(toy_pipeline: ToyPipeline) -> None:

@@ -14,7 +14,7 @@ import pandas as pd
 from .models import DatasetArrays, DatasetSpec, PreparedDataset
 from .processors import PROCESSORS, Processor
 from .registry import DATASETS
-from .storage import download, save_array, save_frame, sha256, write_json
+from .storage import download, file_lock, save_array, save_frame, sha256, write_json
 
 
 def default_cache_dir() -> Path:
@@ -28,6 +28,21 @@ def default_cache_dir() -> Path:
 
 
 DEFAULT_CACHE = default_cache_dir()
+
+
+def _normalize_categories(frame: pd.DataFrame, dataset: str) -> pd.DataFrame:
+    """Make pandas categories directly consumable by XGBoost."""
+    for column in frame.select_dtypes(include="category"):
+        categories = frame[column].cat.categories
+        if pd.api.types.is_float_dtype(categories.dtype):
+            values = frame[column].astype("Float64")
+            if not values.dropna().mod(1).eq(0).all():
+                raise ValueError(
+                    f"{dataset}: categorical feature {column!r} has "
+                    "non-integral floating-point levels"
+                )
+            frame[column] = values.astype("Int64").astype("category")
+    return frame
 
 
 def validate_prepared_values(spec: DatasetSpec, prepared: PreparedDataset) -> None:
@@ -68,6 +83,14 @@ def validate_prepared_values(spec: DatasetSpec, prepared: PreparedDataset) -> No
             raise ValueError(
                 f"{spec.name}: non-numeric columns are not categorical: {invalid}"
             )
+        for name in X.select_dtypes(include="category"):
+            categories = X[name].cat.categories
+            if categories.empty:
+                raise ValueError(f"{spec.name}: categorical feature {name!r} is empty")
+            if pd.api.types.is_float_dtype(categories.dtype):
+                raise ValueError(
+                    f"{spec.name}: categorical feature {name!r} has floating-point levels"
+                )
         numeric = X.select_dtypes(include="number").to_numpy()
         if np.isinf(numeric).any():
             raise ValueError(f"{spec.name}: prepared features contain infinity")
@@ -83,6 +106,17 @@ def validate_prepared_values(spec: DatasetSpec, prepared: PreparedDataset) -> No
         unique = np.unique(y)
         if not np.array_equal(unique, np.arange(spec.outputs, dtype=np.int32)):
             raise ValueError(f"{spec.name}: labels are not zero-based and contiguous")
+    if prepared.split is not None:
+        if prepared.split.shape != (spec.rows,) or prepared.split.dtype != np.int32:
+            raise ValueError(f"{spec.name}: invalid split array")
+        if not np.isin(prepared.split, [0, 1, 2]).all():
+            raise ValueError(
+                f"{spec.name}: split values must be train/valid/test codes"
+            )
+    if spec.split_kind in {"official_test", "predefined"} and prepared.split is None:
+        raise ValueError(
+            f"{spec.name}: {spec.split_kind} splitting needs a split array"
+        )
     if prepared.strata is not None and (
         prepared.strata.shape != (spec.rows,) or prepared.strata.dtype != np.int32
     ):
@@ -156,7 +190,7 @@ class PublicDatasetPipeline:
         if isinstance(prepared.X, pd.DataFrame):
             frame = prepared.X.copy()
             frame.columns = [str(column) for column in frame.columns]
-            X: np.ndarray | pd.DataFrame = frame
+            X: np.ndarray | pd.DataFrame = _normalize_categories(frame, name)
         else:
             X = np.ascontiguousarray(prepared.X, dtype=np.float32)
 
@@ -173,6 +207,11 @@ class PublicDatasetPipeline:
             X=X,
             y=np.ascontiguousarray(y),
             feature_names=[str(feature) for feature in prepared.feature_names],
+            split=(
+                np.ascontiguousarray(prepared.split, dtype=np.int32)
+                if prepared.split is not None
+                else None
+            ),
             strata=(
                 np.ascontiguousarray(prepared.strata, dtype=np.int32)
                 if prepared.strata is not None
@@ -190,6 +229,11 @@ class PublicDatasetPipeline:
 
     def prepare(self, name: str, *, offline: bool = False) -> DatasetArrays:
         """Fetch, process, atomically cache, and reload one dataset."""
+        lock = self.dataset_dir(name) / ".prepare.lock"
+        with file_lock(lock):
+            return self._prepare(name, offline=offline)
+
+    def _prepare(self, name: str, *, offline: bool = False) -> DatasetArrays:
         spec = self.spec(name)
         source = self.fetch(name, offline=offline)
         print(f"Preparing {name}", flush=True)
@@ -207,6 +251,7 @@ class PublicDatasetPipeline:
             (directory / "X.parquet").unlink(missing_ok=True)
         save_array(directory / "y.npy", prepared.y)
         optional_arrays = {
+            "split.npy": prepared.split,
             "strata.npy": prepared.strata,
             "groups.npy": prepared.groups,
         }
@@ -221,12 +266,17 @@ class PublicDatasetPipeline:
         write_json(directory / "metadata.json", metadata)
         incomplete.unlink()
 
-        arrays = self.load(name)
+        arrays = self._load(name)
         print(f"Prepared {name}: X={arrays.X.shape}, y={arrays.y.shape}", flush=True)
         return arrays
 
     def load(self, name: str) -> DatasetArrays:
         """Load and validate an existing prepared cache without network access."""
+        lock = self.dataset_dir(name) / ".prepare.lock"
+        with file_lock(lock):
+            return self._load(name)
+
+    def _load(self, name: str) -> DatasetArrays:
         spec = self.spec(name)
         directory = self.dataset_dir(name)
         required = [directory / "metadata.json", directory / "y.npy"]
@@ -238,10 +288,21 @@ class PublicDatasetPipeline:
         metadata = json.loads(required[0].read_text(encoding="utf-8"))
         for key, expected in {
             "dataset": spec.name,
+            "title": spec.title,
             "task": spec.task,
             "rows": spec.rows,
             "features": spec.features,
             "outputs": spec.outputs,
+            "target": spec.target,
+            "repository_url": spec.repository_url,
+            "source_url": spec.source_url,
+            "source_file": spec.source_filename,
+            "split_kind": spec.split_kind,
+            "citation": spec.citation,
+            "license": spec.license,
+            "registered_categorical_features": list(spec.categorical_features),
+            "registered_numeric_features": list(spec.numeric_features),
+            "dropped_features": list(spec.drop_features),
         }.items():
             if metadata.get(key) != expected:
                 raise ValueError(
@@ -254,17 +315,20 @@ class PublicDatasetPipeline:
             X: np.ndarray | pd.DataFrame = pd.read_parquet(frame_path)
             for column in metadata["categorical_features"]:
                 X[column] = X[column].astype("category")
+            X = _normalize_categories(X, name)
         elif array_path.is_file():
             X = np.load(array_path, mmap_mode="r", allow_pickle=False)
         else:
             raise FileNotFoundError(f"Prepared features for {name} are missing")
         y = np.load(required[1], mmap_mode="r", allow_pickle=False)
+        split = self._load_optional_array(directory, metadata, "split")
         strata = self._load_optional_array(directory, metadata, "strata")
         groups = self._load_optional_array(directory, metadata, "groups")
         prepared = PreparedDataset(
             X=X,
             y=y,
             feature_names=list(metadata["feature_names"]),
+            split=split,
             strata=strata,
             groups=groups,
         )
@@ -274,6 +338,7 @@ class PublicDatasetPipeline:
             X=X,
             y=y,
             feature_names=prepared.feature_names,
+            split=split,
             strata=strata,
             groups=groups,
             metadata=metadata,
@@ -286,8 +351,8 @@ class PublicDatasetPipeline:
         if not rebuild:
             try:
                 arrays = self.load(name)
-            except FileNotFoundError:
-                pass
+            except (FileNotFoundError, ValueError) as error:
+                print(f"Rebuilding {name}: {error}", flush=True)
             else:
                 print(
                     f"Using prepared {name}: X={arrays.X.shape}, y={arrays.y.shape}",
@@ -338,8 +403,12 @@ class PublicDatasetPipeline:
             "split_kind": spec.split_kind,
             "feature_names": prepared.feature_names,
             "categorical_features": categorical_features,
+            "registered_categorical_features": list(spec.categorical_features),
+            "registered_numeric_features": list(spec.numeric_features),
+            "dropped_features": list(spec.drop_features),
             "feature_dtypes": feature_dtypes,
             "label_dtype": str(prepared.y.dtype),
+            "has_split": prepared.split is not None,
             "has_strata": prepared.strata is not None,
             "has_groups": prepared.groups is not None,
         }
@@ -350,6 +419,8 @@ class PublicDatasetPipeline:
                 f"{spec.name}: processor metadata overrides reserved keys: {names}"
             )
         metadata.update(prepared.details)
+        if prepared.split is not None:
+            metadata["split_names"] = ["train", "validation", "test"]
         if spec.task == "classification":
             metadata["class_counts"] = np.bincount(
                 prepared.y, minlength=spec.outputs
