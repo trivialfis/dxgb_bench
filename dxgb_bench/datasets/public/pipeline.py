@@ -252,6 +252,8 @@ class PublicDatasetPipeline:
         array_path = directory / "X.npy"
         if frame_path.is_file():
             X: np.ndarray | pd.DataFrame = pd.read_parquet(frame_path)
+            for column in metadata["categorical_features"]:
+                X[column] = X[column].astype("category")
         elif array_path.is_file():
             X = np.load(array_path, mmap_mode="r", allow_pickle=False)
         else:

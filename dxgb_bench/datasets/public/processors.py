@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import tarfile
 import zipfile
 from collections.abc import Callable
 from pathlib import Path
@@ -475,6 +476,62 @@ def _prepare_south_german_credit(spec: DatasetSpec, source: Path) -> PreparedDat
     return _prepare_categorical_frame(spec, frame)
 
 
+def _prepare_audiology(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    with zipfile.ZipFile(source) as archive:
+        members = sorted(
+            name for name in archive.namelist() if name.endswith((".data", ".test"))
+        )
+        frame = pd.concat(
+            [
+                _read_zip_csv(archive, name, header=None, na_values="?")
+                for name in members
+            ],
+            ignore_index=True,
+        )
+    frame.columns = [
+        *[f"feature_{index}" for index in range(spec.features)],
+        spec.target,
+    ]
+    return _prepare_categorical_frame(spec, frame)
+
+
+_CENSUS_INCOME_COLUMNS = (  # noqa: SIM905
+    "AAGE ACLSWKR ADTINK ADTOCC AHGA AHRSPAY AHSCOL AMARITL AMJIND AMJOCC "
+    "ARACE AREORGN ASEX AUNMEM AUNTYPE AWKSTAT CAPGAIN GAPLOSS DIVVAL FILESTAT "
+    "GRINREG GRINST HHDFMX HHDREL MARSUPWRT MIGMTR1 MIGMTR3 MIGMTR4 MIGSAME "
+    "MIGSUN NOEMP PARENT PEFNTVTY PEMNTVTY PENATVTY PRCITSHP SEOTR VETQVA "
+    "VETYN WKSWORK year income"
+).split()
+
+
+def _prepare_census_income(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    with zipfile.ZipFile(source) as archive:
+        nested = next(name for name in archive.namelist() if name.endswith(".tar.gz"))
+        with tarfile.open(fileobj=io.BytesIO(archive.read(nested)), mode="r:gz") as tar:
+            members = sorted(
+                (
+                    member
+                    for member in tar.getmembers()
+                    if member.name.endswith((".data", ".test"))
+                ),
+                key=lambda member: member.name,
+            )
+            frame = pd.concat(
+                [
+                    pd.read_csv(
+                        tar.extractfile(member),
+                        header=None,
+                        names=_CENSUS_INCOME_COLUMNS,
+                        na_values="?",
+                        skipinitialspace=True,
+                    )
+                    for member in members
+                ],
+                ignore_index=True,
+            )
+    return _prepare_categorical_frame(spec, frame)
+
+
 PROCESSORS: dict[str, Processor] = {
     "sarcos": _prepare_sarcos,
     "wave_energy": _prepare_wave_energy,
@@ -502,6 +559,8 @@ PROCESSORS.update(
         if spec.target is not None
     }
 )
+PROCESSORS["audiology"] = _prepare_audiology
+PROCESSORS["census_income_uci"] = _prepare_census_income
 PROCESSORS["south_german_credit"] = _prepare_south_german_credit
 
 
