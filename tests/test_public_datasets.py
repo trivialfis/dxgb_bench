@@ -53,9 +53,11 @@ def toy_pipeline(tmp_path: Path) -> ToyPipeline:
         assert source.read_bytes() == b"immutable public source\n"
         processor_calls.append(actual_spec.name)
         return PreparedDataset(
-            X=np.asarray(
-                [[0.0, 1.0], [1.0, 2.0], [2.0, 3.0], [3.0, 4.0]],
-                dtype=np.float32,
+            X=pd.DataFrame(
+                {
+                    "first": pd.Series([0, 1, 0, 1], dtype="category"),
+                    "second": np.asarray([1.0, 2.0, 3.0, 4.0], dtype=np.float32),
+                }
             ),
             y=np.asarray([0, 1, 0, 1], dtype=np.int32),
             feature_names=["first", "second"],
@@ -87,6 +89,8 @@ def test_ensure_fetches_processes_caches_and_reuses(
     first = toy_pipeline.pipeline.ensure("toy")
     assert toy_pipeline.processor_calls == ["toy"]
     assert first.X.shape == (4, 2)
+    assert isinstance(first.X, pd.DataFrame)
+    assert isinstance(first.X["first"].dtype, pd.CategoricalDtype)
     assert first.y.tolist() == [0, 1, 0, 1]
     assert first.metadata["class_counts"] == [2, 2]
     assert first.metadata["fixture"] is True

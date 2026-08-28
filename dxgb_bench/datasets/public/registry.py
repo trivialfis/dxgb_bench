@@ -339,6 +339,13 @@ def _openml_url(data_id: int) -> str:
     )
 
 
+_OPENML_DROP_FEATURES = {
+    "porto_seguro": ("id",),
+    "speed_dating": ("decision", "decision_o"),
+    "wmo_hurricane": ("ID",),
+}
+
+
 def _openml_categorical(
     name: str,
     title: str,
@@ -370,6 +377,7 @@ def _openml_categorical(
         citation=f"OpenML dataset {data_id}: {title}.",
         license=license,
         target=target,
+        drop_features=_OPENML_DROP_FEATURES.get(name, ()),
     )
 
 
@@ -806,7 +814,7 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "Churn",
         "classification",
         7_043,
-        19,
+        20,
         2,
         "Public",
     ),
@@ -829,6 +837,18 @@ for openml_record in _OPENML_CATEGORICAL:
     DATASETS[spec.name] = spec
 
 
+_UCI_ARCHIVES = {
+    "audiology": (
+        "https://archive.ics.uci.edu/static/public/8/audiology%2Bstandardized.zip",
+        "uci_8.zip",
+    ),
+    "census_income_uci": (
+        "https://archive.ics.uci.edu/static/public/117/census%2Bincome%2Bkdd.zip",
+        "uci_117.zip",
+    ),
+}
+
+
 def _uci_categorical(
     name: str,
     title: str,
@@ -841,18 +861,27 @@ def _uci_categorical(
     categorical_features: tuple[str, ...] = (),
     drop_features: tuple[str, ...] = (),
 ) -> DatasetSpec:
+    source_url, source_filename = _UCI_ARCHIVES.get(
+        name,
+        (
+            f"https://archive.ics.uci.edu/static/public/{data_id}/data.csv",
+            f"uci_{data_id}.csv",
+        ),
+    )
     return DatasetSpec(
         name=name,
         title=title,
         task=task,
-        source_url=f"https://archive.ics.uci.edu/static/public/{data_id}/data.csv",
-        source_filename=f"uci_{data_id}.csv",
+        source_url=source_url,
+        source_filename=source_filename,
         repository_url=f"https://archive.ics.uci.edu/dataset/{data_id}",
         rows=rows,
         features=features,
         outputs=outputs,
         split_kind=(
-            "blocked"
+            "official_test"
+            if name in _UCI_ARCHIVES
+            else "blocked"
             if name == "bike_sharing"
             else "stratified"
             if task == "classification"
@@ -1066,10 +1095,10 @@ _UCI_CATEGORICAL: list[UCIRecord] = [
         "income",
         "classification",
         299_285,
-        41,
+        40,
         2,
         (),
-        (),
+        ("MARSUPWRT",),
     ),
     (
         "german_credit_uci",
@@ -1089,7 +1118,7 @@ _UCI_CATEGORICAL: list[UCIRecord] = [
         275,
         "cnt",
         "regression",
-        17_389,
+        17_379,
         12,
         1,
         (
