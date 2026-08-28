@@ -66,6 +66,7 @@ def validate_prepared_values(spec: DatasetSpec, prepared: PreparedDataset) -> No
     for index, feature_type in enumerate(prepared.feature_types):
         if feature_type == "c":
             values = X[:, index]
+            values = values[np.isfinite(values)]
             if np.any(values < 0) or not np.array_equal(values, np.floor(values)):
                 raise ValueError(
                     f"{spec.name}: categorical feature "
@@ -297,6 +298,7 @@ class PublicDatasetPipeline:
             "dataset": spec.name,
             "title": spec.title,
             "task": spec.task,
+            "target": spec.target,
             "repository_url": spec.repository_url,
             "source_url": spec.source_url,
             "source_file": spec.source_filename,

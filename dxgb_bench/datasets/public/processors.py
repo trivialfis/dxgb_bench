@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from .models import DatasetSpec, PreparedDataset
+from .registry import DATASETS
 
 Processor = Callable[[DatasetSpec, Path], PreparedDataset]
 
@@ -469,6 +470,78 @@ def _prepare_openml_classification(spec: DatasetSpec, source: Path) -> PreparedD
     )
 
 
+def _prepare_categorical_frame(
+    spec: DatasetSpec, frame: pd.DataFrame
+) -> PreparedDataset:
+    if spec.target is None:
+        raise ValueError(f"{spec.name}: no target column is registered")
+
+    target = frame.pop(spec.target)
+    frame = frame.drop(columns=list(spec.drop_features))
+    valid_rows = target.notna()
+    frame = frame.loc[valid_rows].reset_index(drop=True)
+    target = target.loc[valid_rows].reset_index(drop=True)
+
+    if spec.categorical_features == ("*",):
+        categorical = set(frame.columns)
+    else:
+        categorical = set(spec.categorical_features)
+        categorical.update(
+            name
+            for name, dtype in frame.dtypes.items()
+            if not pd.api.types.is_numeric_dtype(dtype)
+        )
+
+    columns: list[np.ndarray] = []
+    category_values: dict[str, list[str]] = {}
+    for name in frame:
+        values = frame[name]
+        if name in categorical:
+            categories = pd.Categorical(values)
+            codes = categories.codes.astype(np.float32)
+            codes[codes < 0] = np.nan
+            columns.append(codes)
+            category_values[str(name)] = [str(value) for value in categories.categories]
+        else:
+            columns.append(pd.to_numeric(values).to_numpy(dtype=np.float32))
+
+    if spec.task == "classification":
+        y, labels = encode_labels(target, spec.outputs)
+        target_details = {"original_labels_by_encoded_class": labels}
+    else:
+        y = pd.to_numeric(target).to_numpy(dtype=np.float32).reshape(-1, 1)
+        target_details = {}
+
+    return PreparedDataset(
+        X=np.column_stack(columns),
+        y=y,
+        feature_names=[str(name) for name in frame.columns],
+        feature_types=["c" if name in categorical else "q" for name in frame],
+        details={
+            **target_details,
+            "category_values": category_values,
+        },
+    )
+
+
+def _prepare_categorical_table(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    if source.suffix == ".parquet":
+        frame = pd.read_parquet(source)
+    else:
+        frame = pd.read_csv(source)
+    return _prepare_categorical_frame(spec, frame)
+
+
+def _prepare_south_german_credit(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    with zipfile.ZipFile(source) as archive:
+        frame = _read_zip_csv(
+            archive,
+            "SouthGermanCredit.asc",
+            sep=r"\s+",
+        )
+    return _prepare_categorical_frame(spec, frame)
+
+
 PROCESSORS: dict[str, Processor] = {
     "sarcos": _prepare_sarcos,
     "wave_energy": _prepare_wave_energy,
@@ -488,6 +561,15 @@ PROCESSORS: dict[str, Processor] = {
     "dionis": _prepare_openml_classification,
     "aloi": _prepare_openml_classification,
 }
+
+PROCESSORS.update(
+    {
+        name: _prepare_categorical_table
+        for name, spec in DATASETS.items()
+        if spec.target is not None
+    }
+)
+PROCESSORS["south_german_credit"] = _prepare_south_german_credit
 
 
 def process_source(spec: DatasetSpec, source: Path) -> PreparedDataset:

@@ -1,4 +1,4 @@
-"""Network-free tests for public dataset fetching and caching."""
+"""Tests for public dataset fetching, caching, and categorical training."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import xgboost as xgb
 
 from dxgb_bench.datasets.public import (
     DATASETS,
@@ -71,8 +72,13 @@ def toy_pipeline(tmp_path: Path) -> ToyPipeline:
 
 def test_registry_has_a_processor_for_every_dataset() -> None:
     assert set(DATASETS) == set(PROCESSORS)
-    assert sum(spec.task == "classification" for spec in DATASETS.values()) == 10
-    assert sum(spec.task == "regression" for spec in DATASETS.values()) == 7
+    assert {
+        "ames_housing",
+        "adult",
+        "amazon_employee",
+        "airlines",
+        "kick",
+    } <= set(DATASETS)
 
 
 def test_ensure_fetches_processes_caches_and_reuses(
@@ -119,5 +125,27 @@ def test_cli_lists_registered_datasets(capsys: pytest.CaptureFixture[str]) -> No
     datasets_main(["--list"])
     lines = capsys.readouterr().out.splitlines()
     assert len(lines) == len(DATASETS)
-    assert lines[0].startswith("sarcos\tregression\t")
-    assert lines[-1].startswith("aloi\tclassification\t")
+    assert {line.split("\t", maxsplit=1)[0] for line in lines} == set(DATASETS)
+
+
+def test_categorical_dataset_trains_xgboost(tmp_path: Path) -> None:
+    datasets_main(["--cache-dir", str(tmp_path), "congressional_voting"])
+    dataset = PublicDatasetPipeline(cache_dir=tmp_path).load("congressional_voting")
+    dtrain = xgb.DMatrix(
+        dataset.X,
+        label=dataset.y,
+        feature_types=dataset.feature_types,
+    )
+    booster = xgb.train(
+        {
+            "objective": "binary:logistic",
+            "tree_method": "hist",
+            "max_depth": 2,
+            "nthread": 1,
+        },
+        dtrain,
+        num_boost_round=2,
+    )
+
+    assert set(dataset.feature_types) == {"c"}
+    assert np.isfinite(booster.predict(dtrain)).all()
