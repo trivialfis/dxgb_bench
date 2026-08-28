@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -53,6 +54,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
         action="store_true",
         help="List registered datasets and exit.",
     )
+    parser.add_argument(
+        "--keep-going",
+        action="store_true",
+        help="Continue processing other datasets after an error.",
+    )
     return parser
 
 
@@ -74,14 +80,23 @@ def run(args: argparse.Namespace) -> None:
         return
     selected = args.datasets or names
     pipeline = PublicDatasetPipeline(cache_dir=args.cache_dir)
+    failures = []
     for name in selected:
-        if args.download_only:
-            pipeline.fetch(name, offline=args.offline)
-        elif args.validate_only:
-            arrays = pipeline.load(name)
-            print(f"Valid {name}: X={arrays.X.shape}, y={arrays.y.shape}")
-        else:
-            pipeline.ensure(name, rebuild=args.rebuild, offline=args.offline)
+        try:
+            if args.download_only:
+                pipeline.fetch(name, offline=args.offline)
+            elif args.validate_only:
+                arrays = pipeline.load(name)
+                print(f"Valid {name}: X={arrays.X.shape}, y={arrays.y.shape}")
+            else:
+                pipeline.ensure(name, rebuild=args.rebuild, offline=args.offline)
+        except Exception as error:
+            if not args.keep_going:
+                raise
+            failures.append(name)
+            print(f"Failed {name}: {error}", file=sys.stderr, flush=True)
+    if failures:
+        raise RuntimeError(f"Failed datasets: {', '.join(failures)}")
 
 
 def validate_args(

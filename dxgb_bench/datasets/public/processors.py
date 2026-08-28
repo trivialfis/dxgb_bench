@@ -251,6 +251,12 @@ def _prepare_uji_indoor_loc(spec: DatasetSpec, source: Path) -> PreparedDataset:
         training = _read_zip_csv(archive, "UJIndoorLoc/trainingData.csv")
         official_test = _read_zip_csv(archive, "UJIndoorLoc/validationData.csv")
     frame = pd.concat([training, official_test], ignore_index=True)
+    split = np.concatenate(
+        [
+            np.zeros(training.shape[0], dtype=np.int32),
+            np.full(official_test.shape[0], 2, dtype=np.int32),
+        ]
+    )
     excluded = [
         "FLOOR",
         "BUILDINGID",
@@ -264,6 +270,7 @@ def _prepare_uji_indoor_loc(spec: DatasetSpec, source: Path) -> PreparedDataset:
         X=frame[feature_names].to_numpy(dtype=np.float32, copy=True),
         y=frame[target_names].to_numpy(dtype=np.float32, copy=True),
         feature_names=feature_names,
+        split=split,
         details={
             "target_names": target_names,
             "train_pool_rows": int(training.shape[0]),
@@ -356,6 +363,12 @@ def _prepare_letter_recognition(spec: DatasetSpec, source: Path) -> PreparedData
         X=frame.to_numpy(dtype=np.float32, copy=True),
         y=target,
         feature_names=feature_names,
+        split=np.concatenate(
+            [
+                np.zeros(16_000, dtype=np.int32),
+                np.full(4_000, 2, dtype=np.int32),
+            ]
+        ),
         details={
             "train_pool_rows": 16_000,
             "official_test_rows": 4_000,
@@ -398,6 +411,12 @@ def _prepare_gas_sensor_drift(spec: DatasetSpec, source: Path) -> PreparedDatase
         X=np.vstack(feature_batches),
         y=np.asarray(labels),
         feature_names=feature_names,
+        split=np.concatenate(
+            [
+                np.full(rows, code, dtype=np.int32)
+                for code, rows in enumerate(split_rows.values())
+            ]
+        ),
         details={
             "rows_per_batch": batch_sizes,
             "predefined_split_rows": split_rows,
@@ -437,6 +456,9 @@ def _prepare_categorical_frame(
     valid_rows = target.notna()
     frame = frame.loc[valid_rows].reset_index(drop=True)
     target = target.loc[valid_rows].reset_index(drop=True)
+
+    for name in spec.numeric_features:
+        frame[name] = pd.to_numeric(frame[name], errors="coerce")
 
     if spec.categorical_features == ("*",):
         categorical = set(frame.columns)
@@ -481,18 +503,37 @@ def _prepare_audiology(spec: DatasetSpec, source: Path) -> PreparedDataset:
         members = sorted(
             name for name in archive.namelist() if name.endswith((".data", ".test"))
         )
-        frame = pd.concat(
-            [
-                _read_zip_csv(archive, name, header=None, na_values="?")
-                for name in members
-            ],
-            ignore_index=True,
-        )
-    frame.columns = [
-        *[f"feature_{index}" for index in range(spec.features)],
-        spec.target,
+        frames = [
+            _read_zip_csv(archive, name, header=None, na_values="?") for name in members
+        ]
+        names = archive.read("audiology.standardized.names").decode("utf-8")
+    section = names.split("7. Attribute information:", maxsplit=1)[1].split(
+        "class:", maxsplit=1
+    )[0]
+    columns = [
+        line.split(":", maxsplit=1)[0].strip().removesuffix("()")
+        for line in section.splitlines()
+        if ":" in line
     ]
-    return _prepare_categorical_frame(spec, frame)
+    frame = pd.concat(frames, ignore_index=True)
+    frame.columns = [*columns, "identifier", spec.target]
+    prepared = _prepare_categorical_frame(spec, frame)
+    return PreparedDataset(
+        X=prepared.X,
+        y=prepared.y,
+        feature_names=prepared.feature_names,
+        split=np.concatenate(
+            [
+                np.full(
+                    part.shape[0],
+                    0 if member.endswith(".data") else 2,
+                    dtype=np.int32,
+                )
+                for member, part in zip(members, frames, strict=True)
+            ]
+        ),
+        details={"official_train_rows": 200, "official_test_rows": 26},
+    )
 
 
 _CENSUS_INCOME_COLUMNS = (  # noqa: SIM905
@@ -516,20 +557,78 @@ def _prepare_census_income(spec: DatasetSpec, source: Path) -> PreparedDataset:
                 ),
                 key=lambda member: member.name,
             )
-            frame = pd.concat(
-                [
-                    pd.read_csv(
-                        tar.extractfile(member),
-                        header=None,
-                        names=_CENSUS_INCOME_COLUMNS,
-                        na_values="?",
-                        skipinitialspace=True,
-                    )
-                    for member in members
-                ],
-                ignore_index=True,
+            frames = [
+                pd.read_csv(
+                    tar.extractfile(member),
+                    header=None,
+                    names=_CENSUS_INCOME_COLUMNS,
+                    na_values="?",
+                    skipinitialspace=True,
+                )
+                for member in members
+            ]
+    frame = pd.concat(frames, ignore_index=True)
+    prepared = _prepare_categorical_frame(spec, frame)
+    return PreparedDataset(
+        X=prepared.X,
+        y=prepared.y,
+        feature_names=prepared.feature_names,
+        split=np.concatenate(
+            [
+                np.full(
+                    part.shape[0],
+                    0 if member.name.endswith(".data") else 2,
+                    dtype=np.int32,
+                )
+                for member, part in zip(members, frames, strict=True)
+            ]
+        ),
+        details={"official_train_rows": 199_523, "official_test_rows": 99_762},
+    )
+
+
+def _prepare_monks(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    problem = spec.name.removeprefix("monks_")
+    with zipfile.ZipFile(source) as archive:
+        members = sorted(
+            (
+                name
+                for name in archive.namelist()
+                if name.endswith((f"monks-{problem}.train", f"monks-{problem}.test"))
+            ),
+            key=lambda name: not name.endswith(".train"),
+        )
+        frames = [
+            _read_zip_csv(
+                archive,
+                name,
+                sep=r"\s+",
+                header=None,
+                names=["class", "a1", "a2", "a3", "a4", "a5", "a6", "ID"],
             )
-    return _prepare_categorical_frame(spec, frame)
+            for name in members
+        ]
+    frame = pd.concat(frames, ignore_index=True)
+    prepared = _prepare_categorical_frame(spec, frame)
+    return PreparedDataset(
+        X=prepared.X,
+        y=prepared.y,
+        feature_names=prepared.feature_names,
+        split=np.concatenate(
+            [
+                np.full(
+                    part.shape[0],
+                    0 if member.endswith(".train") else 2,
+                    dtype=np.int32,
+                )
+                for member, part in zip(members, frames, strict=True)
+            ]
+        ),
+        details={
+            "official_train_rows": int(frames[0].shape[0]),
+            "official_test_rows": int(frames[1].shape[0]),
+        },
+    )
 
 
 PROCESSORS: dict[str, Processor] = {
@@ -561,6 +660,8 @@ PROCESSORS.update(
 )
 PROCESSORS["audiology"] = _prepare_audiology
 PROCESSORS["census_income_uci"] = _prepare_census_income
+for problem in range(1, 4):
+    PROCESSORS[f"monks_{problem}"] = _prepare_monks
 PROCESSORS["south_german_credit"] = _prepare_south_german_credit
 
 

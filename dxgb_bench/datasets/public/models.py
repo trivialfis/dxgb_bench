@@ -38,6 +38,7 @@ class DatasetSpec:
     license: str
     target: str | None = None
     categorical_features: tuple[str, ...] = ()
+    numeric_features: tuple[str, ...] = ()
     drop_features: tuple[str, ...] = ()
 
     @property
@@ -55,6 +56,7 @@ class PreparedDataset:
     X: np.ndarray | pd.DataFrame
     y: np.ndarray | pd.Series[Any]
     feature_names: list[str]
+    split: np.ndarray | None = None
     strata: np.ndarray | None = None
     groups: np.ndarray | None = None
     details: dict[str, Any] = field(default_factory=dict)
@@ -68,6 +70,7 @@ class DatasetArrays:
     X: np.ndarray | pd.DataFrame
     y: np.ndarray
     feature_names: list[str]
+    split: np.ndarray | None
     strata: np.ndarray | None
     groups: np.ndarray | None
     metadata: dict[str, Any]

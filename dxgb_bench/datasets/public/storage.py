@@ -2,10 +2,14 @@
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
+import http.client
 import json
 import time
 import urllib.request
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +18,15 @@ import pandas as pd
 
 DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
 USER_AGENT = "dxgb-bench-public-datasets/1.0"
+
+
+@contextmanager
+def file_lock(path: Path) -> Iterator[None]:
+    """Serialize processes sharing a dataset cache."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as lock:
+        fcntl.flock(lock, fcntl.LOCK_EX)
+        yield
 
 
 def write_json(path: Path, value: Any) -> None:
@@ -55,11 +68,24 @@ def sha256(path: Path) -> str:
 
 def download(url: str, destination: Path) -> Path:
     """Download one source atomically, resuming a partial file when supported."""
-    if destination.is_file():
-        print(f"Using cached download {destination}", flush=True)
-        return destination
-
     destination.parent.mkdir(parents=True, exist_ok=True)
+    lock = destination.with_name(f".{destination.name}.lock")
+    with file_lock(lock):
+        if destination.is_file():
+            print(f"Using cached download {destination}", flush=True)
+            return destination
+        for attempt in range(3):
+            try:
+                return _download_once(url, destination)
+            except (OSError, http.client.HTTPException):
+                if attempt == 2:
+                    raise
+                print(f"Retrying {url} ({attempt + 2}/3)", flush=True)
+                time.sleep(attempt + 1)
+    raise AssertionError("unreachable")
+
+
+def _download_once(url: str, destination: Path) -> Path:
     partial = destination.with_name(f"{destination.name}.part")
     offset = partial.stat().st_size if partial.exists() else 0
     headers = {"User-Agent": USER_AGENT}

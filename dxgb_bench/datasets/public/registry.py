@@ -339,10 +339,47 @@ def _openml_url(data_id: int) -> str:
     )
 
 
+_KDDCUP09_EMPTY_FEATURES = (
+    "Var8",
+    "Var15",
+    "Var20",
+    "Var31",
+    "Var32",
+    "Var39",
+    "Var42",
+    "Var48",
+    "Var52",
+    "Var55",
+    "Var79",
+    "Var141",
+    "Var167",
+    "Var169",
+    "Var175",
+    "Var185",
+    "Var209",
+    "Var230",
+)
+
 _OPENML_DROP_FEATURES = {
+    "ames_housing": ("Id",),
+    "food_delivery_time": ("Delivery_person_ID",),
+    "kddcup09_appetency": _KDDCUP09_EMPTY_FEATURES,
+    "kddcup09_churn": _KDDCUP09_EMPTY_FEATURES,
+    "kddcup09_upselling": _KDDCUP09_EMPTY_FEATURES,
     "porto_seguro": ("id",),
     "speed_dating": ("decision", "decision_o"),
+    "telco_customer_churn": ("customerID",),
+    "titanic": ("name", "boat", "body"),
     "wmo_hurricane": ("ID",),
+}
+
+_OPENML_CATEGORICAL_FEATURES = {
+    "ames_housing": ("MSSubClass", "MoSold"),
+    "telco_customer_churn": ("SeniorCitizen",),
+}
+
+_OPENML_NUMERIC_FEATURES = {
+    "telco_customer_churn": ("TotalCharges",),
 }
 
 
@@ -377,6 +414,8 @@ def _openml_categorical(
         citation=f"OpenML dataset {data_id}: {title}.",
         license=license,
         target=target,
+        categorical_features=_OPENML_CATEGORICAL_FEATURES.get(name, ()),
+        numeric_features=_OPENML_NUMERIC_FEATURES.get(name, ()),
         drop_features=_OPENML_DROP_FEATURES.get(name, ()),
     )
 
@@ -395,7 +434,7 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "SalePrice",
         "regression",
         1_460,
-        80,
+        79,
         1,
         "OpenML metadata: NA",
     ),
@@ -634,7 +673,7 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "Time_taken(min)",
         "regression",
         45_451,
-        9,
+        8,
         1,
         "DbCL 1.0",
     ),
@@ -735,7 +774,7 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "APPETENCY",
         "classification",
         50_000,
-        230,
+        212,
         2,
         "Public",
     ),
@@ -746,7 +785,7 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "CHURN",
         "classification",
         50_000,
-        230,
+        212,
         2,
         "Public",
     ),
@@ -757,7 +796,7 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "UPSELLING",
         "classification",
         50_000,
-        230,
+        212,
         2,
         "Public",
     ),
@@ -814,11 +853,11 @@ _OPENML_CATEGORICAL: list[OpenMLRecord] = [
         "Churn",
         "classification",
         7_043,
-        20,
+        19,
         2,
         "Public",
     ),
-    ("titanic", "Titanic", 40945, "survived", "classification", 1_309, 13, 2, "Public"),
+    ("titanic", "Titanic", 40945, "survived", "classification", 1_309, 10, 2, "Public"),
     (
         "wmo_hurricane",
         "WMO Hurricane Survival",
@@ -846,6 +885,13 @@ _UCI_ARCHIVES = {
         "https://archive.ics.uci.edu/static/public/117/census%2Bincome%2Bkdd.zip",
         "uci_117.zip",
     ),
+    **{
+        f"monks_{problem}": (
+            "https://archive.ics.uci.edu/static/public/70/monk%2Bs%2Bproblems.zip",
+            "uci_70.zip",
+        )
+        for problem in range(1, 4)
+    },
 }
 
 
@@ -908,10 +954,10 @@ _UCI_CATEGORICAL: list[UCIRecord] = [
         "class",
         "classification",
         226,
-        70,
+        69,
         24,
         ("*",),
-        (),
+        ("identifier",),
     ),
     (
         "automobile",
@@ -1023,23 +1069,26 @@ _UCI_CATEGORICAL: list[UCIRecord] = [
         "class",
         "classification",
         148,
-        19,
+        18,
         4,
         ("*",),
-        (),
+        ("no. of nodes in",),
     ),
-    (
-        "monks",
-        "MONK's Problems",
-        70,
-        "class",
-        "classification",
-        432,
-        6,
-        2,
-        ("*",),
-        ("ID",),
-    ),
+    *[
+        (
+            f"monks_{problem}",
+            f"MONK's Problem {problem}",
+            70,
+            "class",
+            "classification",
+            rows,
+            6,
+            2,
+            ("*",),
+            ("ID",),
+        )
+        for problem, rows in [(1, 556), (2, 601), (3, 554)]
+    ],
     (
         "mushroom",
         "Mushroom",
