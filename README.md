@@ -90,16 +90,17 @@ dxgb-bench rmmpeak --path=/bench/rmm_log.dev0
 Public datasets
 ---------------
 
-`dxgb_bench.datasets.public` provides a reusable pipeline for 17 public multiclass and
-multi-output regression datasets. It downloads original sources atomically, applies a
-registered dataset-specific processor, validates the result, and stores memory-mapped
-NumPy arrays with source hashes, citations, licenses, feature metadata, and split metadata.
+`dxgb_bench.datasets.public` provides a reusable pipeline for public numerical and
+categorical benchmark datasets. It downloads original sources atomically, prepares native
+categorical feature codes, and stores memory-mapped NumPy arrays with source hashes,
+citations, licenses, feature metadata, and split metadata.
 
 Use either the dedicated command or the main command's `datasets` subcommand:
 
 ``` sh
 dxgb-datasets --list
 dxgb-datasets covertype poker_hand
+dxgb-bench datasets anneal congressional_voting
 dxgb-bench datasets --download-only aloi
 dxgb-bench datasets --validate-only --offline covertype
 ```

@@ -35,6 +35,9 @@ class DatasetSpec:
     split_kind: SplitKind
     citation: str
     license: str
+    target: str | None = None
+    categorical_features: tuple[str, ...] = ()
+    drop_features: tuple[str, ...] = ()
 
     @property
     def classes(self) -> int:
