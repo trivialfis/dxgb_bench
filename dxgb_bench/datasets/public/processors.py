@@ -1,4 +1,4 @@
-"""Dataset-specific transformations from public sources to numeric arrays."""
+"""Dataset-specific transformations from public sources."""
 
 from __future__ import annotations
 
@@ -15,30 +15,6 @@ from .models import DatasetSpec, PreparedDataset
 from .registry import DATASETS
 
 Processor = Callable[[DatasetSpec, Path], PreparedDataset]
-
-
-def encode_labels(
-    values: pd.Series, expected_classes: int
-) -> tuple[np.ndarray, list[str]]:
-    """Encode labels deterministically, sorting numeric labels numerically."""
-    strings = values.astype(str)
-    numeric = pd.to_numeric(strings, errors="coerce")
-    if numeric.notna().all():
-        numeric_values = np.sort(numeric.unique())
-        mapping = {value: index for index, value in enumerate(numeric_values)}
-        encoded = numeric.map(mapping).to_numpy(dtype=np.int32)
-        originals = [str(value) for value in numeric_values]
-    else:
-        string_values = sorted(strings.unique().tolist())
-        mapping = {value: index for index, value in enumerate(string_values)}
-        encoded = strings.map(mapping).to_numpy(dtype=np.int32)
-        originals = string_values
-
-    if len(originals) != expected_classes:
-        raise ValueError(f"Expected {expected_classes} classes, found {len(originals)}")
-    if encoded.min() != 0 or encoded.max() != expected_classes - 1:
-        raise AssertionError("Label encoding is not zero-based and contiguous")
-    return encoded, originals
 
 
 def _read_zip_csv(archive: zipfile.ZipFile, member: str, **kwargs: Any) -> pd.DataFrame:
@@ -70,7 +46,6 @@ def _prepare_sarcos(spec: DatasetSpec, source: Path) -> PreparedDataset:
         X=frame[feature_names].to_numpy(dtype=np.float32, copy=True),
         y=frame[target_names].to_numpy(dtype=np.float32, copy=True),
         feature_names=feature_names,
-        feature_types=["q"] * len(feature_names),
         details={
             "target_names": target_names,
             "raw_columns": list(frame.columns),
@@ -103,16 +78,22 @@ def _prepare_wave_energy(spec: DatasetSpec, source: Path) -> PreparedDataset:
         + ["scenario"]
     )
     target_names = [f"Power{index}" for index in range(1, 17)]
+    features = pd.DataFrame(coordinates, columns=feature_names[:-1])
+    features["scenario"] = pd.Series(
+        np.concatenate(
+            [np.repeat(name, frame.shape[0]) for name, frame in zip(scenarios, frames)]
+        ),
+        dtype="category",
+    )
     return PreparedDataset(
-        X=np.column_stack([coordinates, strata.astype(np.float32)]),
+        X=features,
         y=combined.iloc[:, 32:48].to_numpy(dtype=np.float32, copy=True),
         feature_names=feature_names,
-        feature_types=["q"] * 32 + ["c"],
         strata=strata,
         groups=groups,
         details={
             "target_names": target_names,
-            "scenario_names_by_code": scenarios,
+            "scenarios": scenarios,
             "excluded_columns": ["Total_Power"],
             "rows_per_scenario": {
                 name: 71_999 if name == "Adelaide" else 72_000 for name in scenarios
@@ -151,16 +132,22 @@ def _prepare_large_wave_energy(spec: DatasetSpec, source: Path) -> PreparedDatas
         )
     coordinates = combined[coordinate_names].to_numpy(dtype=np.float32, copy=True)
     groups = _coordinate_group_ids(coordinates, strata)
+    features = pd.DataFrame(coordinates, columns=coordinate_names)
+    features["scenario"] = pd.Series(
+        np.concatenate(
+            [np.repeat(name, frame.shape[0]) for name, frame in zip(scenarios, frames)]
+        ),
+        dtype="category",
+    )
     return PreparedDataset(
-        X=np.column_stack([coordinates, strata.astype(np.float32)]),
+        X=features,
         y=combined[power_names].to_numpy(dtype=np.float32, copy=True),
         feature_names=coordinate_names + ["scenario"],
-        feature_types=["q"] * 98 + ["c"],
         strata=strata,
         groups=groups,
         details={
             "target_names": power_names,
-            "scenario_names_by_code": scenarios,
+            "scenarios": scenarios,
             "excluded_columns": ["qW", "Total_Power"],
             "rows_per_scenario": {
                 scenario: int(frame.shape[0])
@@ -185,38 +172,27 @@ def _prepare_tetouan(spec: DatasetSpec, source: Path) -> PreparedDataset:
     target = frame.pop(target_names[0]).to_frame()
     for name in target_names[1:]:
         target[name] = frame.pop(name)
-    weather_names = list(frame.columns)
     elapsed_days = (timestamp - timestamp.min()).dt.total_seconds() / 86_400.0
     calendar = pd.DataFrame(
         {
             "elapsed_days": elapsed_days.astype(np.float32),
-            "month": (timestamp.dt.month - 1).astype(np.float32),
-            "day_of_week": timestamp.dt.dayofweek.astype(np.float32),
+            "month": (timestamp.dt.month - 1).astype("category"),
+            "day_of_week": timestamp.dt.dayofweek.astype("category"),
             "time_slot": (
                 timestamp.dt.hour * 6 + timestamp.dt.minute.floordiv(10)
-            ).astype(np.float32),
+            ).astype("category"),
         }
     )
-    feature_names = weather_names + list(calendar.columns)
+    features = pd.concat([frame.reset_index(drop=True), calendar], axis=1)
     return PreparedDataset(
-        X=np.column_stack(
-            [
-                frame.to_numpy(dtype=np.float32, copy=True),
-                calendar.to_numpy(dtype=np.float32, copy=True),
-            ]
-        ),
+        X=features,
         y=target.to_numpy(dtype=np.float32, copy=True),
-        feature_names=feature_names,
-        feature_types=["q"] * (len(weather_names) + 1) + ["c", "c", "c"],
+        feature_names=list(features.columns),
         details={
             "target_names": target_names,
             "timestamp_start": timestamp.min().isoformat(),
             "timestamp_end": timestamp.max().isoformat(),
-            "calendar_encoding": {
-                "month": "zero-based category",
-                "day_of_week": "Monday=0 category",
-                "time_slot": "zero-based ten-minute slot category",
-            },
+            "calendar_features": ["month", "day_of_week", "time_slot"],
             "source_metadata_discrepancy": (
                 "The current UCI archive contains 52,416 data rows; the repository "
                 "description's 52,417 count includes the CSV header."
@@ -237,7 +213,6 @@ def _prepare_sgemm(spec: DatasetSpec, source: Path) -> PreparedDataset:
         X=frame.to_numpy(dtype=np.float32, copy=True),
         y=np.log1p(targets.to_numpy(dtype=np.float32, copy=True)),
         feature_names=list(frame.columns),
-        feature_types=["q"] * frame.shape[1],
         details={
             "target_names": target_names,
             "target_transform": "log1p milliseconds",
@@ -258,7 +233,6 @@ def _prepare_rf1(spec: DatasetSpec, source: Path) -> PreparedDataset:
         X=X,
         y=targets.to_numpy(dtype=np.float32, copy=True),
         feature_names=list(features.columns),
-        feature_types=["q"] * features.shape[1],
         details={
             "target_names": target_names,
             "forecast_horizon_rows": 48,
@@ -289,7 +263,6 @@ def _prepare_uji_indoor_loc(spec: DatasetSpec, source: Path) -> PreparedDataset:
         X=frame[feature_names].to_numpy(dtype=np.float32, copy=True),
         y=frame[target_names].to_numpy(dtype=np.float32, copy=True),
         feature_names=feature_names,
-        feature_types=["q"] * len(feature_names),
         details={
             "target_names": target_names,
             "train_pool_rows": int(training.shape[0]),
@@ -304,16 +277,14 @@ def _prepare_uji_indoor_loc(spec: DatasetSpec, source: Path) -> PreparedDataset:
 
 
 def _prepare_covertype(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    del spec
     frame = pd.read_csv(source)
     target = frame.pop("Cover_Type")
-    y, labels = encode_labels(target, spec.outputs)
     return PreparedDataset(
         X=frame.to_numpy(dtype=np.float32, copy=True),
-        y=y,
+        y=target,
         feature_names=list(frame.columns),
-        feature_types=["q"] * frame.shape[1],
         details={
-            "original_labels_by_encoded_class": labels,
             "provider_encoding": (
                 "Wilderness area and soil type indicators remain provider-supplied "
                 "numeric one-hot columns."
@@ -323,25 +294,19 @@ def _prepare_covertype(spec: DatasetSpec, source: Path) -> PreparedDataset:
 
 
 def _prepare_poker(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    del spec
     frame = pd.read_csv(source)
     target = frame.pop("CLASS")
-    y, labels = encode_labels(target, spec.outputs)
+    frame = frame.astype("category")
     return PreparedDataset(
-        X=frame.to_numpy(dtype=np.float32, copy=True),
-        y=y,
+        X=frame,
+        y=target,
         feature_names=list(frame.columns),
-        feature_types=["c"] * frame.shape[1],
-        details={
-            "original_labels_by_encoded_class": labels,
-            "categorical_encoding": (
-                "All five suit and five rank columns use XGBoost native categorical "
-                "splits; the provider's integer codes are retained unchanged."
-            ),
-        },
     )
 
 
 def _prepare_sensorless(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    del spec
     with zipfile.ZipFile(source) as archive:
         frame = _read_zip_csv(
             archive,
@@ -350,18 +315,16 @@ def _prepare_sensorless(spec: DatasetSpec, source: Path) -> PreparedDataset:
             header=None,
         )
     target = frame.pop(frame.columns[-1])
-    y, labels = encode_labels(target, spec.outputs)
     feature_names = [f"V{index}" for index in range(1, 49)]
     return PreparedDataset(
         X=frame.to_numpy(dtype=np.float32, copy=True),
-        y=y,
+        y=target,
         feature_names=feature_names,
-        feature_types=["q"] * len(feature_names),
-        details={"original_labels_by_encoded_class": labels},
     )
 
 
 def _prepare_letter_recognition(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    del spec
     feature_names = [
         "x_box",
         "y_box",
@@ -388,14 +351,11 @@ def _prepare_letter_recognition(spec: DatasetSpec, source: Path) -> PreparedData
             header=None,
         )
     target = frame.pop("letter")
-    y, labels = encode_labels(target, spec.outputs)
     return PreparedDataset(
         X=frame.to_numpy(dtype=np.float32, copy=True),
-        y=y,
+        y=target,
         feature_names=feature_names,
-        feature_types=["q"] * len(feature_names),
         details={
-            "original_labels_by_encoded_class": labels,
             "train_pool_rows": 16_000,
             "official_test_rows": 4_000,
             "official_split": (
@@ -407,6 +367,7 @@ def _prepare_letter_recognition(spec: DatasetSpec, source: Path) -> PreparedData
 
 
 def _prepare_gas_sensor_drift(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    del spec
     feature_names = [f"feature_{index:03d}" for index in range(1, 129)]
     feature_batches = []
     labels: list[int] = []
@@ -427,7 +388,6 @@ def _prepare_gas_sensor_drift(spec: DatasetSpec, source: Path) -> PreparedDatase
             feature_batches.append(batch_array)
             batch_sizes.append(int(batch_array.shape[0]))
 
-    y, original_labels = encode_labels(pd.Series(labels), spec.outputs)
     split_rows = {
         "train": sum(batch_sizes[:6]),
         "validation": sum(batch_sizes[6:8]),
@@ -435,11 +395,9 @@ def _prepare_gas_sensor_drift(spec: DatasetSpec, source: Path) -> PreparedDatase
     }
     return PreparedDataset(
         X=np.vstack(feature_batches),
-        y=y,
+        y=np.asarray(labels),
         feature_names=feature_names,
-        feature_types=["q"] * len(feature_names),
         details={
-            "original_labels_by_encoded_class": original_labels,
             "rows_per_batch": batch_sizes,
             "predefined_split_rows": split_rows,
             "predefined_split": (
@@ -460,13 +418,10 @@ def _prepare_openml_classification(spec: DatasetSpec, source: Path) -> PreparedD
     target_name = target_names[spec.name]
     frame = pd.read_parquet(source)
     target = frame.pop(target_name)
-    y, labels = encode_labels(target, spec.outputs)
     return PreparedDataset(
         X=frame.to_numpy(dtype=np.float32, copy=True),
-        y=y,
+        y=target,
         feature_names=list(frame.columns),
-        feature_types=["q"] * frame.shape[1],
-        details={"original_labels_by_encoded_class": labels},
     )
 
 
@@ -492,35 +447,13 @@ def _prepare_categorical_frame(
             if not pd.api.types.is_numeric_dtype(dtype)
         )
 
-    columns: list[np.ndarray] = []
-    category_values: dict[str, list[str]] = {}
-    for name in frame:
-        values = frame[name]
-        if name in categorical:
-            categories = pd.Categorical(values)
-            codes = categories.codes.astype(np.float32)
-            codes[codes < 0] = np.nan
-            columns.append(codes)
-            category_values[str(name)] = [str(value) for value in categories.categories]
-        else:
-            columns.append(pd.to_numeric(values).to_numpy(dtype=np.float32))
-
-    if spec.task == "classification":
-        y, labels = encode_labels(target, spec.outputs)
-        target_details = {"original_labels_by_encoded_class": labels}
-    else:
-        y = pd.to_numeric(target).to_numpy(dtype=np.float32).reshape(-1, 1)
-        target_details = {}
+    for name in categorical:
+        frame[name] = frame[name].astype("category")
 
     return PreparedDataset(
-        X=np.column_stack(columns),
-        y=y,
+        X=frame,
+        y=target,
         feature_names=[str(name) for name in frame.columns],
-        feature_types=["c" if name in categorical else "q" for name in frame],
-        details={
-            **target_details,
-            "category_values": category_values,
-        },
     )
 
 

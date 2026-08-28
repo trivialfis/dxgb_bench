@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import numpy as np
+import pandas as pd
 
 Task = Literal["regression", "classification"]
 SplitKind = Literal[
@@ -51,10 +52,9 @@ class DatasetSpec:
 class PreparedDataset:
     """In-memory result produced from one downloaded public source."""
 
-    X: np.ndarray
-    y: np.ndarray
+    X: np.ndarray | pd.DataFrame
+    y: np.ndarray | pd.Series[Any]
     feature_names: list[str]
-    feature_types: list[str]
     strata: np.ndarray | None = None
     groups: np.ndarray | None = None
     details: dict[str, Any] = field(default_factory=dict)
@@ -62,13 +62,12 @@ class PreparedDataset:
 
 @dataclass(frozen=True)
 class DatasetArrays:
-    """Validated, memory-mapped arrays loaded from the prepared cache."""
+    """Validated data loaded from the prepared cache."""
 
     spec: DatasetSpec
-    X: np.ndarray
+    X: np.ndarray | pd.DataFrame
     y: np.ndarray
     feature_names: list[str]
-    feature_types: list[str]
     strata: np.ndarray | None
     groups: np.ndarray | None
     metadata: dict[str, Any]

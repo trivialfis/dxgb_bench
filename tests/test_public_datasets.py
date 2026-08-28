@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import pytest
 import xgboost as xgb
 
@@ -58,7 +59,6 @@ def toy_pipeline(tmp_path: Path) -> ToyPipeline:
             ),
             y=np.asarray([0, 1, 0, 1], dtype=np.int32),
             feature_names=["first", "second"],
-            feature_types=["q", "q"],
             details={"fixture": True},
         )
 
@@ -134,7 +134,7 @@ def test_categorical_dataset_trains_xgboost(tmp_path: Path) -> None:
     dtrain = xgb.DMatrix(
         dataset.X,
         label=dataset.y,
-        feature_types=dataset.feature_types,
+        enable_categorical=True,
     )
     booster = xgb.train(
         {
@@ -147,5 +147,9 @@ def test_categorical_dataset_trains_xgboost(tmp_path: Path) -> None:
         num_boost_round=2,
     )
 
-    assert set(dataset.feature_types) == {"c"}
+    assert isinstance(dataset.X, pd.DataFrame)
+    assert all(isinstance(dtype, pd.CategoricalDtype) for dtype in dataset.X.dtypes)
+    assert set(dataset.X.iloc[:, 0].cat.categories) == {"n", "y"}
+    assert (tmp_path / "congressional_voting" / "X.parquet").is_file()
+    assert "category_values" not in dataset.metadata
     assert np.isfinite(booster.predict(dtrain)).all()

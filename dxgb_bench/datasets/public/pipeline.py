@@ -9,13 +9,12 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 from .models import DatasetArrays, DatasetSpec, PreparedDataset
 from .processors import PROCESSORS, Processor
 from .registry import DATASETS
-from .storage import download, save_array, sha256, write_json
-
-CACHE_FORMAT_VERSION = 2
+from .storage import download, save_array, save_frame, sha256, write_json
 
 
 def default_cache_dir() -> Path:
@@ -42,37 +41,43 @@ def validate_prepared_values(spec: DatasetSpec, prepared: PreparedDataset) -> No
     expected_y = (
         (spec.rows,) if spec.task == "classification" else (spec.rows, spec.outputs)
     )
-    if y.shape != expected_y:
+    if not isinstance(y, np.ndarray) or y.shape != expected_y:
         raise ValueError(f"{spec.name}: expected y shape {expected_y}, found {y.shape}")
-    if X.dtype != np.float32:
-        raise ValueError(f"{spec.name}: expected float32 features, found {X.dtype}")
     expected_y_dtype = np.int32 if spec.task == "classification" else np.float32
     if y.dtype != expected_y_dtype:
         raise ValueError(
             f"{spec.name}: expected {expected_y_dtype} labels, found {y.dtype}"
         )
-    if np.isinf(X).any() or not np.isfinite(y).all():
-        raise ValueError(f"{spec.name}: prepared arrays contain invalid values")
     if (
         len(prepared.feature_names) != spec.features
         or len(set(prepared.feature_names)) != spec.features
     ):
         raise ValueError(f"{spec.name}: feature names are missing or duplicated")
-    if len(prepared.feature_types) != spec.features or not set(
-        prepared.feature_types
-    ) <= {"q", "c"}:
-        raise ValueError(f"{spec.name}: invalid XGBoost feature types")
-
-    for index, feature_type in enumerate(prepared.feature_types):
-        if feature_type == "c":
-            values = X[:, index]
-            values = values[np.isfinite(values)]
-            if np.any(values < 0) or not np.array_equal(values, np.floor(values)):
-                raise ValueError(
-                    f"{spec.name}: categorical feature "
-                    f"{prepared.feature_names[index]} must contain non-negative "
-                    "integer codes"
-                )
+    if isinstance(X, pd.DataFrame):
+        if list(X.columns) != prepared.feature_names:
+            raise ValueError(
+                f"{spec.name}: DataFrame columns do not match feature names"
+            )
+        invalid = [
+            name
+            for name, dtype in X.dtypes.items()
+            if not pd.api.types.is_numeric_dtype(dtype)
+            and not isinstance(dtype, pd.CategoricalDtype)
+        ]
+        if invalid:
+            raise ValueError(
+                f"{spec.name}: non-numeric columns are not categorical: {invalid}"
+            )
+        numeric = X.select_dtypes(include="number").to_numpy()
+        if np.isinf(numeric).any():
+            raise ValueError(f"{spec.name}: prepared features contain infinity")
+    else:
+        if X.dtype != np.float32:
+            raise ValueError(f"{spec.name}: expected float32 features, found {X.dtype}")
+        if np.isinf(X).any():
+            raise ValueError(f"{spec.name}: prepared features contain infinity")
+    if not np.isfinite(y).all():
+        raise ValueError(f"{spec.name}: prepared labels contain invalid values")
 
     if spec.task == "classification":
         unique = np.unique(y)
@@ -94,7 +99,7 @@ def validate_prepared_values(spec: DatasetSpec, prepared: PreparedDataset) -> No
 
 
 class PublicDatasetPipeline:
-    """Orchestrate public source downloads and versioned prepared caches."""
+    """Orchestrate public source downloads and prepared caches."""
 
     def __init__(
         self,
@@ -147,14 +152,27 @@ class PublicDatasetPipeline:
         except KeyError as error:
             raise KeyError(f"No source processor registered for {name!r}") from error
         prepared = processor(spec, source)
+        details = dict(prepared.details)
+        if isinstance(prepared.X, pd.DataFrame):
+            frame = prepared.X.copy()
+            frame.columns = [str(column) for column in frame.columns]
+            X: np.ndarray | pd.DataFrame = frame
+        else:
+            X = np.ascontiguousarray(prepared.X, dtype=np.float32)
+
+        if spec.task == "classification":
+            labels = pd.Categorical(np.asarray(prepared.y).reshape(-1))
+            y = labels.codes.astype(np.int32)
+            details["class_labels"] = [str(label) for label in labels.categories]
+        else:
+            y = np.asarray(prepared.y, dtype=np.float32)
+            if y.ndim == 1:
+                y = y.reshape(-1, 1)
+
         prepared = PreparedDataset(
-            X=np.ascontiguousarray(prepared.X, dtype=np.float32),
-            y=np.ascontiguousarray(
-                prepared.y,
-                dtype=np.int32 if spec.task == "classification" else np.float32,
-            ),
+            X=X,
+            y=np.ascontiguousarray(y),
             feature_names=[str(feature) for feature in prepared.feature_names],
-            feature_types=list(prepared.feature_types),
             strata=(
                 np.ascontiguousarray(prepared.strata, dtype=np.int32)
                 if prepared.strata is not None
@@ -165,7 +183,7 @@ class PublicDatasetPipeline:
                 if prepared.groups is not None
                 else None
             ),
-            details=dict(prepared.details),
+            details=details,
         )
         validate_prepared_values(spec, prepared)
         return prepared
@@ -181,7 +199,12 @@ class PublicDatasetPipeline:
         incomplete = directory / ".incomplete"
         incomplete.write_text("prepared cache update in progress\n", encoding="utf-8")
 
-        save_array(directory / "X.npy", prepared.X)
+        if isinstance(prepared.X, pd.DataFrame):
+            save_frame(directory / "X.parquet", prepared.X)
+            (directory / "X.npy").unlink(missing_ok=True)
+        else:
+            save_array(directory / "X.npy", prepared.X)
+            (directory / "X.parquet").unlink(missing_ok=True)
         save_array(directory / "y.npy", prepared.y)
         optional_arrays = {
             "strata.npy": prepared.strata,
@@ -206,19 +229,13 @@ class PublicDatasetPipeline:
         """Load and validate an existing prepared cache without network access."""
         spec = self.spec(name)
         directory = self.dataset_dir(name)
-        required = [
-            directory / "metadata.json",
-            directory / "X.npy",
-            directory / "y.npy",
-        ]
+        required = [directory / "metadata.json", directory / "y.npy"]
         if (directory / ".incomplete").exists() or not all(
             path.is_file() for path in required
         ):
             raise FileNotFoundError(f"Prepared cache for {name} is incomplete")
 
         metadata = json.loads(required[0].read_text(encoding="utf-8"))
-        if metadata.get("cache_format_version") != CACHE_FORMAT_VERSION:
-            raise FileNotFoundError(f"Prepared cache for {name} uses an old format")
         for key, expected in {
             "dataset": spec.name,
             "task": spec.task,
@@ -231,15 +248,21 @@ class PublicDatasetPipeline:
                     f"{name}: cache metadata {key!r} does not match the registry"
                 )
 
-        X = np.load(required[1], mmap_mode="r", allow_pickle=False)
-        y = np.load(required[2], mmap_mode="r", allow_pickle=False)
+        frame_path = directory / "X.parquet"
+        array_path = directory / "X.npy"
+        if frame_path.is_file():
+            X: np.ndarray | pd.DataFrame = pd.read_parquet(frame_path)
+        elif array_path.is_file():
+            X = np.load(array_path, mmap_mode="r", allow_pickle=False)
+        else:
+            raise FileNotFoundError(f"Prepared features for {name} are missing")
+        y = np.load(required[1], mmap_mode="r", allow_pickle=False)
         strata = self._load_optional_array(directory, metadata, "strata")
         groups = self._load_optional_array(directory, metadata, "groups")
         prepared = PreparedDataset(
             X=X,
             y=y,
             feature_names=list(metadata["feature_names"]),
-            feature_types=list(metadata["feature_types"]),
             strata=strata,
             groups=groups,
         )
@@ -249,7 +272,6 @@ class PublicDatasetPipeline:
             X=X,
             y=y,
             feature_names=prepared.feature_names,
-            feature_types=prepared.feature_types,
             strata=strata,
             groups=groups,
             metadata=metadata,
@@ -286,15 +308,17 @@ class PublicDatasetPipeline:
     def _metadata(
         self, spec: DatasetSpec, source: Path, prepared: PreparedDataset
     ) -> dict[str, Any]:
-        categorical_features = [
-            name
-            for name, feature_type in zip(
-                prepared.feature_names, prepared.feature_types, strict=True
+        if isinstance(prepared.X, pd.DataFrame):
+            categorical_features = list(
+                prepared.X.select_dtypes(include="category").columns
             )
-            if feature_type == "c"
-        ]
+            feature_dtypes: str | dict[str, str] = {
+                str(name): str(dtype) for name, dtype in prepared.X.dtypes.items()
+            }
+        else:
+            categorical_features = []
+            feature_dtypes = str(prepared.X.dtype)
         metadata: dict[str, Any] = {
-            "cache_format_version": CACHE_FORMAT_VERSION,
             "dataset": spec.name,
             "title": spec.title,
             "task": spec.task,
@@ -311,9 +335,8 @@ class PublicDatasetPipeline:
             "outputs": spec.outputs,
             "split_kind": spec.split_kind,
             "feature_names": prepared.feature_names,
-            "feature_types": prepared.feature_types,
             "categorical_features": categorical_features,
-            "feature_dtype": str(prepared.X.dtype),
+            "feature_dtypes": feature_dtypes,
             "label_dtype": str(prepared.y.dtype),
             "has_strata": prepared.strata is not None,
             "has_groups": prepared.groups is not None,
