@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
+import pandas as pd
 
 DOWNLOAD_CHUNK_BYTES = 8 * 1024 * 1024
 USER_AGENT = "dxgb-bench-public-datasets/1.0"
@@ -32,6 +33,14 @@ def save_array(path: Path, array: np.ndarray) -> None:
     temporary = path.with_name(f"{path.stem}.tmp{path.suffix}")
     with temporary.open("wb") as sink:
         np.save(sink, array, allow_pickle=False)
+    temporary.replace(path)
+
+
+def save_frame(path: Path, frame: pd.DataFrame) -> None:
+    """Atomically write a pandas DataFrame as Parquet."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_name(f"{path.stem}.tmp{path.suffix}")
+    frame.to_parquet(temporary, index=False)
     temporary.replace(path)
 
 
