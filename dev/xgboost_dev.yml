@@ -1,8 +1,8 @@
 name: xgboost_dev
 channels:
-- conda-forge
 - rapidsai
 - nvidia
+- conda-forge
 dependencies:
 - c-compiler
 - cxx-compiler
@@ -21,11 +21,11 @@ dependencies:
 - gtest>=1.13.0
 - nccl
 - kvikio
-- rmm
 # python local
 - python==3.12
 - pip
 - hatchling
+- scikit-build-core
 - setuptools-scm
 - hypothesis
 - pytest
