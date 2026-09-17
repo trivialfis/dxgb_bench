@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euox pipefail
+
 INSTALL_XGBOOST=$1
 SM=$2
 
