@@ -14,10 +14,9 @@ if (DXGB_USE_CUDA)
   enable_language(CUDA)
   target_sources(dxgbbench PRIVATE ${CMAKE_SOURCE_DIR}/gen.cu)
   find_package(CUDAToolkit REQUIRED)
-  find_package(CCCL CONFIG)
-  if(NOT CCCL_FOUND)
-    message(FATAL_ERROR "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
-  endif()
+  # Conda's CUDA target directory can be x86_64-linux, aarch64-linux, or sbsa-linux.
+  find_package(CCCL CONFIG REQUIRED
+    HINTS "${CUDAToolkit_TARGET_DIR}/lib/cmake" "${CUDAToolkit_LIBRARY_DIR}/cmake")
   target_link_libraries(dxgbbench PRIVATE CUDA::cudart CCCL::CCCL)
   target_compile_options(dxgbbench PRIVATE
     $<$<COMPILE_LANGUAGE:CUDA>:--expt-extended-lambda>

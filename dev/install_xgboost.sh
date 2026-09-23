@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euox pipefail
+
 INSTALL_XGBOOST=$1
 SM=$2
 
@@ -17,7 +19,6 @@ if [[ -n ${INSTALL_XGBOOST} && -n ${SM} ]]; then
 	  -DUSE_OPENMP=ON \
 	  -DUSE_NVTX=ON \
 	  -DUSE_NVCOMP=OFF \
-	  -DPLUGIN_RMM=ON \
 	  -DBUILD_WITH_GIT_HASH=ON \
 	  -DCMAKE_CUDA_ARCHITECTURES=$SM -DENABLE_ALL_WARNINGS=ON
 
