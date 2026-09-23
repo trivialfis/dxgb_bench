@@ -1,7 +1,0 @@
-cachedir/
-.mypy_cache/
-*.cache*
-__pycache__
-*.egg-info
-.gdb_history
-log_*
