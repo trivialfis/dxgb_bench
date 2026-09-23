@@ -5,7 +5,6 @@ from __future__ import annotations
 import io
 import tarfile
 import zipfile
-from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -13,9 +12,6 @@ import numpy as np
 import pandas as pd
 
 from .models import DatasetSpec, PreparedDataset
-from .registry import DATASETS
-
-Processor = Callable[[DatasetSpec, Path], PreparedDataset]
 
 
 def _read_zip_csv(archive: zipfile.ZipFile, member: str, **kwargs: Any) -> pd.DataFrame:
@@ -38,11 +34,15 @@ def _coordinate_group_ids(coordinates: np.ndarray, strata: np.ndarray) -> np.nda
     return groups
 
 
-def _prepare_sarcos(spec: DatasetSpec, source: Path) -> PreparedDataset:
-    del spec
+def _prepare_parquet_columns(spec: DatasetSpec, source: Path) -> PreparedDataset:
+    """Select declared numerical feature and target columns from Parquet."""
+    feature_names = list(spec.feature_columns)
+    target_names = list(spec.target_columns)
+    if len(feature_names) != spec.features or len(target_names) != spec.outputs:
+        raise ValueError(f"{spec.name}: column selection does not match declared shape")
+    if len(set(feature_names + target_names)) != len(feature_names + target_names):
+        raise ValueError(f"{spec.name}: feature and target columns must be distinct")
     frame = pd.read_parquet(source)
-    feature_names = [f"V{index}" for index in range(1, 22)]
-    target_names = [f"V{index}" for index in range(22, 29)]
     return PreparedDataset(
         X=frame[feature_names].to_numpy(dtype=np.float32, copy=True),
         y=frame[target_names].to_numpy(dtype=np.float32, copy=True),
@@ -629,46 +629,3 @@ def _prepare_monks(spec: DatasetSpec, source: Path) -> PreparedDataset:
             "official_test_rows": int(frames[1].shape[0]),
         },
     )
-
-
-PROCESSORS: dict[str, Processor] = {
-    "sarcos": _prepare_sarcos,
-    "wave_energy": _prepare_wave_energy,
-    "large_wave_energy": _prepare_large_wave_energy,
-    "tetouan_power": _prepare_tetouan,
-    "sgemm": _prepare_sgemm,
-    "rf1": _prepare_rf1,
-    "uji_indoor_loc": _prepare_uji_indoor_loc,
-    "covertype": _prepare_covertype,
-    "poker_hand": _prepare_poker,
-    "sensorless_drive": _prepare_sensorless,
-    "letter_recognition": _prepare_letter_recognition,
-    "gas_sensor_drift": _prepare_gas_sensor_drift,
-    "devnagari_script": _prepare_openml_classification,
-    "emnist_balanced": _prepare_openml_classification,
-    "kuzushiji_49": _prepare_openml_classification,
-    "dionis": _prepare_openml_classification,
-    "aloi": _prepare_openml_classification,
-}
-
-PROCESSORS.update(
-    {
-        name: _prepare_categorical_table
-        for name, spec in DATASETS.items()
-        if spec.target is not None
-    }
-)
-PROCESSORS["audiology"] = _prepare_audiology
-PROCESSORS["census_income_uci"] = _prepare_census_income
-for problem in range(1, 4):
-    PROCESSORS[f"monks_{problem}"] = _prepare_monks
-PROCESSORS["south_german_credit"] = _prepare_south_german_credit
-
-
-def process_source(spec: DatasetSpec, source: Path) -> PreparedDataset:
-    """Run the registered processor for one downloaded source."""
-    try:
-        processor = PROCESSORS[spec.name]
-    except KeyError as error:
-        raise KeyError(f"No source processor registered for {spec.name!r}") from error
-    return processor(spec, source)

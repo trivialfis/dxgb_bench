@@ -12,7 +12,6 @@ import numpy as np
 import pandas as pd
 
 from .models import DatasetArrays, DatasetSpec, PreparedDataset
-from .processors import PROCESSORS, Processor
 from .registry import DATASETS
 from .storage import download, file_lock, save_array, save_frame, sha256, write_json
 
@@ -139,11 +138,9 @@ class PublicDatasetPipeline:
         self,
         cache_dir: Path = DEFAULT_CACHE,
         registry: Mapping[str, DatasetSpec] = DATASETS,
-        processors: Mapping[str, Processor] = PROCESSORS,
     ) -> None:
         self.cache_dir = Path(cache_dir)
         self.registry = dict(registry)
-        self.processors = dict(processors)
 
     def spec(self, name: str) -> DatasetSpec:
         """Return a registered specification with a useful unknown-name error."""
@@ -181,11 +178,7 @@ class PublicDatasetPipeline:
         source = Path(source) if source is not None else self.source_path(name)
         if not source.is_file():
             raise FileNotFoundError(f"Source for {name!r} is missing: {source}")
-        try:
-            processor = self.processors[name]
-        except KeyError as error:
-            raise KeyError(f"No source processor registered for {name!r}") from error
-        prepared = processor(spec, source)
+        prepared = spec.prepare(spec, source)
         details = dict(prepared.details)
         if isinstance(prepared.X, pd.DataFrame):
             frame = prepared.X.copy()
@@ -309,6 +302,12 @@ class PublicDatasetPipeline:
                     f"{name}: cache metadata {key!r} does not match the registry"
                 )
 
+        for key in ("feature_columns", "target_columns"):
+            if metadata.get(key, []) != list(getattr(spec, key)):
+                raise ValueError(
+                    f"{name}: cache metadata {key!r} does not match the registry"
+                )
+
         frame_path = directory / "X.parquet"
         array_path = directory / "X.npy"
         if frame_path.is_file():
@@ -407,6 +406,8 @@ class PublicDatasetPipeline:
             "registered_numeric_features": list(spec.numeric_features),
             "dropped_features": list(spec.drop_features),
             "feature_dtypes": feature_dtypes,
+            "feature_columns": list(spec.feature_columns),
+            "target_columns": list(spec.target_columns),
             "label_dtype": str(prepared.y.dtype),
             "has_split": prepared.split is not None,
             "has_strata": prepared.strata is not None,

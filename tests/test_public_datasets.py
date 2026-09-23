@@ -1,9 +1,11 @@
-"""Tests for public dataset fetching, caching, and categorical training."""
+"""Public dataset contracts, cache lifecycle, and training integration."""
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+import json
+from dataclasses import replace
 from pathlib import Path
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -12,167 +14,174 @@ import xgboost as xgb
 
 from dxgb_bench.datasets.public import (
     DATASETS,
-    PROCESSORS,
     DatasetSpec,
     PreparedDataset,
     PublicDatasetPipeline,
     default_cache_dir,
+    validate_prepared_values,
 )
 from dxgb_bench.datasets.public.cli import main as datasets_main
-from dxgb_bench.datasets.public.pipeline import validate_prepared_values
-
-
-@dataclass
-class ToyPipeline:
-    pipeline: PublicDatasetPipeline
-    upstream: Path
-    processor_calls: list[str]
 
 
 @pytest.fixture
-def toy_pipeline(tmp_path: Path) -> ToyPipeline:
-    upstream = tmp_path / "upstream.bin"
-    upstream.write_bytes(b"immutable public source\n")
-    spec = DatasetSpec(
-        name="toy",
-        title="Toy classification",
-        task="classification",
-        source_url=upstream.resolve().as_uri(),
-        source_filename="source.bin",
-        repository_url="https://example.test/toy",
-        rows=4,
-        features=2,
-        outputs=2,
-        split_kind="official_test",
-        citation="Synthetic test fixture.",
-        license="CC0",
-    )
-    processor_calls: list[str] = []
+def pipeline(tmp_path: Path) -> PublicDatasetPipeline:
+    source = tmp_path / "source.bin"
+    source.write_bytes(b"public source")
 
-    def processor(actual_spec: DatasetSpec, source: Path) -> PreparedDataset:
-        assert actual_spec == spec
-        assert source.read_bytes() == b"immutable public source\n"
-        processor_calls.append(actual_spec.name)
+    def prepare(spec: DatasetSpec, path: Path) -> PreparedDataset:
+        assert path.read_bytes() == b"public source"
         return PreparedDataset(
             X=pd.DataFrame(
                 {
                     "first": pd.Series([0.0, 1.0, np.nan, 1.0], dtype="category"),
-                    "second": np.asarray([1.0, 2.0, 3.0, 4.0], dtype=np.float32),
+                    "second": np.arange(4, dtype=np.float32),
                 }
             ),
-            y=np.asarray([0, 1, 0, 1], dtype=np.int32),
+            y=np.array([0, 1, 0, 1]),
             feature_names=["first", "second"],
-            split=np.asarray([0, 0, 2, 2], dtype=np.int32),
-            details={"fixture": True},
+            split=np.array([0, 0, 2, 2]),
         )
 
-    pipeline = PublicDatasetPipeline(
-        cache_dir=tmp_path / "cache",
-        registry={"toy": spec},
-        processors={"toy": processor},
+    spec = replace(
+        DATASETS["congressional_voting"],
+        name="toy",
+        rows=4,
+        features=2,
+        source_url=source.as_uri(),
+        source_filename=source.name,
+        split_kind="official_test",
+        prepare=prepare,
     )
-    return ToyPipeline(pipeline, upstream, processor_calls)
+    return PublicDatasetPipeline(tmp_path / "cache", registry={"toy": spec})
 
 
-def test_registry_has_a_processor_for_every_dataset() -> None:
-    assert set(DATASETS) == set(PROCESSORS)
-    assert {
-        "ames_housing",
-        "adult",
-        "amazon_employee",
-        "airlines",
-        "kick",
-        "monks_1",
-        "monks_2",
-        "monks_3",
-    } <= set(DATASETS)
+def test_registry_and_cli(capsys: pytest.CaptureFixture[str]) -> None:
+    for name, spec in DATASETS.items():
+        assert name == spec.name
+        assert callable(spec.prepare)
+        metadata = spec.to_dict()
+        assert "prepare" not in metadata
+        assert json.loads(json.dumps(metadata))["name"] == name
+    datasets_main(["--list"])
+    listed = [line.split("\t")[0] for line in capsys.readouterr().out.splitlines()]
+    assert len(listed) == len(DATASETS)
+    assert set(listed) == set(DATASETS)
 
 
-def test_ensure_fetches_processes_caches_and_reuses(
-    toy_pipeline: ToyPipeline,
+def test_cache_lifecycle(pipeline: PublicDatasetPipeline, tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="offline mode"):
+        pipeline.fetch("toy", offline=True)
+    with patch.object(pipeline, "process", wraps=pipeline.process) as process:
+        first = pipeline.ensure("toy")
+        assert first.X["first"].cat.categories.tolist() == [0, 1]
+        assert pd.api.types.is_integer_dtype(first.X["first"].cat.categories.dtype)
+        assert pd.isna(first.X["first"].iloc[2])
+        np.testing.assert_array_equal(first.y, [0, 1, 0, 1])
+        np.testing.assert_array_equal(first.split, [0, 0, 2, 2])
+        assert first.metadata["class_counts"] == [2, 2]
+        assert pipeline.source_path("toy").read_bytes() == b"public source"
+
+        # Reuse an older cache, then explicitly rebuild from its retained source.
+        metadata_path = pipeline.dataset_dir("toy") / "metadata.json"
+        metadata = json.loads(metadata_path.read_text())
+        del metadata["feature_columns"], metadata["target_columns"]
+        metadata_path.write_text(json.dumps(metadata))
+        (tmp_path / "source.bin").unlink()
+        cached = pipeline.ensure("toy", offline=True)
+        assert process.call_count == 1
+        assert cached.metadata["source_sha256"] == first.metadata["source_sha256"]
+        pd.testing.assert_frame_equal(cached.X, first.X)
+        np.testing.assert_array_equal(cached.y, first.y)
+        rebuilt = pipeline.ensure("toy", rebuild=True, offline=True)
+        assert process.call_count == 2
+        pd.testing.assert_frame_equal(rebuilt.X, first.X)
+        np.testing.assert_array_equal(rebuilt.y, first.y)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("split_kind", "predefined"),
+        ("feature_columns", ("second", "first")),
+        ("target_columns", ("label",)),
+    ],
+)
+def test_cache_rejects_changed_semantics(
+    pipeline: PublicDatasetPipeline, field: str, value: str | tuple[str, ...]
 ) -> None:
-    first = toy_pipeline.pipeline.ensure("toy")
-    assert toy_pipeline.processor_calls == ["toy"]
-    assert first.X.shape == (4, 2)
-    assert isinstance(first.X, pd.DataFrame)
-    assert isinstance(first.X["first"].dtype, pd.CategoricalDtype)
-    assert first.X["first"].cat.categories.tolist() == [0, 1]
-    assert not pd.api.types.is_float_dtype(first.X["first"].cat.categories.dtype)
-    assert first.split is not None
-    assert first.split.tolist() == [0, 0, 2, 2]
-    assert first.y.tolist() == [0, 1, 0, 1]
-    assert first.metadata["class_counts"] == [2, 2]
-    assert first.metadata["fixture"] is True
-    assert (
-        toy_pipeline.pipeline.source_path("toy").read_bytes()
-        == b"immutable public source\n"
-    )
-
-    second = toy_pipeline.pipeline.ensure("toy", offline=True)
-    assert toy_pipeline.processor_calls == ["toy"]
-    assert second.metadata["source_sha256"] == first.metadata["source_sha256"]
-
-
-def test_cache_rejects_changed_dataset_semantics(toy_pipeline: ToyPipeline) -> None:
-    toy_pipeline.pipeline.ensure("toy")
-    spec = replace(toy_pipeline.pipeline.spec("toy"), split_kind="predefined")
-    changed = PublicDatasetPipeline(
-        cache_dir=toy_pipeline.pipeline.cache_dir,
-        registry={"toy": spec},
-        processors=toy_pipeline.pipeline.processors,
-    )
-    with pytest.raises(ValueError, match="split_kind"):
+    pipeline.ensure("toy")
+    spec = replace(pipeline.spec("toy"), **{field: value})
+    changed = PublicDatasetPipeline(pipeline.cache_dir, registry={"toy": spec})
+    with pytest.raises(ValueError, match=field):
         changed.load("toy")
 
 
-def test_validation_rejects_an_empty_category(toy_pipeline: ToyPipeline) -> None:
-    spec = replace(toy_pipeline.pipeline.spec("toy"), features=1)
-    prepared = PreparedDataset(
-        X=pd.DataFrame({"empty": pd.Series([None] * 4, dtype="category")}),
-        y=np.asarray([0, 1, 0, 1], dtype=np.int32),
-        feature_names=["empty"],
-        split=np.asarray([0, 0, 2, 2], dtype=np.int32),
+def test_empty_category(pipeline: PublicDatasetPipeline, tmp_path: Path) -> None:
+    prepared = pipeline.process("toy", tmp_path / "source.bin")
+    prepared.X["first"] = pd.Series([None] * 4, dtype="category")
+    with pytest.raises(ValueError, match="categorical feature 'first' is empty"):
+        validate_prepared_values(pipeline.spec("toy"), prepared)
+
+
+@pytest.mark.parametrize(
+    "name,features,targets",
+    [
+        ("sarcos", list(range(1, 22)), list(range(22, 29))),
+        ("custom", [3, 1], [28, 22]),
+    ],
+)
+def test_parquet_column_selection(
+    tmp_path: Path, name: str, features: list[int], targets: list[int]
+) -> None:
+    values = np.arange(84, dtype=np.float64).reshape(3, 28)
+    frame = pd.DataFrame(values, columns=[f"V{i}" for i in range(1, 29)])
+    frame["unused"] = -1.0
+    source = tmp_path / "source.parquet"
+    frame[frame.columns[::-1]].to_parquet(source, index=False)
+    spec = replace(DATASETS["sarcos"], rows=3, source_url=source.as_uri())
+    if name == "custom":
+        spec = replace(
+            spec,
+            name=name,
+            features=len(features),
+            outputs=len(targets),
+            feature_columns=tuple(f"V{i}" for i in features),
+            target_columns=tuple(f"V{i}" for i in targets),
+        )
+    dataset = PublicDatasetPipeline(tmp_path / "cache", registry={name: spec}).ensure(
+        name
     )
-    with pytest.raises(ValueError, match="categorical feature 'empty' is empty"):
-        validate_prepared_values(spec, prepared)
-
-
-def test_rebuild_reprocesses_cached_source(toy_pipeline: ToyPipeline) -> None:
-    toy_pipeline.pipeline.ensure("toy")
-    toy_pipeline.upstream.unlink()
-    rebuilt = toy_pipeline.pipeline.ensure("toy", rebuild=True, offline=True)
-    assert toy_pipeline.processor_calls == ["toy", "toy"]
-    assert rebuilt.X.shape == (4, 2)
-
-
-def test_offline_fetch_requires_a_cached_source(toy_pipeline: ToyPipeline) -> None:
-    with pytest.raises(FileNotFoundError, match="offline mode"):
-        toy_pipeline.pipeline.fetch("toy", offline=True)
+    np.testing.assert_array_equal(dataset.X, values[:, np.array(features) - 1])
+    np.testing.assert_array_equal(dataset.y, values[:, np.array(targets) - 1])
+    assert dataset.X.dtype == dataset.y.dtype == np.float32
+    assert dataset.feature_names == [f"V{i}" for i in features]
+    assert dataset.metadata["target_names"] == [f"V{i}" for i in targets]
 
 
 def test_default_cache_honors_environment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    configured = tmp_path / "shared-cache"
-    monkeypatch.setenv("DXGB_BENCH_DATASET_CACHE", str(configured))
-    assert default_cache_dir() == configured
+    monkeypatch.setenv("DXGB_BENCH_DATASET_CACHE", str(tmp_path))
+    assert default_cache_dir() == tmp_path
 
 
-def test_cli_lists_registered_datasets(capsys: pytest.CaptureFixture[str]) -> None:
-    datasets_main(["--list"])
-    lines = capsys.readouterr().out.splitlines()
-    assert len(lines) == len(DATASETS)
-    assert {line.split("\t", maxsplit=1)[0] for line in lines} == set(DATASETS)
-
-
-def test_categorical_dataset_trains_xgboost(tmp_path: Path) -> None:
-    datasets_main(["--cache-dir", str(tmp_path), "congressional_voting"])
-    dataset = PublicDatasetPipeline(cache_dir=tmp_path).load("congressional_voting")
-    dtrain = xgb.DMatrix(
-        dataset.X,
-        label=dataset.y,
-        enable_categorical=True,
-    )
+def test_categorical_cli_training(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    spec = replace(DATASETS["congressional_voting"], rows=4)
+    monkeypatch.setitem(DATASETS, spec.name, spec)
+    pipeline = PublicDatasetPipeline(tmp_path)
+    source = pipeline.source_path(spec.name)
+    source.parent.mkdir()
+    frame = pd.DataFrame({f"vote{i}": ["n", "y", None, "n"] for i in range(16)})
+    frame[spec.target] = ["democrat", "republican", "democrat", "republican"]
+    frame.to_csv(source, index=False)
+    datasets_main(["--cache-dir", str(tmp_path), "--offline", spec.name])
+    dataset = pipeline.load(spec.name)
+    assert all(isinstance(dtype, pd.CategoricalDtype) for dtype in dataset.X.dtypes)
+    assert set(dataset.X.iloc[:, 0].cat.categories) == {"n", "y"}
+    assert (pipeline.dataset_dir(spec.name) / "X.parquet").is_file()
+    dtrain = xgb.DMatrix(dataset.X, label=dataset.y, enable_categorical=True)
     booster = xgb.train(
         {
             "objective": "binary:logistic",
@@ -183,10 +192,4 @@ def test_categorical_dataset_trains_xgboost(tmp_path: Path) -> None:
         dtrain,
         num_boost_round=2,
     )
-
-    assert isinstance(dataset.X, pd.DataFrame)
-    assert all(isinstance(dtype, pd.CategoricalDtype) for dtype in dataset.X.dtypes)
-    assert set(dataset.X.iloc[:, 0].cat.categories) == {"n", "y"}
-    assert (tmp_path / "congressional_voting" / "X.parquet").is_file()
-    assert "category_values" not in dataset.metadata
     assert np.isfinite(booster.predict(dtrain)).all()

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass, field, fields
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
@@ -22,7 +24,7 @@ SplitKind = Literal[
 
 @dataclass(frozen=True)
 class DatasetSpec:
-    """Immutable description of a public source and its prepared representation."""
+    """Public source, prepared representation, and its preparation callable."""
 
     name: str
     title: str
@@ -36,10 +38,19 @@ class DatasetSpec:
     split_kind: SplitKind
     citation: str
     license: str
+    prepare: Processor
     target: str | None = None
     categorical_features: tuple[str, ...] = ()
     numeric_features: tuple[str, ...] = ()
     drop_features: tuple[str, ...] = ()
+    feature_columns: tuple[str, ...] = ()
+    target_columns: tuple[str, ...] = ()
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return serializable dataset metadata, excluding the preparation callable."""
+        return {
+            f.name: getattr(self, f.name) for f in fields(self) if f.name != "prepare"
+        }
 
     @property
     def classes(self) -> int:
@@ -60,6 +71,9 @@ class PreparedDataset:
     strata: np.ndarray | None = None
     groups: np.ndarray | None = None
     details: dict[str, Any] = field(default_factory=dict)
+
+
+Processor = Callable[[DatasetSpec, Path], PreparedDataset]
 
 
 @dataclass(frozen=True)

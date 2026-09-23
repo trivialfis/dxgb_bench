@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from . import processors
 from .models import DatasetSpec, Task
 
 DATASETS: dict[str, DatasetSpec] = {
@@ -22,6 +23,9 @@ DATASETS: dict[str, DatasetSpec] = {
             "in High Dimensional Space. ICML."
         ),
         license="OpenML metadata: Public",
+        feature_columns=tuple(f"V{index}" for index in range(1, 22)),
+        target_columns=tuple(f"V{index}" for index in range(22, 29)),
+        prepare=processors._prepare_parquet_columns,
     ),
     "wave_energy": DatasetSpec(
         name="wave_energy",
@@ -44,6 +48,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "https://doi.org/10.24432/C5831S"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_wave_energy,
     ),
     "large_wave_energy": DatasetSpec(
         name="large_wave_energy",
@@ -67,6 +72,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "https://doi.org/10.24432/C5GG7Q"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_large_wave_energy,
     ),
     "tetouan_power": DatasetSpec(
         name="tetouan_power",
@@ -90,6 +96,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "https://doi.org/10.24432/C5B034"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_tetouan,
     ),
     "sgemm": DatasetSpec(
         name="sgemm",
@@ -113,6 +120,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "https://doi.org/10.24432/C5MK70"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_sgemm,
     ),
     "rf1": DatasetSpec(
         name="rf1",
@@ -127,6 +135,7 @@ DATASETS: dict[str, DatasetSpec] = {
         split_kind="purged_blocked",
         citation="Mulan multi-target regression collection; OpenML dataset 41483.",
         license="OpenML metadata: Public",
+        prepare=processors._prepare_rf1,
     ),
     "uji_indoor_loc": DatasetSpec(
         name="uji_indoor_loc",
@@ -144,6 +153,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "Learning Repository. https://doi.org/10.24432/C5MS59"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_uji_indoor_loc,
     ),
     "covertype": DatasetSpec(
         name="covertype",
@@ -161,6 +171,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "https://doi.org/10.24432/C50K5N"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_covertype,
     ),
     "poker_hand": DatasetSpec(
         name="poker_hand",
@@ -178,6 +189,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "Learning Repository. https://doi.org/10.24432/C5KW38"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_poker,
     ),
     "sensorless_drive": DatasetSpec(
         name="sensorless_drive",
@@ -202,6 +214,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "UCI Machine Learning Repository. https://doi.org/10.24432/C5VP5F"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_sensorless,
     ),
     "letter_recognition": DatasetSpec(
         name="letter_recognition",
@@ -221,6 +234,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "Repository. https://doi.org/10.24432/C5ZP40"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_letter_recognition,
     ),
     "devnagari_script": DatasetSpec(
         name="devnagari_script",
@@ -238,6 +252,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "based large scale handwritten Devanagari character recognition."
         ),
         license="OpenML metadata: Public",
+        prepare=processors._prepare_openml_classification,
     ),
     "gas_sensor_drift": DatasetSpec(
         name="gas_sensor_drift",
@@ -260,6 +275,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "Machine Learning Repository. https://doi.org/10.24432/C5RP6W"
         ),
         license="CC BY 4.0",
+        prepare=processors._prepare_gas_sensor_drift,
     ),
     "emnist_balanced": DatasetSpec(
         name="emnist_balanced",
@@ -277,6 +293,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "EMNIST: an extension of MNIST to handwritten letters."
         ),
         license="OpenML metadata: Public",
+        prepare=processors._prepare_openml_classification,
     ),
     "kuzushiji_49": DatasetSpec(
         name="kuzushiji_49",
@@ -294,6 +311,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "Literature. arXiv:1812.01718."
         ),
         license="CC BY-SA 4.0",
+        prepare=processors._prepare_openml_classification,
     ),
     "dionis": DatasetSpec(
         name="dionis",
@@ -308,6 +326,7 @@ DATASETS: dict[str, DatasetSpec] = {
         split_kind="stratified",
         citation="ChaLearn AutoML Challenge, round 3; OpenML dataset 41167.",
         license="OpenML metadata: Public",
+        prepare=processors._prepare_openml_classification,
     ),
     "aloi": DatasetSpec(
         name="aloi",
@@ -326,6 +345,7 @@ DATASETS: dict[str, DatasetSpec] = {
             "Transactions on Neural Networks and Learning Systems 25(2)."
         ),
         license="OpenML metadata: Public",
+        prepare=processors._prepare_openml_classification,
     ),
 }
 
@@ -407,9 +427,7 @@ def _openml_categorical(
         split_kind=(
             "blocked"
             if name == "bank_marketing"
-            else "stratified"
-            if task == "classification"
-            else "random"
+            else "stratified" if task == "classification" else "random"
         ),
         citation=f"OpenML dataset {data_id}: {title}.",
         license=license,
@@ -417,6 +435,7 @@ def _openml_categorical(
         categorical_features=_OPENML_CATEGORICAL_FEATURES.get(name, ()),
         numeric_features=_OPENML_NUMERIC_FEATURES.get(name, ()),
         drop_features=_OPENML_DROP_FEATURES.get(name, ()),
+        prepare=processors._prepare_categorical_table,
     )
 
 
@@ -880,15 +899,18 @@ _UCI_ARCHIVES = {
     "audiology": (
         "https://archive.ics.uci.edu/static/public/8/audiology%2Bstandardized.zip",
         "uci_8.zip",
+        processors._prepare_audiology,
     ),
     "census_income_uci": (
         "https://archive.ics.uci.edu/static/public/117/census%2Bincome%2Bkdd.zip",
         "uci_117.zip",
+        processors._prepare_census_income,
     ),
     **{
         f"monks_{problem}": (
             "https://archive.ics.uci.edu/static/public/70/monk%2Bs%2Bproblems.zip",
             "uci_70.zip",
+            processors._prepare_monks,
         )
         for problem in range(1, 4)
     },
@@ -907,11 +929,12 @@ def _uci_categorical(
     categorical_features: tuple[str, ...] = (),
     drop_features: tuple[str, ...] = (),
 ) -> DatasetSpec:
-    source_url, source_filename = _UCI_ARCHIVES.get(
+    source_url, source_filename, prepare = _UCI_ARCHIVES.get(
         name,
         (
             f"https://archive.ics.uci.edu/static/public/{data_id}/data.csv",
             f"uci_{data_id}.csv",
+            processors._prepare_categorical_table,
         ),
     )
     return DatasetSpec(
@@ -927,17 +950,18 @@ def _uci_categorical(
         split_kind=(
             "official_test"
             if name in _UCI_ARCHIVES
-            else "blocked"
-            if name == "bike_sharing"
-            else "stratified"
-            if task == "classification"
-            else "random"
+            else (
+                "blocked"
+                if name == "bike_sharing"
+                else "stratified" if task == "classification" else "random"
+            )
         ),
         citation=f"{title}. UCI Machine Learning Repository, dataset {data_id}.",
         license="CC BY 4.0",
         target=target,
         categorical_features=categorical_features,
         drop_features=drop_features,
+        prepare=prepare,
     )
 
 
@@ -1248,4 +1272,5 @@ DATASETS["south_german_credit"] = DatasetSpec(
         "telef",
         "gastarb",
     ),
+    prepare=processors._prepare_south_german_credit,
 )

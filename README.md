@@ -91,9 +91,10 @@ Public datasets
 ---------------
 
 `dxgb_bench.datasets.public` provides a reusable pipeline for public numerical and
-categorical benchmark datasets. It downloads original sources atomically, prepares native
-categorical feature codes, and stores memory-mapped NumPy arrays with source hashes,
-citations, licenses, feature metadata, and split metadata.
+categorical benchmark datasets. It downloads original sources atomically and preserves
+categorical columns as pandas categories. Prepared DataFrames are stored as Parquet;
+numerical arrays, labels, and split arrays use memory-mapped NumPy files. Metadata records
+source hashes, citations, licenses, feature information, and split semantics.
 
 Use either the dedicated command or the main command's `datasets` subcommand:
 
