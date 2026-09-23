@@ -14,7 +14,7 @@ if (DXGB_USE_CUDA)
   enable_language(CUDA)
   target_sources(dxgbbench PRIVATE ${CMAKE_SOURCE_DIR}/gen.cu)
   find_package(CUDAToolkit REQUIRED)
-  find_package(CCCL CONFIG HINTS ${CUDAToolkit_LIBRARY_DIR}/cmake)
+  find_package(CCCL CONFIG)
   if(NOT CCCL_FOUND)
     message(FATAL_ERROR "Standalone CCCL not found. Attempting to use CCCL from CUDA Toolkit...")
   endif()
@@ -27,7 +27,9 @@ if (DXGB_USE_CUDA)
   set_target_properties(dxgbbench PROPERTIES
     CUDA_VISIBILITY_PRESET hidden
   )
-  target_compile_definitions(dxgbbench PRIVATE -DDXGB_USE_CUDA=1)
+  target_compile_definitions(dxgbbench PRIVATE
+    -DDXGB_USE_CUDA=1
+    $<$<PLATFORM_ID:Windows>:NOMINMAX>)
   target_compile_options(dxgbbench PRIVATE )
 endif ()
 
