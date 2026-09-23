@@ -46,16 +46,22 @@ COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
 
 RUN \
     cd /ws/ && \
-    ./clone_xgboost.sh ${INSTALL_XGBOOST} ${XGBOOST_REPO} ${XGBOOST_CHECKOUT}
+    ./clone_xgboost.sh "${INSTALL_XGBOOST}" "${XGBOOST_REPO}" "${XGBOOST_CHECKOUT}"
 
 RUN \
+    source /opt/conda/etc/profile.d/conda.sh && \
+    conda activate base && \
+    unset NVCC_PREPEND_FLAGS && \
     cd /ws/ && \
     echo "CONDA_ENV ${CONDA_PREFIX}" && \
-    ./install_xgboost.sh ${INSTALL_XGBOOST} ${SM}
+    ./install_xgboost.sh "${INSTALL_XGBOOST}" "${SM}"
 
 COPY dxgb_bench ws/dxgb_bench
 
 RUN \
+    source /opt/conda/etc/profile.d/conda.sh && \
+    conda activate base && \
+    unset NVCC_PREPEND_FLAGS && \
     cd /ws/ && \
     ./build_dxgb_bench.sh
 
