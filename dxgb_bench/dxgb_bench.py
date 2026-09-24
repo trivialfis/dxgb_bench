@@ -22,7 +22,7 @@ from .datasets.public.cli import DESCRIPTION as PUBLIC_DATASETS_DESCRIPTION
 from .datasets.public.cli import add_arguments as add_public_dataset_arguments
 from .datasets.public.cli import run as run_public_datasets
 from .datasets.public.cli import validate_args as validate_public_dataset_args
-from .external_mem import make_iter
+from .external_mem import make_extmem_qdms, make_iter
 from .strip import make_strips
 from .utils import (
     DFT_OUT,
@@ -129,7 +129,12 @@ def bench(
     params: dict[str, Any],
     opts: Opts,
     n_rounds: int,
-) -> None:
+) -> tuple[xgb.Booster, dict[str, Any]]:
+    """Train and report a single-process benchmark."""
+    if task not in ("qdm", "qdm-iter", "ext-qdm-iter", "ext-dm-iter"):
+        raise ValueError(f"Invalid task: {task}")
+    if task == "qdm" and opts.on_the_fly:
+        raise ValueError("Use qdm-iter for on-the-fly generation.")
     if not opts.on_the_fly:
         for d in loadfrom:
             assert os.path.exists(d), d
@@ -142,79 +147,76 @@ def bench(
                     X, y, test_size=TEST_SIZE, random_state=2024
                 )
                 with Timer("Train", "DMatrix-Train"):
-                    Xy = QuantileDMatrix(X_train, y_train, max_bin=params["max_bin"])
+                    Xy_train: xgb.DMatrix = QuantileDMatrix(
+                        X_train, y_train, max_bin=params["max_bin"]
+                    )
                 with Timer("Train", "DMatrix-Valid"):
-                    Xy_valid = QuantileDMatrix(X_test, y_test, ref=Xy)
-                watches = [(Xy, "Train"), (Xy_valid, "Valid")]
+                    Xy_valid: xgb.DMatrix | None = QuantileDMatrix(
+                        X_test, y_test, max_bin=params["max_bin"], ref=Xy_train
+                    )
+                watches = [(Xy_train, "Train"), (Xy_valid, "Valid")]
             else:
                 with Timer("Train", "DMatrix-Train"):
-                    Xy = QuantileDMatrix(X, y, max_bin=params["max_bin"])
-                    Xy_valid = None
-                watches = [(Xy, "Train")]
-
-            evals_result: EvalsLog = {}
-            with Timer("Train", "Train"):
-                booster = xgb.train(
-                    params,
-                    Xy,
-                    num_boost_round=n_rounds,
-                    evals=watches,
-                    verbose_eval=True,
-                    evals_result=evals_result,
-                )
-
-            opts = fill_opts_shape(opts, Xy, Xy_valid, 1)
-        else:
-            assert task == "qdm-iter"
-
-            it_train, it_valid = make_iter(opts, loadfrom, is_ext=False)
-            with Timer("Train", "DMatrix-Train"):
-                Xy_train = QuantileDMatrix(it_train, max_bin=params["max_bin"])
+                    Xy_train = QuantileDMatrix(X, y, max_bin=params["max_bin"])
                 watches = [(Xy_train, "Train")]
-
-            if opts.validation:
-                with Timer("Train", "DMatrix-Valid"):
-                    Xy_valid = QuantileDMatrix(it_valid, ref=Xy_train)
+            n_batches = 1
+        else:
+            it_train, it_valid = make_iter(
+                opts, loadfrom, is_ext=task in ("ext-qdm-iter", "ext-dm-iter")
+            )
+            n_batches = it_train.n_batches
+            if task == "ext-qdm-iter":
+                Xy_train, watches = make_extmem_qdms(
+                    opts, params["max_bin"], it_train, it_valid
+                )
+            else:
+                matrix = QuantileDMatrix if task == "qdm-iter" else xgb.DMatrix
+                dargs: dict[str, Any] = (
+                    {"max_bin": params["max_bin"]} if task == "qdm-iter" else {}
+                )
+                with Timer("Train", "DMatrix-Train"):
+                    Xy_train = matrix(it_train, **dargs)
+                watches = [(Xy_train, "Train")]
+                if it_valid is not None:
+                    if task == "qdm-iter":
+                        dargs["ref"] = Xy_train
+                    with Timer("Train", "DMatrix-Valid"):
+                        Xy_valid = matrix(it_valid, **dargs)
                     watches.append((Xy_valid, "Valid"))
-            else:
-                Xy_valid = None
 
-            evals_result = {}
-            with Timer("Train", "Train"):
-                booster = xgb.train(
-                    params,
-                    Xy_train,
-                    num_boost_round=n_rounds,
-                    evals=watches,
-                    verbose_eval=True,
-                    evals_result=evals_result,
-                )
+        evals_result: EvalsLog = {}
+        with Timer("Train", "Train"):
+            booster = xgb.train(
+                params,
+                Xy_train,
+                num_boost_round=n_rounds,
+                evals=watches,
+                verbose_eval=True,
+                evals_result=evals_result,
+            )
 
-            if len(watches) >= 2:
-                assert watches[1][1] == "Valid"
-                opts = fill_opts_shape(
-                    opts, Xy_train, watches[1][0], it_train.n_batches
-                )
-            else:
-                opts = fill_opts_shape(opts, Xy_train, None, it_train.n_batches)
+    Xy_valid = watches[1][0] if len(watches) == 2 else None
+    opts = fill_opts_shape(opts, Xy_train, Xy_valid, n_batches)
+    print(f"Trained for {n_rounds} iterations.")
+    print(Timer.global_timer())
+    assert booster.num_boosted_rounds() == n_rounds
+    opts_dict = merge_opts(opts, params)
+    opts_dict["n_rounds"] = n_rounds
+    opts_dict["n_workers"] = 1
+    opts_dict["task"] = task
+    results = {
+        "opts": opts_dict,
+        "timer": Timer.global_timer(),
+        "evals": evals_result,
+        "machine": machine_info(opts.device),
+    }
+    save_results(
+        results, "extmem" if task in ("ext-qdm-iter", "ext-dm-iter") else "incore"
+    )
 
-        print(f"Trained for {n_rounds} iterations.")
-        print(Timer.global_timer())
-        assert booster.num_boosted_rounds() == n_rounds
-        machine = machine_info(opts.device)
-        opts_dict = merge_opts(opts, params)
-        opts_dict["n_rounds"] = n_rounds
-        opts_dict["n_workers"] = 1
-        results = {
-            "opts": opts_dict,
-            "timer": Timer.global_timer(),
-            "evals": evals_result,
-            "machine": machine,
-        }
-        save_results(results, "incore")
-
-        if model_path is not None:
-            save_booster(booster, model_path)
+    if model_path is not None:
+        save_booster(booster, model_path)
+    return booster, results
 
 
 # https://github.com/dmlc/xgboost/pull/11058
@@ -224,7 +226,7 @@ def quick_inference(model_path: str) -> None:
         from sklearn.model_selection import train_test_split
 
         data = load_digits()
-        X_train, X_test, y_train, y_test = train_test_split(
+        X_train, _, y_train, _ = train_test_split(
             data["data"], data["target"], test_size=0.2
         )
         dtrain = xgb.DMatrix(X_train, label=y_train)
@@ -288,7 +290,7 @@ def bench_inference(
         booster = xgb.Booster(model_file=model_path)
         booster.set_param({"device": device})
 
-        X, y = load_all(loadfrom, device)
+        X, _ = load_all(loadfrom, device)
 
         with Timer("Inference", "Inference"):
             for i in range(n_repeats):
@@ -298,7 +300,38 @@ def bench_inference(
     save_results(results, "infer")
 
 
-def cli_main() -> None:
+def validate_bench_args(
+    parser: argparse.ArgumentParser, args: argparse.Namespace
+) -> None:
+    """Reject unsupported benchmark combinations before loading data or allocating."""
+    methods = (
+        ("auto", "hist", "approx") if args.task == "ext-dm-iter" else ("auto", "hist")
+    )
+    if args.tree_method not in methods:
+        parser.error(f"--task={args.task} requires --tree_method in {methods}.")
+    if args.fly:
+        if args.task == "qdm":
+            parser.error("--fly requires an iterator task; use --task=qdm-iter.")
+        if args.n_samples_per_batch is None or args.n_samples_per_batch <= 0:
+            parser.error("--fly requires a positive --n_samples_per_batch.")
+        if args.n_features <= 0 or args.n_batches <= 0 or args.n_targets <= 0:
+            parser.error(
+                "--fly requires positive --n_features, --n_batches, and --n_targets."
+            )
+        if args.valid and args.n_samples_per_batch < 2:
+            parser.error("--fly --valid requires at least 2 samples per batch.")
+    if args.assparse or args.fmt != "auto":
+        parser.error(
+            "--assparse and --fmt are datagen options; bench detects stored formats."
+        )
+    for name in ("cache_host_ratio", "min_cache_page_bytes"):
+        if getattr(args, name) is not None and (
+            args.task != "ext-qdm-iter" or args.device != "cuda"
+        ):
+            parser.error(f"--{name} requires --task=ext-qdm-iter --device=cuda.")
+
+
+def cli_main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--version", action="store_true")
 
@@ -307,7 +340,7 @@ def cli_main() -> None:
     if_parser = subsparsers.add_parser("infer")
     bh_parser = subsparsers.add_parser("bench")
     mi_parser = subsparsers.add_parser("mi", description="Print machine information.")
-    di_parser = subsparsers.add_parser("di", description="Print device attributes.")
+    subsparsers.add_parser("di", description="Print device attributes.")
     rmm_peak_parser = subsparsers.add_parser(
         "rmmpeak", description="Get the peak memory usage from a RMM log."
     )
@@ -334,7 +367,7 @@ def cli_main() -> None:
 
     # Benchmark parser
     bh_parser = add_device_param(bh_parser)
-    bh_parser = add_data_params(bh_parser, False)
+    bh_parser = add_data_params(bh_parser, False, n_features=512)
     bh_parser.add_argument(
         "--fly",
         action="store_true",
@@ -349,10 +382,10 @@ def cli_main() -> None:
     )
     bh_parser.add_argument(
         "--task",
-        choices=["qdm", "qdm-iter", "machine"],
+        choices=["qdm", "qdm-iter", "ext-qdm-iter", "ext-dm-iter"],
         help=(
-            "qdm is to use the `QuantileDMatrix` with a single blob of data, "
-            + "whereas the `qdm-iter` uses the `QuantileDMatrix` with an iterator."
+            "qdm: QuantileDMatrix from all data; qdm-iter: QuantileDMatrix from an "
+            "iterator; ext-qdm-iter: ExtMemQuantileDMatrix; ext-dm-iter: external-memory DMatrix."
         ),
         required=True,
     )
@@ -385,7 +418,7 @@ def cli_main() -> None:
         default="inplace_np",
     )
 
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     if args.version is True:
         fprint(__version__)
         return
@@ -427,20 +460,14 @@ def cli_main() -> None:
         )
     else:
         assert args.command == "bench"
+        validate_bench_args(bh_parser, args)
         loadfrom = split_path(args.loadfrom)
         params = make_params_from_args(args)
 
-        n_batches = args.n_batches
-        if args.fly:
-            n = args.n_samples_per_batch * n_batches
-        else:
-            n = 0
-
-        n_features = args.n_features
         opts = Opts(
-            n_samples_per_batch=n // n_batches,
-            n_features=n_features,
-            n_batches=n_batches,
+            n_samples_per_batch=args.n_samples_per_batch if args.fly else 0,
+            n_features=args.n_features,
+            n_batches=args.n_batches,
             n_targets=args.n_targets,
             sparsity=args.sparsity,
             on_the_fly=args.fly,
@@ -456,11 +483,11 @@ def cli_main() -> None:
         if is_cuda and opts.mr is not None:
             setup_rmm(opts.mr)
 
+        async_pool = (is_cuda and args.mr == "cuda") if has_async_pool() else None
         with xgb.config_context(
             verbosity=args.verbosity,
             use_rmm=is_cuda and need_rmm(args.mr),
-            use_cuda_async_pool=is_cuda
-            and (args.mr == "cuda" if has_async_pool() else None),
+            use_cuda_async_pool=async_pool,
         ):
             bench(
                 args.task,

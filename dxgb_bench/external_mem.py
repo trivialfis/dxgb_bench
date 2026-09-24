@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import xgboost as xgb
 
 from .dataiter import (
@@ -13,7 +11,7 @@ from .dataiter import (
     LoadIterStrip,
     SynIterImpl,
 )
-from .utils import Opts, Timer, has_chr, setup_rmm
+from .utils import Opts, Timer, has_chr
 
 
 def make_iter(
@@ -117,37 +115,6 @@ def make_iter(
         min_cache_page_bytes=opts.min_cache_page_bytes,
     )
     return it_train, it_valid
-
-
-def spdm_train(
-    opts: Opts,
-    params: dict[str, Any],
-    n_rounds: int,
-    loadfrom: list[str],
-) -> xgb.Booster:
-    """Train with the Sparse DMatrix."""
-    if opts.mr is not None:
-        setup_rmm(opts.mr)
-
-    it_train, it_valid = make_iter(opts, loadfrom=loadfrom, is_ext=True)
-    with Timer("ExtQdm", "DMatrix-Train"):
-        Xy_train = xgb.DMatrix(it_train)
-
-    watches = [(Xy_train, "Train")]
-
-    if it_valid is not None:
-        Xy_valid = xgb.DMatrix(it_valid)
-        watches.append((Xy_valid, "Valid"))
-
-    with Timer("ExtSparse", "train"):
-        booster = xgb.train(
-            params,
-            Xy_train,
-            num_boost_round=n_rounds,
-            evals=watches,
-            verbose_eval=True,
-        )
-    return booster
 
 
 def make_extmem_qdms(

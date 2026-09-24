@@ -10,8 +10,8 @@ dxgb-bench bench --device=cpu --task=qdm --valid --loadfrom=${DATADIRS}
 dxgb-bench bench --device=cuda --task=qdm --valid --loadfrom=${DATADIRS}
 
 echo "Run extmem bench with QDM"
-dxgb-ext-bench --task=ext-qdm --device=cpu --valid --loadfrom=${DATADIRS}
-dxgb-ext-bench --task=ext-qdm --device=cuda --valid --loadfrom=${DATADIRS}
+dxgb-bench bench --task=ext-qdm-iter --device=cpu --valid --loadfrom=${DATADIRS}
+dxgb-bench bench --task=ext-qdm-iter --device=cuda --valid --loadfrom=${DATADIRS}
 
 echo "Remove data"
 rm -rf ./_tdata0

@@ -54,8 +54,23 @@ dxgb-bench bench --task=qdm --n_rounds=10
 
 - Run external memory test with data synthesized on the fly:
 ``` sh
-dxgb-ext-bench --fly --n_samples_per_batch=2097152 --n_features=256 --n_batches=8 --device=cuda --task=ext-qdm --n_rounds=8 --verbosity=1 --mr=arena
+dxgb-bench bench --fly --n_samples_per_batch=2097152 --n_features=256 --n_batches=8 --device=cuda --task=ext-qdm-iter --n_rounds=8 --verbosity=1 --mr=arena
 ```
+
+| Task           | Matrix                    | Input                                    |
+|----------------|---------------------------|------------------------------------------|
+| `qdm`          | In-core `QuantileDMatrix` | Load and concatenate all stored batches  |
+| `qdm-iter`     | In-core `QuantileDMatrix` | Iterate over stored or generated batches |
+| `ext-qdm-iter` | `ExtMemQuantileDMatrix`   | Iterate over stored or generated batches |
+| `ext-dm-iter`  | External-memory `DMatrix` | Iterate over stored or generated batches |
+
+All tasks share training options, `--valid`, and `--model_path`. Quantile matrices require
+`--tree_method=hist` (or `auto`); `ext-dm-iter` also supports `approx`.  `--fly` requires
+an iterator task and a positive `--n_samples_per_batch`; `--n_features` defaults
+to 512. Without `--fly`, shapes and batch counts come from the stored data. Binary
+classification accepts stored binary labels as well as generated data. `--assparse` and
+`--fmt` belong to `datagen`; benchmark loading detects the stored format. The
+`ext-dm-iter` task accepts dense inputs too.
 
 - Run external memory test on a distributed system (SNMG) with data synthesized on the fly:
 ``` sh
@@ -76,7 +91,6 @@ Commands
 - dxgb-bench
 - dxgb-datasets
 - dxgb-dist-bench
-- dxgb-ext-bench
 
 Run `${COMMAND} --help` for more info, including file formats, where to save the synthetic
 data, hyper-parameters, etc.

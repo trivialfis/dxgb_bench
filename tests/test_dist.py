@@ -9,9 +9,9 @@ import pytest
 from xgboost.compat import concat
 
 from dxgb_bench.dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
+from dxgb_bench.dxgb_bench import bench as local_bench
 from dxgb_bench.dxgb_bench import datagen
 from dxgb_bench.dxgb_dist_bench import bench
-from dxgb_bench.dxgb_ext_bench import qdm_train
 from dxgb_bench.testing import Chdir, Device, TmpDir, devices
 from dxgb_bench.utils import Opts, Timer
 
@@ -55,7 +55,7 @@ def strided_iter(
     def callback(data: np.ndarray, label: np.ndarray) -> None:
         batches.append((data, label))
 
-    for start in range(0, stride):
+    for start in range(stride):
         it = StridedIter(
             it_impl,
             start=start,
@@ -142,6 +142,8 @@ def get_keys(results: dict, opts: Opts) -> list[str]:
     while len(stack) != 0:
         obj = stack.pop()
         for k, v in obj.items():
+            if k == "task":  # Only the single-process benchmark records its task.
+                continue
             if isinstance(v, dict):
                 stack.append(v)
             else:
@@ -182,10 +184,10 @@ def test_syn_json(device: Device) -> None:
 
     with TmpDir(n_dirs=1, delete=True) as tmpdirs, Chdir(tmpdirs[0]):
         Timer.reset()
-        booster_0, results_0 = qdm_train(opts, params, 8, [])
+        _, results_0 = local_bench("ext-qdm-iter", [], None, params, opts, 8)
 
         Timer.reset()
-        booster_1, results_1 = bench(
+        _, results_1 = bench(
             n_rounds=8,
             opts=opts,
             params=params,
@@ -248,10 +250,10 @@ def test_load_json(device: Device) -> None:
         )
 
         Timer.reset()
-        booster_0, results_0 = qdm_train(opts, params, 8, tmpdirs)
+        _, results_0 = local_bench("ext-qdm-iter", tmpdirs, None, params, opts, 8)
 
         Timer.reset()
-        booster_1, results_1 = bench(
+        _, results_1 = bench(
             n_rounds=8,
             opts=opts,
             params=params,
