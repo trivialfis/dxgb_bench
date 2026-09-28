@@ -10,6 +10,7 @@ dependencies:
 - cuda-cudart-dev
 - cuda-nvcc
 - cuda-profiler-api
+- nvidia-ml-py
 - libcurand-dev
 - cuda-python
 - cuda-cccl
