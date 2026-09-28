@@ -6,6 +6,7 @@ INSTALL_XGBOOST=$1
 SM=$2
 
 echo "CONDA_ENV ${CONDA_PREFIX}"
+unset NVCC_PREPEND_FLAGS
 
 if [[ -n ${INSTALL_XGBOOST} && -n ${SM} ]]; then
     cd /ws

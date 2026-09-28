@@ -1,0 +1,10 @@
+.pixi
+build
+**/__pycache__
+.mypy_cache
+.pytest_cache
+.ruff_cache
+**/*.egg-info
+**/*.so
+data
+dxgb_bench_workspace

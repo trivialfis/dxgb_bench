@@ -385,7 +385,7 @@ class Nvml:
 
 
 def c2cinfo() -> int | None:
-    # mamba install nvidia-ml-py -c rapidsai -c nvidia
+    # nvidia-ml-py is provided by the Pixi environment.
     with Nvml() as nm:
         # Or just run `nvidia-smi c2c -i 0 -s`. If there's no C2C device, it returns 3.
         # This script uses nvml to do the same thing.

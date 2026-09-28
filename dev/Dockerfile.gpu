@@ -1,69 +1,47 @@
-FROM rapidsai/ci-conda:cuda13.2.1-ubuntu24.04-py3.12
+ARG PIXI_VERSION=0.77.0
+FROM ghcr.io/prefix-dev/pixi:${PIXI_VERSION} AS pixi
+FROM nvcr.io/nvidia/cuda:13.2.1-base-ubuntu24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+COPY --from=pixi /usr/local/bin/pixi /usr/local/bin/pixi
+
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install --no-install-recommends -y \
+        ca-certificates curl git gosu numactl perl time wget && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /ws
+COPY dev/install_nsys.sh dev/install_ncu.sh /ws/
 ARG ARCH
+RUN apt-get update && \
+    ./install_nsys.sh "${ARCH}" && \
+    ./install_ncu.sh "${ARCH}" && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /ws/dxgb_bench
+COPY . .
+
+# Docker builds cannot detect the host GPU.
+RUN --mount=type=cache,target=/root/.cache/rattler \
+    CONDA_OVERRIDE_CUDA=13.2 pixi install --environment dev && \
+    CONDA_OVERRIDE_CUDA=13.2 pixi shell-hook --as-is --environment dev --shell bash \
+        > /etc/profile.d/pixi.sh
+
+# Keep XGBoost arguments below the benchmark build to preserve its cache.
 ARG SM
+RUN source /etc/profile.d/pixi.sh && bash dev/build_dxgb_bench.sh "${SM}"
+
 ARG INSTALL_XGBOOST
 ARG XGBOOST_REPO
 ARG XGBOOST_CHECKOUT
+RUN source /etc/profile.d/pixi.sh && \
+    bash dev/clone_xgboost.sh "${INSTALL_XGBOOST}" "${XGBOOST_REPO}" "${XGBOOST_CHECKOUT}" && \
+    bash dev/install_xgboost.sh "${INSTALL_XGBOOST}" "${SM}"
 
-ENV DEBIAN_FRONTEND noninteractive
-SHELL ["/bin/bash", "-c"]
-
-RUN set -x \
-    # basic dependencies
-    apt-key adv --fetch-keys https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2204/x86_64/3bf863cc.pub && \
-    apt-get update && apt-get upgrade -y && \
-    apt-get install gosu numactl -y
-
-RUN \
-    # mamba installation dependencies
-    apt-get install unzip bzip2 curl -y
-
-RUN mkdir ws
-
-COPY dxgb_bench/dev/xgboost_dev.yml ws/xgboost_dev.yml
-COPY dxgb_bench/dev/xgboost_aarch_dev.yml ws/xgboost_aarch_dev.yml
-COPY dxgb_bench/dev/install_nsys.sh ws/install_nsys.sh
-
-RUN \
-    cd ws && \
-    ./install_nsys.sh $ARCH && \
-    cd -
-
-COPY dxgb_bench/dev/install_ncu.sh ws/install_ncu.sh
-
-RUN \
-    cd ws && \
-    ./install_ncu.sh $ARCH && \
-    cd -
-
-COPY dxgb_bench/dev/build_conda_env.sh ws/build_conda_env.sh
-
-RUN --mount=type=cache,target=/opt/conda/pkgs /ws/build_conda_env.sh $ARCH
-
-COPY dxgb_bench/dev/clone_xgboost.sh ws/clone_xgboost.sh
-COPY dxgb_bench/dev/install_xgboost.sh ws/install_xgboost.sh
-COPY dxgb_bench/dev/build_dxgb_bench.sh ws/build_dxgb_bench.sh
-
-RUN \
-    cd /ws/ && \
-    ./clone_xgboost.sh "${INSTALL_XGBOOST}" "${XGBOOST_REPO}" "${XGBOOST_CHECKOUT}"
-
-RUN \
-    source /opt/conda/etc/profile.d/conda.sh && \
-    conda activate base && \
-    unset NVCC_PREPEND_FLAGS && \
-    cd /ws/ && \
-    echo "CONDA_ENV ${CONDA_PREFIX}" && \
-    ./install_xgboost.sh "${INSTALL_XGBOOST}" "${SM}"
-
-COPY dxgb_bench ws/dxgb_bench
-
-RUN \
-    source /opt/conda/etc/profile.d/conda.sh && \
-    conda activate base && \
-    unset NVCC_PREPEND_FLAGS && \
-    cd /ws/ && \
-    ./build_dxgb_bench.sh
-
-RUN \
-    apt-get install time -y
+COPY --chmod=755 dev/entrypoint.sh /usr/local/bin/dxgb-entrypoint
+ENV PATH="/ws/dxgb_bench/.pixi/envs/dev/bin:${PATH}"
+ENTRYPOINT ["/usr/local/bin/dxgb-entrypoint"]
+CMD ["/bin/bash"]

@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import argparse
-import os
 import platform
-import shutil
 import subprocess
+from pathlib import Path
 
 
 def main(args: argparse.Namespace) -> None:
-    shutil.copyfile("dxgb_bench/dev/Dockerfile.gpu", "Dockerfile")
+    repo_root = Path(__file__).resolve().parents[1]
     build_args = args.build_args
     if args.tag is None:
         tag = f"dxgb-bench-{args.arch}-{args.sm}:latest"
@@ -18,7 +17,9 @@ def main(args: argparse.Namespace) -> None:
         "docker",
         "build",
         "--progress=plain",
-        ".",
+        "--file",
+        str(repo_root / "dev" / "Dockerfile.gpu"),
+        str(repo_root),
         "-t",
         tag,
         "--build-arg",
@@ -46,7 +47,6 @@ def main(args: argparse.Namespace) -> None:
             cmd.extend(["--build-arg", kv])
 
     subprocess.check_call(cmd)
-    os.remove("Dockerfile")
 
     if args.push:
         cmd = ["docker", "push", tag]
@@ -54,13 +54,15 @@ def main(args: argparse.Namespace) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="""
+    parser = argparse.ArgumentParser(
+        description="""
 
 Examples:
 
     python ./dxgb_bench/dev/build_image.py --arch=aarch --sm=90a
 
-    """)
+    """
+    )
     machine = platform.machine()
     dft_arch = "aarch" if machine.startswith("aarch") else "x86"
     parser.add_argument(

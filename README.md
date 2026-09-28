@@ -2,32 +2,35 @@ Some scripts for running benchmarks with XGBoost.
 
 Container image
 ---------------
-One level above the `dxgb_bench` directory, run
+From the repository root, run
 
 ``` sh
-python ./dxgb_bench/dev/build_image.py --arch=x86 --sm=89 --install-xgboost
+python dev/build_image.py --arch=x86 --sm=89 --install-xgboost
 ```
 
-Run
-``` sh
-python ./dxgb_bench/dev/build_image.py --help
-```
-for more options.
+Run `python dev/build_image.py --help` for more options.
 
 Building from source
 --------------------
-To use the data gen written C++, we need to build it using CMake first. One can use the
-`dxgb-bench` to generate the data, or generate them on the fly with the external memory
-version of XGBoost.
+Bare-metal and container builds share [pixi.toml](pixi.toml). Build the C++ data
+generator and install the benchmark with:
 
 ``` sh
 git clone https://github.com/trivialfis/dxgb_bench.git
 cd dxgb_bench
-mkdir build && cd build
-cmake ../dxgb_bench -DCMAKE_CUDA_ARCHITECTURS=89 -GNinja
-ninja
-cd ../
-pip install -e . --no-build-isolation --no-deps
+pixi install
+pixi run build 89
+pixi shell
+```
+
+`pixi run build` defaults to all CUDA architectures. To use a separately built
+XGBoost checkout, select the dependency-only `dev` environment instead:
+
+``` sh
+pixi install --environment dev
+pixi run --environment dev pip install /path/to/xgboost/python-package --no-deps --no-build-isolation
+pixi run --environment dev build 89
+pixi shell --environment dev
 ```
 
 Synthetic data
@@ -210,26 +213,3 @@ The result of a test is saved into a JSON file under the working directory. An e
 ```
 
 </details>
-
-Python dependencies
--------------------
-
-The yml files contain dependencies that are not strictly necessary for running the
-commands. I use them for docker build, which requires the entire tool chain to compile
-XGBoost and dxgb-bench C++ code.
-
-## Build time
-- setuptools
-- setuptools-scm
-
-## Run time (CUDA)
-- nvml (python)
-- cupy
-- numpy
-- xgboost
-- pandas
-- pyarrow
-- tqdm
-- packaging
-- typing_extensions
-- scipy

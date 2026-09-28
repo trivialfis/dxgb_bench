@@ -196,7 +196,6 @@ def _make_iter_qdms(
         dargs = {
             "data": it_train,
             "max_bin": max_bin,
-            "max_quantile_batches": 32,
         }
 
         Xy_train: xgboost.DMatrix = xgboost.QuantileDMatrix(**dargs)

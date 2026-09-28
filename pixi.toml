@@ -3,18 +3,42 @@ name = "dxgb_bench"
 version = "0.1.0"
 description = "Benchmark utility for XGBoost with GPU support"
 channels = ["rapidsai", "nvidia", "conda-forge", "https://prefix.dev/pixi-build-backends"]
-platforms = ["linux-64"]
+platforms = [
+    # pyhwloc publishes manylinux_2_34 wheels for both architectures.
+    { platform = "linux-64", cuda = "13.2", glibc = "2.34" },
+    { platform = "linux-aarch64", cuda = "13.2", glibc = "2.34" },
+]
 channel-priority = "disabled"
 preview = ["pixi-build"]
+requires-pixi = ">=0.77.0"
 
 [dependencies]
-# XGBoost Python package (depends on C++ library built from source)
-py-xgboost = { path = "packages/xgboost-python" }
+# Build tools
+c-compiler = "*"
+cxx-compiler = "*"
+cmake = ">=3.24"
+ninja = "*"
+git = "*"
+gtest = ">=1.13.0"
+
+# CUDA toolkit
+cuda-cudart-dev = "*"
+cuda-nvcc = "*"
+cuda-profiler-api = "*"
+cuda-cccl = "*"
+cuda-nvtx-dev = "*"
+cuda-version = "13.2.*"
+libcurand-dev = "*"
+nccl = "*"
+nvidia-ml-py = "*"
 
 # Python
 python = "3.12.*"
 pip = "*"
+setuptools = "*"
 setuptools-scm = "*"
+hatchling = "*"
+scikit-build-core = "*"
 
 # Python testing
 hypothesis = "*"
@@ -23,16 +47,18 @@ pytest = "*"
 # Python data science
 numpy = "*"
 pandas = "*"
+pyarrow = "*"
 scipy = "*"
 scikit-learn = "*"
 
 # Python dask
 dask = ">=2024.10"
 distributed = ">=2024.10"
+asyncssh = "*"
 
 # GPU (RAPIDS)
 cuda-python = "*"
-cudf = "25.*"
+cudf = "26.06.*"
 cupy = "*"
 kvikio = "*"
 
@@ -42,7 +68,23 @@ typing_extensions = "*"
 
 [pypi-dependencies]
 build = "*"
+pyhwloc = "*"
+
+[target.linux-64.dependencies]
+sysroot_linux-64 = "2.28.*"
+
+[target.linux-aarch64.dependencies]
+sysroot_linux-aarch64 = "2.28.*"
+
+[feature.source-xgboost.dependencies]
+py-xgboost = { path = "packages/xgboost-python" }
+
+[environments]
+default = { features = ["source-xgboost"], solve-group = "default" }
+# For separately installed XGBoost.
+dev = { features = [], solve-group = "default" }
 
 [tasks]
+build = { cmd = "bash dev/build_dxgb_bench.sh" }
 # Install dxgb_bench itself
 install = { cmd = "pip install -e . --no-deps --no-build-isolation" }
