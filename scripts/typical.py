@@ -1,9 +1,23 @@
 import argparse
+import os
 import shlex
 import shutil
 import subprocess
 from itertools import product
 from pathlib import Path
+
+
+def numa_nodes(gpu: str, query: str) -> str:
+    """Query the GPU's nearest CPU (-C) or memory (-M) NUMA nodes."""
+    output = subprocess.check_output(
+        ["nvidia-smi", "topo", query, "-i", gpu], text=True
+    )
+    nodes = output.rpartition(":")[2].strip().replace(" ", "")
+    if not all(node.isdecimal() for node in nodes.split(",")):
+        raise RuntimeError(
+            f"Cannot determine NUMA nodes for GPU {gpu}: {output.strip()}"
+        )
+    return nodes
 
 
 def main() -> None:
@@ -13,12 +27,33 @@ def main() -> None:
     )
     parser.add_argument("--n-batches", type=int, required=True, help="Batches per run.")
     parser.add_argument("--n-samples-per-batch", type=int, default=2**20)
+    parser.add_argument(
+        "--gpu", type=int, default=0, help="nvidia-smi GPU index (default: 0)."
+    )
     args = parser.parse_args()
     if args.n_batches <= 0 or args.n_samples_per_batch <= 0:
         parser.error("Batch count and samples per batch must be positive.")
 
+    gpu_uuid = subprocess.check_output(
+        [
+            "nvidia-smi",
+            "-i",
+            str(args.gpu),
+            "--query-gpu=uuid",
+            "--format=csv,noheader",
+        ],
+        text=True,
+    ).strip()
+    cpu_nodes = numa_nodes(gpu_uuid, "-C")
+    mem_nodes = numa_nodes(gpu_uuid, "-M")
+    env = {**os.environ, "CUDA_VISIBLE_DEVICES": gpu_uuid}
+    print(f"GPU {args.gpu}: CPU NUMA nodes {cpu_nodes}, memory NUMA nodes {mem_nodes}")
+
     args.output_dir.mkdir(parents=True)
     common = [
+        "numactl",
+        f"--cpunodebind={cpu_nodes}",
+        f"--membind={mem_nodes}",
         "dxgb-bench",
         "bench",
         "--task=qdm-iter",
@@ -44,7 +79,7 @@ def main() -> None:
         ]
         print(shlex.join(command), flush=True)
         # dxgb-bench writes the next incore-N.json in its working directory.
-        subprocess.run(command, cwd=args.output_dir, check=True)
+        subprocess.run(command, cwd=args.output_dir, env=env, check=True)
 
     archive = shutil.make_archive(
         str(args.output_dir),
