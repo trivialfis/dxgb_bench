@@ -1,0 +1,59 @@
+import argparse
+import shlex
+import shutil
+import subprocess
+from itertools import product
+from pathlib import Path
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--output-dir", type=Path, required=True, help="New results directory."
+    )
+    parser.add_argument("--n-batches", type=int, required=True, help="Batches per run.")
+    parser.add_argument("--n-samples-per-batch", type=int, default=2**20)
+    args = parser.parse_args()
+    if args.n_batches <= 0 or args.n_samples_per_batch <= 0:
+        parser.error("Batch count and samples per batch must be positive.")
+
+    args.output_dir.mkdir(parents=True)
+    common = [
+        "dxgb-bench",
+        "bench",
+        "--task=qdm-iter",
+        "--fly",
+        "--device=cuda",
+        "--mr=cuda",
+        "--tree_method=hist",
+        "--n_rounds=128",
+        "--max_depth=6",
+        "--n_bins=256",
+        f"--n_samples_per_batch={args.n_samples_per_batch}",
+        f"--n_batches={args.n_batches}",
+    ]
+    targets = [(1, "one_output_per_tree"), (4, "multi_output_tree")]
+    for n_features, policy, (n_targets, strategy) in product(
+        (256, 512), ("depthwise", "lossguide"), targets
+    ):
+        command = common + [
+            f"--n_features={n_features}",
+            f"--policy={policy}",
+            f"--n_targets={n_targets}",
+            f"--multi_strategy={strategy}",
+        ]
+        print(shlex.join(command), flush=True)
+        # dxgb-bench writes the next incore-N.json in its working directory.
+        subprocess.run(command, cwd=args.output_dir, check=True)
+
+    archive = shutil.make_archive(
+        str(args.output_dir),
+        "zip",
+        root_dir=args.output_dir.parent,
+        base_dir=args.output_dir.name,
+    )
+    print(f"Saved results archive: {archive}", flush=True)
+
+
+if __name__ == "__main__":
+    main()
