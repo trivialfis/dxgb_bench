@@ -49,7 +49,8 @@ def main() -> None:
     env = {**os.environ, "CUDA_VISIBLE_DEVICES": gpu_uuid}
     print(f"GPU {args.gpu}: CPU NUMA nodes {cpu_nodes}, memory NUMA nodes {mem_nodes}")
 
-    args.output_dir.mkdir(parents=True)
+    output_dir: Path = args.output_dir
+    output_dir.expanduser().mkdir(parents=True)
     common = [
         "numactl",
         f"--cpunodebind={cpu_nodes}",
