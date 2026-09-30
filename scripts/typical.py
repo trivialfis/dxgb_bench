@@ -23,10 +23,10 @@ def numa_nodes(gpu: str, query: str) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--output-dir", type=Path, required=True, help="New results directory."
+        "--output_dir", type=Path, required=True, help="New results directory."
     )
-    parser.add_argument("--n-batches", type=int, required=True, help="Batches per run.")
-    parser.add_argument("--n-samples-per-batch", type=int, default=2**20)
+    parser.add_argument("--n_batches", type=int, required=True, help="Batches per run.")
+    parser.add_argument("--n_samples_per_batch", type=int, default=2**20)
     parser.add_argument(
         "--gpu", type=int, default=0, help="nvidia-smi GPU index (default: 0)."
     )
