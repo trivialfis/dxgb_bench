@@ -90,7 +90,7 @@ def make_reg_c(
 
 def make_sparse_regression(
     n_samples: int, n_features: int, *, sparsity: float, random_state: int
-) -> Tuple[sparse.csr_matrix, np.ndarray]:
+) -> tuple[sparse.csr_matrix, np.ndarray]:
     """Make sparse synthetic data for regression. Result is stored in CSR even if the
     data is dense.
 
@@ -101,7 +101,7 @@ def make_sparse_regression(
     n_threads = min(n_threads_maybe_none, n_samples)
     n_samples_per_batch = div_roundup(n_samples, n_threads)
 
-    def random_csr(t_id: int, seed: int) -> sparse.csr_matrix:
+    def random_csr(t_id: int, seed: int) -> tuple[sparse.csr_matrix, np.ndarray]:
         rng = np.random.default_rng(seed)
         if t_id == n_threads - 1:
             nspb = n_samples - (n_samples_per_batch * (n_threads - 1))
