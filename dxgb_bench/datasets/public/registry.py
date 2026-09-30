@@ -427,7 +427,9 @@ def _openml_categorical(
         split_kind=(
             "blocked"
             if name == "bank_marketing"
-            else "stratified" if task == "classification" else "random"
+            else "stratified"
+            if task == "classification"
+            else "random"
         ),
         citation=f"OpenML dataset {data_id}: {title}.",
         license=license,
@@ -953,7 +955,9 @@ def _uci_categorical(
             else (
                 "blocked"
                 if name == "bike_sharing"
-                else "stratified" if task == "classification" else "random"
+                else "stratified"
+                if task == "classification"
+                else "random"
             )
         ),
         citation=f"{title}. UCI Machine Learning Repository, dataset {data_id}.",

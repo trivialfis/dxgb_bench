@@ -26,11 +26,11 @@ jobs:
         python-version: '3.10'
     - name: Install packages
       run: |
-        python3 -m pip install black isort
+        python3 -m pip install ruff
     - name: Run lint
       run: |
-        black --check .
-        isort --profile=black --check .
+        ruff check .
+        ruff format --check .
 
   tests:
     name: Run basic tests

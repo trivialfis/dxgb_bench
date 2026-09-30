@@ -34,5 +34,5 @@ ignore_missing_imports = true
 disallow_untyped_defs = true
 follow_imports = "silent"
 
-[tool.isort]
-profile = "black"
+[tool.ruff.lint]
+select = ["I"]
