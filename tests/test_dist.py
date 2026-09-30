@@ -9,8 +9,8 @@ import pytest
 from xgboost.compat import concat
 
 from dxgb_bench.dataiter import IterImpl, LoadIterStrip, StridedIter, SynIterImpl
+from dxgb_bench.datasets.generated import datagen
 from dxgb_bench.dxgb_bench import bench as local_bench
-from dxgb_bench.dxgb_bench import datagen
 from dxgb_bench.dxgb_dist_bench import bench
 from dxgb_bench.testing import Chdir, Device, TmpDir, devices
 from dxgb_bench.utils import Opts, Timer

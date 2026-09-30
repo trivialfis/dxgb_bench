@@ -380,6 +380,11 @@ class Strip:
         return results
 
     @property
+    def fmt(self) -> str:
+        """The storage format, inferred from existing files when unspecified."""
+        return self._fmt
+
+    @property
     def batch_key(self) -> dict[int, PathInfo]:
         return self._batch_key
 

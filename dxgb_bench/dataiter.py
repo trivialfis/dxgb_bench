@@ -13,11 +13,7 @@ from typing_extensions import override
 from xgboost.collective import get_rank
 from xgboost.compat import concat
 
-from .datasets.generated import (
-    make_dense_binary_classification,
-    make_dense_regression,
-    make_sparse_regression,
-)
+from .datasets.generated import make_batch
 from .strip import make_strips
 from .utils import TEST_SIZE, Timer, fprint
 
@@ -180,7 +176,9 @@ class SynIterImpl(IterImpl):
         assparse: bool,
         target_type: str,
         device: str,
-        rs: int = 0,
+        rs: int | None = None,
+        *,
+        n_binary: int | None = None,
     ) -> None:
         self.n_samples_per_batch = n_samples_per_batch
         self.n_features = n_features
@@ -191,56 +189,31 @@ class SynIterImpl(IterImpl):
         self.target_type = target_type
         self.device = device
 
-        self.sizes: list[int] = []
         self.rs = rs
-
-        for i in range(self._n_batches):
-            size = self.n_samples_per_batch * self.n_features
-            self.sizes.append(size)
+        self.n_binary = n_binary
 
     @property
     def n_batches(self) -> int:
-        assert len(self.sizes) == self._n_batches
         return self._n_batches
-
-    def _seed(self, i: int) -> int:
-        return self.rs + sum(self.sizes[:i])
 
     @override
     def get(self, i: int) -> tuple[np.ndarray, np.ndarray]:
-        if self.target_type == "bin" and self.assparse:
-            raise NotImplementedError(
-                "assparse is not supported for binary classification yet."
-            )
-        if self.target_type == "bin":
-            X, y = make_dense_binary_classification(
-                device=self.device,
-                n_samples=self.n_samples_per_batch,
-                n_features=self.n_features,
-                n_targets=self.n_targets,
-                random_state=self._seed(i),
-            )
-            assert self.sizes[i] == X.size
-            return X, y
+        if not 0 <= i < self.n_batches:
+            raise IndexError(f"Batch index out of range: {i}")
         if self.assparse:
             assert i == 0, "not implemented"
-            X, y = make_sparse_regression(
-                n_samples=self.n_samples_per_batch,
-                n_features=self.n_features,
-                sparsity=self.sparsity,
-                random_state=self._seed(i),
-            )
-        else:
-            X, y = make_dense_regression(
-                device=self.device,
-                n_samples=self.n_samples_per_batch,
-                n_features=self.n_features,
-                n_targets=self.n_targets,
-                sparsity=self.sparsity,
-                random_state=self._seed(i),
-            )
-        assert self.sizes[i] == X.size, (self.sizes[i], X.size)
-        return X, y
+        return make_batch(
+            self.n_samples_per_batch,
+            self.n_features,
+            self.n_targets,
+            assparse=self.assparse,
+            target_type=self.target_type,
+            sparsity=self.sparsity,
+            device=self.device,
+            n_binary=self.n_binary,
+            random_state=self.rs,
+            row_offset=i * self.n_samples_per_batch,
+        )
 
 
 def train_test_split(

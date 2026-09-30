@@ -9,7 +9,6 @@ from typing import Any
 
 import numpy as np
 import xgboost as xgb
-from scipy import sparse
 from xgboost import QuantileDMatrix
 
 from .dataiter import (
@@ -17,13 +16,13 @@ from .dataiter import (
     load_all,
     train_test_split,
 )
-from .datasets.generated import make_dense_regression, make_sparse_regression, psize
+from .datasets.generated_cli import add_arguments as add_datagen_arguments
+from .datasets.generated_cli import run as run_datagen
 from .datasets.public.cli import DESCRIPTION as PUBLIC_DATASETS_DESCRIPTION
 from .datasets.public.cli import add_arguments as add_public_dataset_arguments
 from .datasets.public.cli import run as run_public_datasets
 from .datasets.public.cli import validate_args as validate_public_dataset_args
 from .external_mem import make_extmem_qdms, make_iter
-from .strip import make_strips
 from .utils import (
     DFT_OUT,
     EvalsLog,
@@ -41,7 +40,6 @@ from .utils import (
     machine_info,
     make_params_from_args,
     merge_opts,
-    mkdirs,
     need_rmm,
     peak_rmm_memory_bytes,
     save_booster,
@@ -49,77 +47,6 @@ from .utils import (
     setup_rmm,
     split_path,
 )
-
-
-def datagen(
-    n_samples_per_batch: int,
-    n_features: int,
-    n_targets: int,
-    n_batches: int,
-    *,
-    assparse: bool,
-    target_type: str,
-    sparsity: float,
-    device: str,
-    outdirs: list[str],
-    fmt: str,
-) -> None:
-    if assparse and fmt == "auto":
-        fmt = "npz"
-    if fmt == "auto":
-        fmt = "kio"
-
-    if target_type != "reg":
-        raise NotImplementedError()
-
-    mkdirs(outdirs)
-
-    with Timer("datagen", "gen"):
-        size = 0
-
-        X_fd, y_fd = make_strips(["X", "y"], outdirs, fmt=fmt, device=device)
-
-        for i in range(n_batches):
-            assert n_samples_per_batch >= 1
-            if not assparse:  # default
-                X, y = make_dense_regression(
-                    device=device,
-                    n_samples=n_samples_per_batch,
-                    n_features=n_features,
-                    n_targets=n_targets,
-                    sparsity=sparsity,
-                    random_state=size,
-                )
-                size_str = psize(X)
-                fprint(
-                    f"Batch:{i}, estimated size: {size_str}. {i * 100 / n_batches:.2f}%",
-                    end="\r",
-                )
-
-                if device == "cuda":
-                    import cupy as cp
-
-                    assert isinstance(X, cp.ndarray)
-
-                X_fd.write(X, batch_idx=i)
-                y_fd.write(y, batch_idx=i)
-            else:
-                out = outdirs[i % len(outdirs)]
-                if n_targets != 1:
-                    raise NotImplementedError()
-                X, y = make_sparse_regression(
-                    n_samples=n_samples_per_batch,
-                    n_features=n_features,
-                    sparsity=sparsity,
-                    random_state=size,
-                )
-                sparse.save_npz(
-                    os.path.join(out, f"X_{X.shape[0]}_{X.shape[1]}-{i}.npz"), X
-                )
-                np.save(os.path.join(out, f"y_{y.shape[0]}_1-{i}.npz"), y)
-            size += X.size
-
-    print(Timer.global_timer())
 
 
 def bench(
@@ -355,15 +282,7 @@ def cli_main(argv: list[str] | None = None) -> None:
     # rmm peak parser
     rmm_peak_parser.add_argument("--path", type=str, required=True)
 
-    # Datagen parser
-    dg_parser = add_data_params(dg_parser, True)
-    dg_parser = add_device_param(dg_parser)
-    dg_parser.add_argument(
-        "--saveto",
-        type=str,
-        default=DFT_OUT,
-        help="Comma separated list of output directories. Poor man's raid0.",
-    )
+    add_datagen_arguments(dg_parser)
 
     # Benchmark parser
     bh_parser = add_device_param(bh_parser)
@@ -424,19 +343,10 @@ def cli_main(argv: list[str] | None = None) -> None:
         return
 
     if args.command == "datagen":
-        saveto = split_path(args.saveto)
-        datagen(
-            n_samples_per_batch=args.n_samples_per_batch,
-            n_features=args.n_features,
-            n_targets=args.n_targets,
-            n_batches=args.n_batches,
-            assparse=args.assparse,
-            target_type=args.target_type,
-            sparsity=args.sparsity,
-            device=args.device,
-            outdirs=saveto,
-            fmt=args.fmt,
-        )
+        try:
+            run_datagen(args)
+        except ValueError as error:
+            dg_parser.error(str(error))
     elif args.command == "mi":
         mi = machine_info(device=args.device)
         print(json.dumps(mi, indent=2))

@@ -4,11 +4,13 @@ from __future__ import annotations
 import os
 import tempfile
 from itertools import product
+from pathlib import Path
 
 import cupy as cp
 import numpy as np
 import pytest
 from scipy import sparse
+from xgboost import QuantileDMatrix
 from xgboost.compat import concat
 
 from dxgb_bench.dataiter import (
@@ -18,8 +20,15 @@ from dxgb_bench.dataiter import (
     get_valid_sizes,
     load_all,
 )
-from dxgb_bench.datasets.generated import make_dense_regression, make_sparse_regression
-from dxgb_bench.dxgb_bench import datagen
+from dxgb_bench.datasets.generated import (
+    datagen,
+    make_dense_regression,
+    make_imbalanced_regression,
+    make_regression_targets,
+    make_sparse_regression,
+    regenerate_targets,
+)
+from dxgb_bench.dxgb_bench import cli_main
 from dxgb_bench.strip import make_file_name, make_strips
 from dxgb_bench.testing import TmpDir, assert_array_allclose, devices, formats, has_cuda
 
@@ -126,84 +135,51 @@ def test_dense_batches(n_targets: int) -> None:
     np.testing.assert_allclose(y0, y1, rtol=1e-5)
 
 
-def run_dense_iter(device: str) -> tuple[np.ndarray, np.ndarray]:
-    n_features = 4
-    n_batches = 12
-    nspb = 8
-
-    impl = SynIterImpl(
-        nspb,
-        n_features,
-        n_targets=1,
-        n_batches=n_batches,
+@pytest.mark.parametrize("device", devices())
+@pytest.mark.parametrize(
+    "target_type,n_binary", [("reg", None), ("bin", None), ("reg", 2)]
+)
+@pytest.mark.parametrize("seed", [None, 19])
+def test_dense_iter(
+    tmp_path: Path,
+    device: str,
+    target_type: str,
+    n_binary: int | None,
+    seed: int | None,
+) -> None:
+    nspb, n_batches = 7, 3
+    args = dict(
+        n_features=4,
+        n_targets=3,
         sparsity=0.0,
         assparse=False,
-        target_type="reg",
+        target_type=target_type,
         device=device,
+        n_binary=n_binary,
     )
-    Xs0, ys0 = [], []
-    Xs1, ys1 = [], []
-    for i in range(n_batches):
-        X, y = impl.get(i)
-        Xs0.append(X)
-        ys0.append(y)
+    impl = SynIterImpl(nspb, n_batches=n_batches, rs=seed, **args)
+    batches = [impl.get(i) for i in range(n_batches)]
+    X = concat([batch[0] for batch in batches])
+    y = concat([batch[1] for batch in batches])
+    for i in reversed(range(n_batches)):
+        X_i, y_i = impl.get(i)
+        assert_array_allclose(X_i, batches[i][0])
+        assert_array_allclose(y_i, batches[i][1])
 
-    for i in range(n_batches):
-        X, y = impl.get(i)
-        Xs1.append(X)
-        ys1.append(y)
+    single = SynIterImpl(nspb * n_batches, n_batches=1, rs=seed, **args)
+    X_single, y_single = single.get(0)
+    assert_array_allclose(X, X_single)
+    assert_array_allclose(y, y_single)
 
-    X0 = concat(Xs0)
-    y0 = concat(ys0)
-
-    X1 = concat(Xs1)
-    y1 = concat(ys1)
-
-    impl = SynIterImpl(
-        nspb * n_batches,
-        n_features,
-        n_targets=1,
-        n_batches=1,
-        sparsity=0.0,
-        assparse=False,
-        target_type="reg",
-        device=device,
+    outdirs = [str(tmp_path / "data")]
+    datagen(
+        nspb, n_batches=n_batches, outdirs=outdirs, fmt="npy", random_state=seed, **args
     )
-    X2, y2 = impl.get(0)
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        path = os.path.join(tmpdir, "data")
-        datagen(
-            nspb,
-            n_features,
-            1,
-            n_batches=n_batches,
-            assparse=False,
-            target_type="reg",
-            sparsity=0.0,
-            device=device,
-            outdirs=[path],
-            fmt="npy",
-        )
-        X3, y3 = load_all([path], "cpu")
-
-    assert_array_allclose(X0, X1)
-    assert_array_allclose(X0, X2)
-    assert_array_allclose(X0, X3)
-
-    assert_array_allclose(y0, y1)
-    assert_array_allclose(y0, y2)
-    assert_array_allclose(y0, y3)
-
-    return X0, y0
-
-
-@pytest.mark.skipif(reason="No CUDA.", condition=not has_cuda())
-def test_dense_iter() -> None:
-    X0, y0 = run_dense_iter("cpu")
-    X1, y1 = run_dense_iter("cuda")
-    assert_array_allclose(X0, X1, rtol=5e-6)
-    assert_array_allclose(y0, y1, rtol=5e-6)
+    stored_X, stored_y = load_all(outdirs, "cpu")
+    assert_array_allclose(X, stored_X)
+    assert_array_allclose(y, stored_y)
+    if target_type == "bin":
+        assert set(np.unique(stored_y)) == {0.0, 1.0}
 
 
 @pytest.mark.parametrize("device,n_targets", product(devices(), [1, 3]))
@@ -361,3 +337,133 @@ def test_load_all(device: str, fmt: str) -> None:
         X_res, y_res = load_all(outdirs, device=device)
         assert_array_allclose(X, X_res.squeeze())
         assert_array_allclose(y, y_res.squeeze())
+
+
+@pytest.mark.parametrize(
+    "device,n_targets,n_binary", list(product(devices(), [1, 4], [0, 3, 8]))
+)
+def test_imbalanced_batches(device: str, n_targets: int, n_binary: int) -> None:
+    kwargs = dict(
+        n_features=8, n_targets=n_targets, n_binary=n_binary, random_state=2026
+    )
+    X, y = make_imbalanced_regression(device, 35, **kwargs)
+    assert X.dtype == y.dtype == np.float32
+    assert X.shape == (35, 8) and y.shape == (35, n_targets)
+    cpu_X, cpu_y = make_imbalanced_regression("cpu", 35, **kwargs)
+    assert_array_allclose(X, cpu_X, rtol=1e-5)
+    np.testing.assert_allclose(
+        cp.asnumpy(y) if device == "cuda" else y, cpu_y, rtol=1e-5, atol=1e-6
+    )
+    assert np.isin(cpu_X[:, :n_binary], [0.0, 1.0]).all()
+    if n_binary < 8:
+        assert np.unique(cpu_X[:, n_binary:]).size > 2
+    # Access batches out of order, including a repeated batch and odd row counts.
+    for begin, end in [(10, 35), (0, 3), (3, 10), (10, 35)]:
+        X_i, y_i = make_imbalanced_regression(
+            device, end - begin, row_offset=begin, **kwargs
+        )
+        assert_array_allclose(X_i, X[begin:end])
+        assert_array_allclose(y_i, y[begin:end])
+    other_X, _ = make_imbalanced_regression(
+        device, 35, 8, n_targets + 1, n_binary=n_binary, random_state=2026
+    )
+    assert_array_allclose(X, other_X)
+
+
+def test_imbalanced_model() -> None:
+    X, y = make_imbalanced_regression("cpu", 2048, 8, 3, n_binary=5)
+    cuts, _ = QuantileDMatrix(X, y, max_bin=32).get_quantile_cut()
+    n_bins = np.diff(cuts)
+    assert (n_bins[:5] <= 3).all()
+    assert (n_bins[5:] > n_bins[:5].max()).all()
+    # A model fitted to one batch must also explain the other batches with unit noise.
+    coef = np.linalg.lstsq(X[:1024], y[:1024], rcond=None)[0]
+    residual = y[1024:] - X[1024:] @ coef
+    assert 0.8 < np.std(residual) < 1.2
+    other_X, other_y = make_imbalanced_regression(
+        "cpu", 2048, 8, 3, n_binary=5, random_state=2027
+    )
+    assert not np.array_equal(X, other_X)
+    assert not np.array_equal(y, other_y)
+
+
+@pytest.mark.parametrize("device,fmt", list(product(devices(), formats())))
+def test_imbalanced_datagen(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, device: str, fmt: str
+) -> None:
+    if fmt == "kio":
+        pytest.importorskip("kvikio")
+    monkeypatch.chdir(tmp_path)
+    cli_main(
+        [
+            "datagen",
+            "--n_samples_per_batch=7",
+            "--n_batches=3",
+            "--n_features=8",
+            "--n_binary=5",
+            "--n_targets=4",
+            "--data_seed=19",
+            f"--device={device}",
+            f"--fmt={fmt}",
+            "--saveto=source-b,source-a",
+        ]
+    )
+    X, y = load_all(["source-b", "source-a"], "cpu")
+    expected_X, expected_y = make_imbalanced_regression(
+        "cpu", 21, 8, 4, n_binary=5, random_state=19
+    )
+    np.testing.assert_allclose(X, expected_X, rtol=1e-5, atol=1e-6)
+    np.testing.assert_allclose(y, expected_y, rtol=1e-5, atol=1e-6)
+    cli_main(
+        [
+            "datagen",
+            "--loadfrom=source-b,source-a",
+            "--saveto=targets-b,targets-a",
+            "--n_targets=3",
+            "--data_seed=29",
+            f"--device={device}",
+        ]
+    )
+    for suffix in ("a", "b"):
+        shared = Path(f"targets-{suffix}/X")
+        assert shared.is_symlink()
+        assert shared.resolve() == Path(f"source-{suffix}/X").resolve()
+    shared_X, new_y = load_all(["targets-b", "targets-a"], "cpu")
+    np.testing.assert_array_equal(X, shared_X)
+    expected_y = make_regression_targets(X, 3, random_state=29)
+    np.testing.assert_allclose(new_y, expected_y, rtol=1e-5, atol=1e-6)
+    _, original_y = load_all(["source-b", "source-a"], "cpu")
+    np.testing.assert_array_equal(y, original_y)
+    # Reject existing labels and mismatched feature links before modifying either.
+    with pytest.raises(ValueError, match="already contains"):
+        regenerate_targets(["source-b", "source-a"], ["targets-b", "targets-a"], 2)
+    _, intact_y = load_all(["targets-b", "targets-a"], "cpu")
+    np.testing.assert_array_equal(new_y, intact_y)
+
+
+@pytest.mark.parametrize(
+    "args,message",
+    [
+        ([], "are required"),
+        (["--n_binary=-1"], "n_binary must be"),
+        (["--n_binary=9"], "n_binary must be"),
+        (["--n_binary=3", "--n_targets=0"], "must be positive"),
+        (["--n_binary=3", "--data_seed=-1"], "must be nonnegative"),
+        (["--n_binary=3", "--sparsity=0.1"], "zero sparsity"),
+        (["--n_binary=3", "--assparse"], "dense regression"),
+        (["--n_binary=3", "--target_type=bin"], "dense regression"),
+        (["--n_binary=3", "--fmt=npz"], "npy or kio"),
+        (["--loadfrom=source"], "infers feature shapes"),
+    ],
+)
+def test_imbalanced_invalid_args(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], args: list[str], message: str
+) -> None:
+    shape = ["--n_samples_per_batch=7", "--n_features=8"] if args else []
+    with pytest.raises(SystemExit) as exc:
+        cli_main(
+            ["datagen", "--device=cpu", f"--saveto={tmp_path / 'out'}", *shape, *args]
+        )
+    assert exc.value.code == 2
+    assert message in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()

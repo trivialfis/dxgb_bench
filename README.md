@@ -50,6 +50,33 @@ Examples
 dxgb-bench datagen --n_samples_per_batch=4194304 --n_batches=4 --n_features=512 --device=cpu --fmt=npy
 ```
 
+- Generate imbalanced feature groups (3072 binary columns followed by 1008 standard
+  normal columns) with four regression targets:
+``` sh
+dxgb-bench datagen --n_samples_per_batch=131072 --n_batches=4 --n_features=4080 --n_binary=3072 --n_targets=4 --device=cpu --fmt=npy --saveto=imb-data
+```
+
+`--n_binary` enables the mixed-feature generator. It accepts zero through
+`--n_features`, supports CPU and CUDA, and requires dense regression data with zero
+sparsity. Targets follow a fixed linear model with independent unit normal noise;
+changing the batch size or target count does not change the features. `--data_seed`
+defaults to 2026 in this mode. Rebuild the native library when updating the generator.
+
+- Reuse stored features and generate new regression targets:
+``` sh
+dxgb-bench datagen --loadfrom=imb-data --saveto=imb-targets --n_targets=4 --data_seed=2027 --device=cpu
+```
+
+This reads the existing batch shapes and storage format, links the source `X`
+directories, and writes new `y` strips. Source and destination must have the same
+number of shard directories; comma-separated paths use the usual sorted shard order.
+Keep the source features available while using the new dataset. The default seed for
+replacement targets is 2027. Both modes require destinations without existing `X` or
+`y` entries to prevent mixing old and new data.
+
+`imb/gen.py` and `imb/gen_y.py` also call these backend functions. Their random samples
+differ from the original scripts, and batches now share one fixed coefficient matrix.
+
 - Run training with the generated data:
 ``` sh
 dxgb-bench bench --task=qdm --n_rounds=10

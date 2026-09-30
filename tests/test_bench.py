@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 import xgboost as xgb
 
-from dxgb_bench.dxgb_bench import bench, cli_main, datagen
+from dxgb_bench.datasets.generated import datagen
+from dxgb_bench.dxgb_bench import bench, cli_main
 from dxgb_bench.testing import Device, devices
 from dxgb_bench.utils import Opts, Timer
 
