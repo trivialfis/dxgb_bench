@@ -13,7 +13,7 @@ def main() -> None:
         "--output_dir", type=Path, required=True, help="New results directory."
     )
     parser.add_argument("--n_batches", type=int, default=4)
-    parser.add_argument("--n_samples_per_batch", type=int, default=2**17)
+    parser.add_argument("--n_samples_per_batch", type=int, default=2**20)
     parser.add_argument("--n_rounds", type=int, default=16)
     parser.add_argument(
         "--gpu", type=int, default=0, help="nvidia-smi GPU index (default: 0)."
