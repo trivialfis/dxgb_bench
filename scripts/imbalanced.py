@@ -14,12 +14,11 @@ def main() -> None:
     )
     parser.add_argument("--n_batches", type=int, default=4)
     parser.add_argument("--n_samples_per_batch", type=int, default=2**20)
-    parser.add_argument("--n_rounds", type=int, default=16)
     parser.add_argument(
         "--gpu", type=int, default=0, help="nvidia-smi GPU index (default: 0)."
     )
     args = parser.parse_args()
-    if min(args.n_batches, args.n_samples_per_batch, args.n_rounds) <= 0:
+    if min(args.n_batches, args.n_samples_per_batch) <= 0:
         parser.error("Batch, sample, and round counts must be positive.")
 
     common = [
@@ -34,7 +33,7 @@ def main() -> None:
         "--n_binary=3072",
         "--data_seed=2026",
         "--n_bins=256",
-        f"--n_rounds={args.n_rounds}",
+        f"--n_rounds=128",
         f"--n_samples_per_batch={args.n_samples_per_batch}",
         f"--n_batches={args.n_batches}",
     ]
