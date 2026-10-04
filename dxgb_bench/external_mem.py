@@ -65,6 +65,8 @@ def make_iter(
             assparse=False,
             target_type=opts.target_type,
             device=opts.device,
+            n_binary=opts.n_binary,
+            rs=opts.data_seed,
         )
         it_train = BenchIter(
             it_impl,
@@ -89,6 +91,8 @@ def make_iter(
         assparse=False,
         target_type=opts.target_type,
         device=opts.device,
+        n_binary=opts.n_binary,
+        rs=opts.data_seed,
     )
     it_valid_impl = SynIterImpl(
         n_samples_per_batch=n_valid_samples,
@@ -99,6 +103,8 @@ def make_iter(
         assparse=False,
         target_type=opts.target_type,
         device=opts.device,
+        n_binary=opts.n_binary,
+        rs=opts.data_seed,
     )
     it_train = BenchIter(
         it_train_impl,

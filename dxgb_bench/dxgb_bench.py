@@ -251,6 +251,14 @@ def validate_bench_args(
         parser.error(
             "--assparse and --fmt are datagen options; bench detects stored formats."
         )
+    if args.n_binary is not None:
+        if not args.fly or args.target_type != "reg" or args.sparsity != 0.0:
+            parser.error("--n_binary requires --fly with regression and zero sparsity.")
+        if not 0 <= args.n_binary <= args.n_features:
+            parser.error("--n_binary must be between zero and --n_features.")
+    if args.data_seed is not None:
+        if args.n_binary is None or args.data_seed < 0:
+            parser.error("--data_seed requires --n_binary and must be nonnegative.")
     for name in ("cache_host_ratio", "min_cache_page_bytes"):
         if getattr(args, name) is not None and (
             args.task != "ext-qdm-iter" or args.device != "cuda"
@@ -287,6 +295,14 @@ def cli_main(argv: list[str] | None = None) -> None:
     # Benchmark parser
     bh_parser = add_device_param(bh_parser)
     bh_parser = add_data_params(bh_parser, False, n_features=512)
+    bh_parser.add_argument(
+        "--n_binary",
+        type=int,
+        help="With --fly, generate binary columns followed by continuous columns; regression only.",
+    )
+    bh_parser.add_argument(
+        "--data_seed", type=int, help="Seed for --n_binary (default: 2026)."
+    )
     bh_parser.add_argument(
         "--fly",
         action="store_true",
@@ -387,6 +403,8 @@ def cli_main(argv: list[str] | None = None) -> None:
             target_type=args.target_type,
             cache_host_ratio=args.cache_host_ratio,
             min_cache_page_bytes=args.min_cache_page_bytes,
+            n_binary=args.n_binary,
+            data_seed=args.data_seed,
         )
 
         is_cuda = opts.device == "cuda"

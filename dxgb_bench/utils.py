@@ -485,6 +485,8 @@ class Opts:
     target_type: str
     cache_host_ratio: float | None
     min_cache_page_bytes: int | None
+    n_binary: int | None = None
+    data_seed: int | None = None
 
 
 def merge_opts(opts: Opts, params: dict[str, Any]) -> dict[str, Any]:

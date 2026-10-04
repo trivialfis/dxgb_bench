@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import numpy as np
 import pytest
 import xgboost as xgb
 
@@ -103,12 +104,84 @@ def test_bench_cli() -> None:
     assert xgb.Booster(model_file="model.json").num_boosted_rounds() == 2
 
 
+@pytest.mark.parametrize("device", devices())
+@pytest.mark.parametrize(
+    "n_targets,strategy", [(1, "one_output_per_tree"), (4, "multi_output_tree")]
+)
+def test_imbalanced_bench(device: Device, n_targets: int, strategy: str) -> None:
+    """The CLI must train on the same mixed features as the stored generator."""
+    common = [
+        "bench",
+        "--task=qdm-iter",
+        f"--device={device}",
+        "--mr=cuda",
+        f"--multi_strategy={strategy}",
+        "--n_rounds=2",
+        "--max_depth=2",
+        "--n_bins=16",
+    ]
+    cli_main(
+        common
+        + [
+            "--fly",
+            "--n_samples_per_batch=256",
+            "--n_batches=2",
+            "--n_features=8",
+            "--n_binary=5",
+            f"--n_targets={n_targets}",
+            "--data_seed=29",
+        ]
+    )
+    generated = json.loads(Path("incore-0.json").read_text())
+    assert generated["opts"]["n_binary"] == 5
+    assert generated["opts"]["data_seed"] == 29
+    assert generated["opts"]["n_targets"] == n_targets
+    assert generated["timer"]["Train"]["Train"] > 0
+
+    datagen(
+        256,
+        8,
+        n_targets,
+        2,
+        assparse=False,
+        target_type="reg",
+        sparsity=0.0,
+        device=device,
+        outdirs=["data"],
+        fmt="npy",
+        n_binary=5,
+        random_state=29,
+    )
+    Timer.reset()
+    cli_main(common + ["--loadfrom=data"])
+    stored = json.loads(Path("incore-1.json").read_text())
+    np.testing.assert_allclose(
+        generated["evals"]["Train"]["rmse"], stored["evals"]["Train"]["rmse"]
+    )
+
+
 @pytest.mark.parametrize(
     "args,message",
     [
         (["--task=qdm", "--fly"], "--fly requires an iterator task"),
         (["--task=ext-qdm-iter", "--tree_method=approx"], "requires --tree_method"),
         (["--task=qdm-iter", "--cache_host_ratio=0.5"], "--cache_host_ratio requires"),
+        (["--task=qdm-iter", "--n_binary=3"], "--n_binary requires --fly"),
+        (
+            ["--task=qdm-iter", "--fly", "--n_samples_per_batch=32", "--n_binary=513"],
+            "--n_binary must be between",
+        ),
+        (
+            [
+                "--task=qdm-iter",
+                "--fly",
+                "--n_samples_per_batch=32",
+                "--n_binary=3",
+                "--sparsity=0.1",
+            ],
+            "--n_binary requires --fly",
+        ),
+        (["--task=qdm-iter", "--data_seed=29"], "--data_seed requires --n_binary"),
     ],
 )
 def test_bench_invalid_args(
