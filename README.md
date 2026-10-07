@@ -12,6 +12,31 @@ Run `python dev/build_image.py --help` for more options.
 
 Building from source
 --------------------
+Install the Python package and compile its native data generator in one step:
+
+``` sh
+pip install .
+```
+
+Pass CMake options using `cmake.args` (repeatable), for example:
+
+``` sh
+pip install . --config-settings=cmake.args="-DCMAKE_CUDA_ARCHITECTURES=89"
+pip install -e . --config-settings=cmake.args="-DCMAKE_BUILD_TYPE=Debug"
+```
+
+`CMAKE_ARGS` also accepts space-separated CMake options; pip's `cmake.args`
+options take precedence. Builds use `build/hatch`, and honor `CMAKE_GENERATOR`
+and `CMAKE_BUILD_PARALLEL_LEVEL`. Editable installs also build the native library;
+rerun the install after changing C++ or CUDA sources.
+
+To produce an sdist and a wheel rebuilt from that sdist:
+
+``` sh
+pip install build
+python -m build
+```
+
 Bare-metal and container builds share [pixi.toml](pixi.toml). Build the C++ data
 generator and install the benchmark with:
 

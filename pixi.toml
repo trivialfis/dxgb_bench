@@ -38,6 +38,8 @@ pip = "*"
 setuptools = "*"
 setuptools-scm = "*"
 hatchling = "*"
+hatch-vcs = "*"
+editables = "*"
 scikit-build-core = "*"
 
 # Python testing

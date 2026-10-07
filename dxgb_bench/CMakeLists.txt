@@ -58,4 +58,5 @@ function(set_output_directory target dir)
     ARCHIVE_OUTPUT_DIRECTORY_MINSIZEREL ${dir})
 endfunction()
 
-set_output_directory(dxgbbench ${CMAKE_SOURCE_DIR})
+set(DXGB_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}" CACHE PATH "Native library output directory")
+set_output_directory(dxgbbench "${DXGB_OUTPUT_DIRECTORY}")
