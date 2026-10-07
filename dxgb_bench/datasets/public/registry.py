@@ -6,6 +6,65 @@ from . import processors
 from .models import DatasetSpec, Task
 
 DATASETS: dict[str, DatasetSpec] = {
+    "hazelnut-spread-contaminant-detection": DatasetSpec(
+        name="hazelnut-spread-contaminant-detection",
+        title="Hazelnut Spread Contaminant Detection (TabArena)",
+        task="classification",
+        source_url="https://data.openml.org/datasets/0004/46930/dataset_46930.pq",
+        source_filename="openml_46930.parquet",
+        repository_url="https://www.openml.org/d/46930",
+        rows=2_400,
+        features=30,
+        outputs=2,
+        split_kind="stratified",
+        citation=(
+            "Ricci, M. et al. (2021). Machine-learning-based microwave sensing: "
+            "A case study for the food industry. doi:10.1109/JETCAS.2021.3097699. "
+            "TabArena curated version, OpenML dataset 46930."
+        ),
+        license="CC BY-SA",
+        target="Contaminated",
+        prepare=processors._prepare_categorical_table,
+    ),
+    "polish_companies_bankruptcy": DatasetSpec(
+        name="polish_companies_bankruptcy",
+        title="Polish Companies Bankruptcy (TabArena)",
+        task="classification",
+        source_url="https://data.openml.org/datasets/0004/46950/dataset_46950.pq",
+        source_filename="openml_46950.parquet",
+        repository_url="https://www.openml.org/d/46950",
+        rows=5_910,
+        features=64,
+        outputs=2,
+        split_kind="stratified",
+        citation=(
+            "Polish Companies Bankruptcy. UCI Machine Learning Repository. "
+            "doi:10.24432/C5F600. TabArena curated version, OpenML dataset 46950."
+        ),
+        license="CC BY 4.0",
+        target="company_bankrupt",
+        prepare=processors._prepare_categorical_table,
+    ),
+    "physiochemical_protein": DatasetSpec(
+        name="physiochemical_protein",
+        title="Physicochemical Properties of Protein Tertiary Structure (TabArena)",
+        task="regression",
+        source_url="https://data.openml.org/datasets/0004/46949/dataset_46949.pq",
+        source_filename="openml_46949.parquet",
+        repository_url="https://www.openml.org/d/46949",
+        rows=45_730,
+        features=9,
+        outputs=1,
+        split_kind="random",
+        citation=(
+            "Rana, P. (2013). Physicochemical Properties of Protein Tertiary "
+            "Structure. UCI Machine Learning Repository. doi:10.24432/C5QW3H. "
+            "TabArena curated version, OpenML dataset 46949."
+        ),
+        license="CC BY 4.0",
+        target="ResidualSize",
+        prepare=processors._prepare_categorical_table,
+    ),
     "sarcos": DatasetSpec(
         name="sarcos",
         title="SARCOS",
